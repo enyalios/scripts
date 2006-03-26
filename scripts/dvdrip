@@ -1,0 +1,188 @@
+#!/bin/bash
+
+title="1"
+aid="-aid 128"
+bitrate=""
+crop=""
+size=""
+dvd_device=""
+sid=""
+append=""
+outfile="movie.avi"
+infile="dvd://${title}"
+deint=""
+width="640"
+audiomethod="cbr"
+
+print_help() 
+{
+    echo -e ""
+    echo -e "Usage:"
+    echo -e "\t`basename $0` [options]"
+    echo -e ""
+    echo -e "Options:"
+    echo -e "\t-a n\t\taid number (default: 128)"
+    echo -e "\t-ap string\tappend <string> to rip commands"
+    echo -e "\t-b n\t\tbitrate in kbits"
+    echo -e "\t-c n:n:n:n\tcrop region (use 'mplayer -vop cropdetect')"
+    echo -e "\t-d path\t\tdvd device (default: /dev/dvd)"
+    echo -e "\t-di\t\tdeinterlace video"
+    echo -e "\t-h\t\tthis help message"
+    echo -e "\t-i file\t\tinput file (defaults to dvd)"
+    echo -e "\t-o file\t\twrite movie to <file> (default: movie.avi)"
+    echo -e "\t-s n\t\tfilesize in megabytes"
+    echo -e "\t-S n\t\tsubtitle id"
+    echo -e "\t-t n\t\tdvd title number (default: 1)"
+    echo -e "\t-w n\t\tvideo width (default: 640)"
+    echo -e "\t-e (cbr|abr)\taudio encoding method"
+    echo -e ""
+    exit 1
+}
+
+while [ "$1" != "" ]; do
+    case "$1" in
+        -c)
+	    echo $2 | egrep -v '^-' | egrep -v '^$' &> /dev/null
+	    if [[ $? == 0 ]]; then
+		crop="crop=$2,";
+		shift
+	    else
+		crop="crop=auto,";
+	    fi
+        ;;
+        -s)
+        shift
+        size="$1"
+        ;;
+        -b)
+        shift
+        bitrate="$1"
+        ;;
+        -t)
+        shift
+        infile="dvd://$1"
+        ;;
+        -a)
+        shift
+        aid="-aid $1"
+        ;;
+        -d)
+        shift
+        dvd_device="-dvd-device $1"
+        ;;
+        -ap)
+        shift
+        append="$1"
+        ;;
+        -S)
+        shift
+        sid="-sid $1"
+        ;;
+        -o)
+        shift
+        outfile="$1"
+        ;;
+        -i)
+        shift
+        infile="$1"
+	aid=""
+        ;;
+        -di)
+        deint="lavcdeint,"
+        ;;
+        -e)
+        deint="lavcdeint,"
+        ;;
+        -w)
+        shift
+        width="$1"
+        ;;
+        *)
+        print_help
+    esac
+    shift
+done
+
+[ "$bitrate" = "" -a "$size" = "" ] &&
+echo "You must specify either a bitrate or a filesize." && print_help
+
+[ "$bitrate" != "" -a "$size" != "" ] &&
+echo "You cannot specify both a bitrate and a filesize." && print_help
+
+if [ "$crop" = "crop=auto," ] || [ "$crop" = "crop=," ]; then
+
+    list=cropdetect-$$.list
+    uniq=cropdetect-$$.uniq
+    log=cropdetect-$$.log
+    
+    mplayer ${dvd_device} ${aid} ${infile} -vf cropdetect \
+	-sstep 100 -vo null -ao null \
+	| grep 'crop area' \
+	| awk 'BEGIN{FS="-vf "} {print $2;}' \
+	| awk 'BEGIN{FS=")"} {print $1;}' >> $list
+    
+    sort -u $list > $uniq
+    
+    echo -n > $log
+    
+    for line in `cat $uniq`; do
+	grep --count $line $list >> $log
+	echo $line >> $log
+	echo >> $log
+    done
+    
+    crop=`cat $log \
+          | awk 'BEGIN{RS="";FS="\n";OFS=":"} {print $1,$2}' \
+          | sort -g \
+          | awk 'BEGIN{FS="crop";OFS="";} {print "crop",$2,","}' \
+          | tail -n1`
+fi
+
+
+echo "Title      = $title"
+echo "AID        = $aid"
+[ "$bitrate" != "" ] &&
+echo "Bitrate    = $bitrate"
+[ "$size" != "" ] &&
+echo "Filesize   = $size"
+[ "$crop" != "" ] &&
+echo "Croparea   = $crop"
+[ "$dvd_device" != "" ] &&
+echo "DVD device = $dvd_device"
+echo "Output     = $outfile"
+[ "$sid" != "" ] &&
+echo "SID        = $sid"
+[ "$append" != "" ] &&
+echo "Append     = $append"
+[ "$nosound" = "1" ] &&
+echo "Skipping audio."
+
+echo -n "Starting rip in..."
+for i in `seq 5 -1 1`; do
+    echo -n " $i"; sleep 1
+done
+echo
+
+
+if [ "$bitrate" = "" ]; then
+    echo "Encoding audio."
+    [ -e frameno-$$.avi ] && rm frameno-$$.avi
+    mencoder ${infile} -ovc frameno -o frameno-$$.avi -oac mp3lame \
+        -lameopts ${audiomethod}:br=128 ${aid} ${dvd_device}
+    length=$(mplayer -frames 0 -identify -vo null -ao null frameno-$$.avi \
+        2>/dev/null | grep ID_LENGTH | sed -e 's/^.*=//g')
+    bitrate=$(echo "$size*1024*8/$length" | bc)
+fi
+
+[ -e divx2pass.log ] && rm divx2pass.log
+
+echo "Encoding video, first pass."
+
+mencoder ${infile} -oac mp3lame -lameopts ${audiomethod}:br=128 -o ${outfile} -ovc \
+lavc -lavcopts vcodec=mpeg4:vbitrate=${bitrate}:mbd=2:v4mv:trell:vpass=1 \
+-vf ${deint}${crop}scale -zoom -xy ${width} ${dvd_device} ${sid} ${append} ${aid}
+
+echo "Encoding video, second pass."
+mencoder ${infile} -oac mp3lame -lameopts ${audiomethod}:br=128 -o ${outfile} -ovc \
+lavc -lavcopts vcodec=mpeg4:vbitrate=${bitrate}:mbd=2:v4mv:trell:vpass=2 \
+-vf ${deint}${crop}scale -zoom -xy ${width} ${dvd_device} ${sid} ${append} ${aid}
