@@ -1,188 +1,161 @@
-#!/bin/bash
+#!/usr/bin/perl
 
-title="1"
-aid="-aid 128"
-bitrate=""
-crop=""
-size=""
-dvd_device=""
-sid=""
-append=""
-outfile="movie.avi"
-infile="dvd://${title}"
-deint=""
-width="640"
-audiomethod="cbr"
+use warnings;
+use strict;
+use Getopt::Std;
 
-print_help() 
-{
-    echo -e ""
-    echo -e "Usage:"
-    echo -e "\t`basename $0` [options]"
-    echo -e ""
-    echo -e "Options:"
-    echo -e "\t-a n\t\taid number (default: 128)"
-    echo -e "\t-ap string\tappend <string> to rip commands"
-    echo -e "\t-b n\t\tbitrate in kbits"
-    echo -e "\t-c n:n:n:n\tcrop region (use 'mplayer -vop cropdetect')"
-    echo -e "\t-d path\t\tdvd device (default: /dev/dvd)"
-    echo -e "\t-di\t\tdeinterlace video"
-    echo -e "\t-h\t\tthis help message"
-    echo -e "\t-i file\t\tinput file (defaults to dvd)"
-    echo -e "\t-o file\t\twrite movie to <file> (default: movie.avi)"
-    echo -e "\t-s n\t\tfilesize in megabytes"
-    echo -e "\t-S n\t\tsubtitle id"
-    echo -e "\t-t n\t\tdvd title number (default: 1)"
-    echo -e "\t-w n\t\tvideo width (default: 640)"
-    echo -e "\t-e (cbr|abr)\taudio encoding method"
-    echo -e ""
-    exit 1
+# declaring variables and setting up the defaults
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+$main::VERSION  = "0.01";
+$ENV{MPLAYER_VERBOSE} = "-2";
+my %opts;
+my $title       = "1";
+my $aid         = "-aid 128";
+my $bitrate     = "";
+my $crop        = "";
+my $size        = "";
+my $dvd_device  = "";
+my $sid         = "";
+my $outfile     = "movie-$$.avi";
+my $infile      = "dvd://${title}";
+my $deint       = "";
+my $noise       = "";
+my $width       = "640";
+
+# useful help message
+sub HELP_MESSAGE {
+    print <<EOF;
+
+Usage:
+    $0 [options]
+
+Options:
+    -a n            aid number (default: 128)
+    -b n            bitrate in kbits
+    -c              crop borders (region is auto-detected)
+    -d path         dvd device (default: /dev/dvd)
+    -h              this help message
+    -i file         input file (defaults to dvd)
+    -l              deinterlace video
+    -n              denoise video
+    -o file         write movie to <file> (default: movie-<pid>.mkv)
+    -p              pretend (print out commands, but do not run them)
+    -s n            target filesize in megabytes
+    -S n            subtitle id number
+    -t n            dvd title number (default: 1)
+    -w n            video width (default: 640)
+   
+EOF
+
+    exit 1;
 }
 
-while [ "$1" != "" ]; do
-    case "$1" in
-        -c)
-	    echo $2 | egrep -v '^-' | egrep -v '^$' &> /dev/null
-	    if [[ $? == 0 ]]; then
-		crop="crop=$2,";
-		shift
-	    else
-		crop="crop=auto,";
-	    fi
-        ;;
-        -s)
-        shift
-        size="$1"
-        ;;
-        -b)
-        shift
-        bitrate="$1"
-        ;;
-        -t)
-        shift
-        infile="dvd://$1"
-        ;;
-        -a)
-        shift
-        aid="-aid $1"
-        ;;
-        -d)
-        shift
-        dvd_device="-dvd-device $1"
-        ;;
-        -ap)
-        shift
-        append="$1"
-        ;;
-        -S)
-        shift
-        sid="-sid $1"
-        ;;
-        -o)
-        shift
-        outfile="$1"
-        ;;
-        -i)
-        shift
-        infile="$1"
-	aid=""
-        ;;
-        -di)
-        deint="lavcdeint,"
-        ;;
-        -e)
-        deint="lavcdeint,"
-        ;;
-        -w)
-        shift
-        width="$1"
-        ;;
-        *)
-        print_help
-    esac
-    shift
-done
+# a nice function to either run or simply print system calls
+sub my_system {
+    $_[0] =~ s/[\n ]+/ /gm;
+    $opts{p} ? print "$_[0]\n" : system $_[0];
+}
 
-[ "$bitrate" = "" -a "$size" = "" ] &&
-echo "You must specify either a bitrate or a filesize." && print_help
-
-[ "$bitrate" != "" -a "$size" != "" ] &&
-echo "You cannot specify both a bitrate and a filesize." && print_help
-
-if [ "$crop" = "crop=auto," ] || [ "$crop" = "crop=," ]; then
-
-    list=cropdetect-$$.list
-    uniq=cropdetect-$$.uniq
-    log=cropdetect-$$.log
+# parse our arguments to set up variables and bail if necessary
+sub parse_args {
+    getopts('a:b:cd:hi:lno:ps:S:t:w:e:', \%opts);
+    HELP_MESSAGE() if $opts{h};
+    $bitrate = $opts{b} if $opts{b};
+    $size = $opts{s} if $opts{s};
+    unless($bitrate || $size) {
+        print "You must specify either a bitrate or a filesize.\n";
+        HELP_MESSAGE();
+    }
+    if($bitrate && $size) {
+        print "You cannot specify both a bitrate and a filesize.\n";
+        HELP_MESSAGE();
+    }
+    $aid = "-aid $opts{a}" if $opts{a};
+    $dvd_device = "-dvd-device $opts{d}" if $opts{d};
+    ($infile = "\"$opts{i}\"", $aid = "") if $opts{i};
+    $deint = "lavcdeint," if $opts{l};
+    $noise = ":nr=200" if $opts{n}; # i should play with this number
+    $outfile = $opts{o} if $opts{o};
+    $sid = "-sid $opts{S}" if $opts{S};
+    $infile = "dvd://$opts{t}" if $opts{t};
     
-    mplayer ${dvd_device} ${aid} ${infile} -vf cropdetect \
-	-sstep 100 -vo null -ao null \
-	| grep 'crop area' \
-	| awk 'BEGIN{FS="-vf "} {print $2;}' \
-	| awk 'BEGIN{FS=")"} {print $1;}' >> $list
+    # this rounds the width the user gives us to the nearest multiple of
+    # 16 since video codecs are much more efficient if this is the case
+    $width = $opts{w} if $opts{w};
+    $width = 16 * int(($width + 8)/16);
     
-    sort -u $list > $uniq
-    
-    echo -n > $log
-    
-    for line in `cat $uniq`; do
-	grep --count $line $list >> $log
-	echo $line >> $log
-	echo >> $log
-    done
-    
-    crop=`cat $log \
-          | awk 'BEGIN{RS="";FS="\n";OFS=":"} {print $1,$2}' \
-          | sort -g \
-          | awk 'BEGIN{FS="crop";OFS="";} {print "crop",$2,","}' \
-          | tail -n1`
-fi
+    # this part is sorta crazy.  we want to auto-detect the crop region so
+    # we spawn mplayer telling it to cropdetect, but to step thru the video
+    # 100 frames at a time but only do a max of 200 frames.  we also tell 
+    # it not to show audio or video here since this is just a command line
+    # script.  finally we grap the 'crop=...' part from the last line that
+    # starts with 'crop area:' since this is the region that mplayer decided
+    # is best.
+    if($opts{c}) {
+        print "### Calculating crop region...\n" unless $opts{p};
+        $_ = (grep { /^crop area:/ } `mplayer $dvd_device $infile -vo null \\
+            -ao null -vf cropdetect -sstep 100 -frames 200 2>/dev/null`)[-1];
+        $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
+    }
+}
 
+sub audio_pass {
+    print "### Encoding audio...\n";
+    # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
+    my_system("mkfifo pipe-$$");
+    my_system("oggenc -o audio-$$.ogg -b 96 pipe-$$ & mplayer -vo null -vc 
+        dummy -ao pcm:file=pipe-$$ $infile $aid $dvd_device 2>/dev/null");
 
-echo "Title      = $title"
-echo "AID        = $aid"
-[ "$bitrate" != "" ] &&
-echo "Bitrate    = $bitrate"
-[ "$size" != "" ] &&
-echo "Filesize   = $size"
-[ "$crop" != "" ] &&
-echo "Croparea   = $crop"
-[ "$dvd_device" != "" ] &&
-echo "DVD device = $dvd_device"
-echo "Output     = $outfile"
-[ "$sid" != "" ] &&
-echo "SID        = $sid"
-[ "$append" != "" ] &&
-echo "Append     = $append"
-[ "$nosound" = "1" ] &&
-echo "Skipping audio."
+    # here we have to calculate the video bitrate if they just gave us a
+    # target file size.  first we find the length and size of the audio track.
+    # then we find out how much space we have left after subtracting the audio
+    # size and container overhead from the target file size.  this crazy
+    # calculation gives us or needed bitrate which we then round down to an
+    # integer so mencoder doesnt barf.
+    if(!$bitrate) {
+        if($opts{p}) {
+            # some crazy commands to dynamically determine the video bitrate
+            # if we are doing a 'pretend'
+            print "\n### Determining video bitrate...\n";
+            print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(ls -l ", 
+            "audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames 0 ", 
+            "-identify -vo null -ao null audio-$$.ogg 2>/dev/null | sed -ne ", 
+            "'s/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e 's/\\..*//')\n";
+            $bitrate = "\${video_bitrate}" unless $bitrate;
+        } else {
+            my $alength = (map { (/^ID_LENGTH=([\d.]+)$/)[0] } 
+                `mplayer -v -frames 0 -identify -vo null -ao null \\
+                    audio-$$.ogg 2>/dev/null`)[0];
+            my $asize = -s "audio-$$.ogg";
+            $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
+        }
+    }
+}
 
-echo -n "Starting rip in..."
-for i in `seq 5 -1 1`; do
-    echo -n " $i"; sleep 1
-done
-echo
+sub video1_pass {
+    print "\n### Encoding first pass...\n";
+    my_system("mencoder $infile -o /dev/null -passlogfile divx2pass-$$.log -oac 
+        copy -ovc x264 -x264encopts pass=1:bitrate=${bitrate}${noise}:turbo=1 
+        -vf ${deint}${crop}scale=$width:-10 -zoom $dvd_device $sid -msglevel 
+        avsync=5 2>/dev/null");
+}
 
+sub video2_pass {
+    print "\n### Encoding second pass...\n";
+    my_system("mencoder $infile -o video-$$.avi -passlogfile divx2pass-$$.log 
+        -oac copy -ovc x264 -x264encopts pass=2:bitrate=${bitrate}${noise} 
+        -vf ${deint}${crop}scale=$width:-10 -zoom $dvd_device $sid -msglevel 
+        avsync=5 2>/dev/null");
+}
 
-if [ "$bitrate" = "" ]; then
-    echo "Encoding audio."
-    [ -e frameno-$$.avi ] && rm frameno-$$.avi
-    mencoder ${infile} -ovc frameno -o frameno-$$.avi -oac mp3lame \
-        -lameopts ${audiomethod}:br=128 ${aid} ${dvd_device}
-    length=$(mplayer -frames 0 -identify -vo null -ao null frameno-$$.avi \
-        2>/dev/null | grep ID_LENGTH | sed -e 's/^.*=//g')
-    bitrate=$(echo "$size*1024*8/$length" | bc)
-fi
+sub mux_pass {
+    print "\n### Muxing audio and video...\n";
+    my_system("mkvmerge --engage allow_avc_in_vfw_mode --default-language 
+        eng -o $outfile -A video-$$.avi audio-$$.ogg");
+}
 
-[ -e divx2pass.log ] && rm divx2pass.log
-
-echo "Encoding video, first pass."
-
-mencoder ${infile} -oac mp3lame -lameopts ${audiomethod}:br=128 -o ${outfile} -ovc \
-lavc -lavcopts vcodec=mpeg4:vbitrate=${bitrate}:mbd=2:v4mv:trell:vpass=1 \
--vf ${deint}${crop}scale -zoom -xy ${width} ${dvd_device} ${sid} ${append} ${aid}
-
-echo "Encoding video, second pass."
-mencoder ${infile} -oac mp3lame -lameopts ${audiomethod}:br=128 -o ${outfile} -ovc \
-lavc -lavcopts vcodec=mpeg4:vbitrate=${bitrate}:mbd=2:v4mv:trell:vpass=2 \
--vf ${deint}${crop}scale -zoom -xy ${width} ${dvd_device} ${sid} ${append} ${aid}
+parse_args();
+audio_pass();
+video1_pass();
+video2_pass();
+mux_pass();
