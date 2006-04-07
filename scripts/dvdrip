@@ -47,9 +47,8 @@ my $specification = q(
                               $::size = ""; }
     --bitrate <n:+i>        \t[ditto]
 
-    -c [<region>]           \tcrop borders (region auto-detected if omitted)
-                              { reject unless $region =~ /^(\d+:\d+:\d+:\d+)?$/;
-                                $::crop = "auto"; 
+    -c [<region:/(\d+:){3}\d+/>] \tcrop borders (omit region to auto-detect)
+                              { $::crop = "auto"; 
                                 $::crop = $region if (defined $region);}
     --crop [<region>]       \t[ditto]
 
@@ -112,18 +111,19 @@ sub my_system {
 }
 
 sub print_options {
-    print "#aid        $aid\n";
-    print "#bitrate    $bitrate\n";
-    print "#crop       $crop\n";
-    print "#size       $size\n";
-    print "#dvd-device $dvd_device\n";
-    print "#sid        $sid\n";
-    print "#outfile    $outfile\n";
-    print "#infile     $infile\n";
-    print "#deint      $deint\n";
-    print "#noise      $noise\n";
-    print "#width      $width\n";
-    print "#pretend    $pretend\n\n";
+    print "# infile     = $infile\n" if $infile;
+    print "# outfile    = $outfile\n";
+    print "# bitrate    = $bitrate\n" if $bitrate;
+    print "# size       = $size\n" if $size;
+    print "# width      = $width\n";
+    print "# crop       = $crop\n" if $crop;
+    print "# dvd-device = $dvd_device\n" if $dvd_device;
+    print "# aid        = $aid\n" if $aid;
+    print "# sid        = $sid\n" if $sid;
+    print "# deinterlacing\n" if $deint;
+    print "# denoising\n" if $noise;
+    print "# pretend rip\n" if $pretend;
+    print "\n";
 
     if (! $pretend) {
         local $| = 1; #autoflush on for this block
@@ -174,10 +174,10 @@ sub audio_pass {
             # if we are doing a 'pretend'
             print "\n### Determining video bitrate...\n";
             print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(ls -l ", 
-            "$prefix/audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames 0 ", 
-            "-identify -vo null -ao null $prefix/audio-$$.ogg 2>/dev/null | ",
-            "sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | ",
-            "sed -e 's/\\..*//')\n";
+            "$prefix/audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames", 
+            "0 -identify -vo null -ao null $prefix/audio-$$.ogg 2>/dev/null ",
+            "| sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e ", 
+            "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
 
         } else {
