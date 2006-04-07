@@ -5,7 +5,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.01";
+$main::VERSION  = "0.02";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
@@ -48,7 +48,8 @@ my $specification = q(
     --bitrate <n:+i>        \t[ditto]
 
     -c [<region>]           \tcrop borders (region auto-detected if omitted)
-                              { $::crop = "auto"; 
+                              { reject unless $region =~ /^(\d+:\d+:\d+:\d+)?$/;
+                                $::crop = "auto"; 
                                 $::crop = $region if (defined $region);}
     --crop [<region>]       \t[ditto]
 
@@ -127,7 +128,7 @@ sub print_options {
     if (! $pretend) {
         local $| = 1; #autoflush on for this block
         print "encoding in ";
-        for (5,4,3,2,1) {
+        for (reverse 1 .. 5) {
             print "$_ ";
             sleep(1);
         }
@@ -138,19 +139,18 @@ sub print_options {
 sub get_crop {
     # this part is sorta crazy.  we want to auto-detect the crop region so
     # we spawn mplayer telling it to cropdetect, but to step thru the video
-    # 100 seconds at a time but only do a max of 200 frames.  we also tell 
+    # 60 seconds at a time but only do a max of 60 frames.  we also tell 
     # it not to show audio or video here since this is just a command line
     # script.  finally we grap the 'crop=...' part from the last line that
     # starts with 'crop area:' since this is the region that mplayer decided
     # is best.
     if($crop eq "auto") {
-        #print "### Calculating crop region...\n" unless $pretend;
+        print "### Calculating crop region...\n";
         $_ = (grep { /^crop area:/ } `mplayer $dvd_device $infile -vo null \\
-            -ao null -vf cropdetect -sstep 100 -frames 200 2>/dev/null`)[-1];
+            -ao null -vf cropdetect -sstep 60 -frames 60 2>/dev/null`)[-1];
         $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
-    }
-    else {
-        $crop = "crop=".$crop.",";
+    } else {
+        $crop = "crop=$crop,";
     }
 }
 
