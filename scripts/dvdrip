@@ -5,7 +5,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.02";
+$main::VERSION  = "0.03";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
@@ -37,63 +37,66 @@ my $prefix = "/var/tmp";
 # Getopt::Declare automatically generates --help output
 my $specification = q(
     [strict]
+    [pvtype: cr /\d+:\d+:\d+:\d+/]
 
-    -a <n:+i>               \taid number (default: 128)
-                              { $::aid = "-aid $n"; }
-    --aid <n:+i>            \t[ditto]
+    -a <n:+i>            \taid number (default: 128)
+                           { $::aid = "-aid $n"; }
+    --aid <n:+i>         \t[ditto]
 
-    -b <n:+i>               \tbitrate in kbits [required]
-                               { $::bitrate = $n;
-                              $::size = ""; }
-    --bitrate <n:+i>        \t[ditto]
+    -b <n:+i>            \tbitrate in kbits [required]
+                           { $::bitrate = $n;
+                             $::size = ""; }
+    --bitrate <n:+i>     \t[ditto]
 
-    -c [<region:/(\d+:){3}\d+/>] \tcrop borders (omit region to auto-detect)
-                              { $::crop = "auto"; 
-                                $::crop = $region if (defined $region);}
-    --crop [<region>]       \t[ditto]
+    -c [<region:cr>]     \tcrop borders (omit region to auto-detect)
+                           { $::crop = "auto"; 
+                             $::crop = $region if (defined $region);}
+    --crop [<region:cr>] \t[ditto]
 
-    -d <path>               \tdvd device (default: /dev/dvd)
-                              { $::dvd_device = "-dvd-device ".$path;}
-    --dvd-device <path>     \t[ditto]
+    -d <path>            \tdvd device (default: /dev/dvd)
+                           { $::dvd_device = "-dvd-device $path";}
+    --dvd-device <path>  \t[ditto]
 
-    -i <file:if>            \tinput file (defaults to dvd)
-                              { $::infile = "\"".$file."\"";
-                                $::aid = ""; }
-    --infile <file:if>      \t[ditto]
+    -i <file:if>         \tinput file (defaults to dvd)
+                           { $::infile = "\"$file\"";
+                             $::aid = ""; }
+    --infile <file:if>   \t[ditto]
 
-    -l                      \tdeinterlace video
-                              { $::deint = "lavcdeint,"; }
-    --deinterlace           \t[ditto]
+    -l                   \tdeinterlace video
+                           { # maybe switch to pullup,softskip
+                             # will prob need -ofps 24000/1001 too
+                             $::deint = "lavcdeint,"; }
+    --deinterlace        \t[ditto]
 
-    -n                      \tdenoise video
-                              { $::noise = "hqdn3d,"; }
-    --denoise               \t[ditto]
+    -n                   \tdenoise video
+                           { $::noise = "hqdn3d,"; }
+    --denoise            \t[ditto]
 
-    -o <file:of>            \twrite movie to <file> (default: movie-<pid>.mkv)
-                              { $::outfile = $file; }
-    --outfile <file:of>     \t[ditto]
+    -o <file:of>         \twrite movie to <file> (default: movie-<pid>.mkv)
+                           { $::outfile = $file; }
+    --outfile <file:of>  \t[ditto]
 
-    -p                      \tpretend (print out commands, but do not run them)
-                              { $::pretend = 1; }
-    --pretend               \t[ditto]
+    -p                   \tpretend (print out commands, but do not run them)
+                           { $::pretend = 1; }
+    --pretend            \t[ditto]
 
-    -s <n:+i>               \ttarget filesize in megabytes [required]
-                              { $::size = $n; }
-    --size <n:+i>           \t[ditto]
+    -s <n:+i>            \ttarget filesize in megabytes [required]
+                           { $::size = $n; }
+    --size <n:+i>        \t[ditto]
 
-    -S <n:+i>               \tsubtitle id number
-                              { $::sid = "-sid ".$n; }
-    --sid <n:+i>            \t[ditto]
+    -S <n:+i>            \tsubtitle id number
+                           { $::sid = "-sid ".$n; }
+    --sid <n:+i>         \t[ditto]
 
-    -t <n:+i>               \tdvd title number (default: 1)
-                              { $::infile = "dvd://".$n; }
-    --title <n:+i>          \t[ditto]
+    -t <n:+i>            \tdvd title number (default: 1)
+                           { $::infile = "dvd://".$n; }
+    --title <n:+i>       \t[ditto]
 
-    -w <n:+i>               \tvideo width (default: 640)
-                              { # round width to nearest multiple of 16 to make 
-                                # codecs more efficient
-                                $::width = 16 * int(($n + 8)/16); }
-    --width <n:+i>          \t[ditto]
+    -w <n:+i>            \tvideo width (default: 640)
+                           { # round width to nearest multiple of 16 to make 
+                             # codecs more efficient
+                             $::width = 16 * int(($n + 8)/16); }
+    --width <n:+i>       \t[ditto]
 
    [mutex: -s --size -b --bitrate][mutex: -t --title -i --infile] );
 
@@ -149,7 +152,7 @@ sub get_crop {
         $_ = (grep { /^crop area:/ } `mplayer $dvd_device $infile -vo null \\
             -ao null -vf cropdetect -sstep 60 -frames 60 2>/dev/null`)[-1];
         $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
-    } else {
+    } elsif($crop) {
         $crop = "crop=$crop,";
     }
 }
@@ -218,3 +221,15 @@ audio_pass();
 video1_pass();
 video2_pass();
 mux_pass();
+
+=for comment
+    
+TODO:
+
+make help message not hang
+remove temporary files when done
+add mutable suffix to tmp files instead of just $$
+do some testing on the new deinterlacing method
+do some testing on the new denoising method
+perhaps remove the -i and -t switches so dvds arent a special case
+crop to multiples of 4
