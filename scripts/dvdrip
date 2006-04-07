@@ -111,18 +111,18 @@ sub my_system {
 }
 
 sub print_options {
-    print "aid        $aid\n";
-    print "bitrate    $bitrate\n";
-    print "crop       $crop\n";
-    print "size       $size\n";
-    print "dvd-device $dvd_device\n";
-    print "sid        $sid\n";
-    print "outfile    $outfile\n";
-    print "infile     $infile\n";
-    print "deint      $deint\n";
-    print "noise      $noise\n";
-    print "width      $width\n";
-    print "pretend    $pretend\n\n";
+    print "#aid        $aid\n";
+    print "#bitrate    $bitrate\n";
+    print "#crop       $crop\n";
+    print "#size       $size\n";
+    print "#dvd-device $dvd_device\n";
+    print "#sid        $sid\n";
+    print "#outfile    $outfile\n";
+    print "#infile     $infile\n";
+    print "#deint      $deint\n";
+    print "#noise      $noise\n";
+    print "#width      $width\n";
+    print "#pretend    $pretend\n\n";
 
     if (! $pretend) {
         local $| = 1; #autoflush on for this block
@@ -148,9 +148,6 @@ sub get_crop {
         $_ = (grep { /^crop area:/ } `mplayer $dvd_device $infile -vo null \\
             -ao null -vf cropdetect -sstep 100 -frames 200 2>/dev/null`)[-1];
         $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
-
-        if ($pretend)
-        { $crop = "crop=auto," }
     }
     else {
         $crop = "crop=".$crop.",";
