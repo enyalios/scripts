@@ -21,6 +21,7 @@ our $deint       = "";
 our $pretend     = "";
 our $noise       = "";
 our $width       = "640";
+our $nice        = "0";
 
 my $prefix = "/var/tmp";
 
@@ -56,6 +57,12 @@ my $specification = q(
     -d <path>            \tdvd device (default: /dev/dvd)
                            { $::dvd_device = "-dvd-device $path";}
     --dvd-device <path>  \t[ditto]
+
+    -e [<n:i>]          \tnice level (10 if given without option) (note that 
+                          nice levels below 0 may require special priviliges)
+                           { $::nice = "10";
+			     $::nice = $n if (defined $n)}
+    --nice [<n:i>]      \t[ditto]
 
     -i <file:if>         \tinput file (defaults to dvd)
                            { $::infile = "\"$file\"";
@@ -107,9 +114,12 @@ $specification =~ s/\\t/\t/g;
 my $args = Getopt::Declare->new($specification);
 exit(1) unless ($args);
 
+my $nice_prefix = ($nice==0 ? "" : "nice -n$nice ");
+
 # a nice function to either run or simply print system calls
 sub my_system {
     $_[0] =~ s/[\n ]+/ /gm;
+    $_[0] = $nice_prefix.$_[0];
     $pretend ? print "$_[0]\n" : system $_[0];
 }
 
