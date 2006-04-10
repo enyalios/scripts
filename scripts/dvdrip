@@ -9,21 +9,21 @@ $main::VERSION  = "0.03";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
+my $suffix = "-$$";
+my $prefix = "/var/tmp";
 our $aid         = "-aid 128";
 our $bitrate     = "";
 our $crop        = "";
 our $size        = "700";
 our $dvd_device  = "";
 our $sid         = "";
-our $outfile     = "movie-$$.avi";
+our $outfile     = "movie${suffix}.avi";
 our $infile      = "dvd://1";
 our $deint       = "";
 our $pretend     = "";
 our $noise       = "";
 our $width       = "640";
 our $nice        = "0";
-
-my $prefix = "/var/tmp";
 
 # Getopt::Declare parameter specifications
 # read 'perldoc Getopt::Declare'
@@ -170,9 +170,9 @@ sub get_crop {
 sub audio_pass {
     print "### Encoding audio...\n";
     # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
-    my_system("mkfifo $prefix/pipe-$$");
-    my_system("oggenc -o $prefix/audio-$$.ogg -b 96 $prefix/pipe-$$ & 
-        mplayer -vo null -vc dummy -ao pcm:file=$prefix/pipe-$$ $infile 
+    my_system("mkfifo $prefix/pipe${suffix}");
+    my_system("oggenc -o $prefix/audio${suffix}.ogg -b 96 $prefix/pipe${suffix} & 
+        mplayer -vo null -vc dummy -ao pcm:file=$prefix/pipe${suffix} $infile 
         $aid $dvd_device 2>/dev/null");
 
     # here we have to calculate the video bitrate if they just gave us a
@@ -187,8 +187,8 @@ sub audio_pass {
             # if we are doing a 'pretend'
             print "\n### Determining video bitrate...\n";
             print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(ls -l ", 
-            "$prefix/audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames", 
-            "0 -identify -vo null -ao null $prefix/audio-$$.ogg 2>/dev/null ",
+            "$prefix/audio${suffix}.ogg | awk '{print \$5}')) / \$(mplayer -frames", 
+            "0 -identify -vo null -ao null $prefix/audio${suffix}.ogg 2>/dev/null ",
             "| sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e ", 
             "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
@@ -196,9 +196,10 @@ sub audio_pass {
         } else {
             my $alength = (map { (/^ID_LENGTH=([\d.]+)$/)[0] } 
                 `mplayer -v -frames 0 -identify -vo null -ao null \\
-                $prefix/audio-$$.ogg 2>/dev/null`)[0];
-            my $asize = -s "$prefix/audio-$$.ogg";
+                $prefix/audio${suffix}.ogg 2>/dev/null`)[0];
+            my $asize = -s "$prefix/audio${suffix}.ogg";
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
+            print "# bitrate    = $bitrate\n";
         }
     }
 }
@@ -206,15 +207,15 @@ sub audio_pass {
 sub video1_pass {
     print "\n### Encoding first pass...\n";
     my_system("mencoder $infile -o /dev/null 
-        -passlogfile $prefix/divx2pass-$$.log -oac copy -ovc x264 -x264encopts 
+        -passlogfile $prefix/divx2pass${suffix}.log -oac copy -ovc x264 -x264encopts 
         pass=1:bitrate=${bitrate}:turbo=1 -vf ${deint}${crop}${noise}scale=$width:-10 
         -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
 }
 
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system("mencoder $infile -o $prefix/video-$$.avi 
-        -passlogfile $prefix/divx2pass-$$.log -oac copy -ovc x264 -x264encopts 
+    my_system("mencoder $infile -o $prefix/video${suffix}.avi 
+        -passlogfile $prefix/divx2pass${suffix}.log -oac copy -ovc x264 -x264encopts 
         pass=2:bitrate=${bitrate} -vf ${deint}${crop}${noise}scale=$width:-10 
         -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
 }
@@ -222,7 +223,7 @@ sub video2_pass {
 sub mux_pass {
     print "\n### Muxing audio and video...\n";
     my_system("mkvmerge --engage allow_avc_in_vfw_mode --default-language 
-        eng -o $outfile -A $prefix/video-$$.avi $prefix/audio-$$.ogg");
+        eng -o $outfile -A $prefix/video${suffix}.avi $prefix/audio${suffix}.ogg");
 }
 
 get_crop();
