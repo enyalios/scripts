@@ -5,25 +5,24 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.03";
+$main::VERSION  = "0.10";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
 my $suffix = "-$$";
 my $prefix = ".";
-our $aid         = "-aid 128";
+our $aid         = "";
 our $bitrate     = "";
 our $crop        = "";
 our $size        = "700";
 our $dvd_device  = "";
 our $sid         = "";
 our $outfile     = "movie${suffix}.avi";
-our $infile      = "dvd://1";
 our $deint       = "";
 our $pretend     = "";
 our $noise       = "";
 our $width       = "640";
-our $nice        = "10";
+our $keep        = "0";
 
 # Getopt::Declare parameter specifications
 # read 'perldoc Getopt::Declare'
@@ -37,14 +36,12 @@ our $nice        = "10";
 # [mutex] means at most one of these args
 # Getopt::Declare automatically generates --help output
 my $specification = q(
-    [strict]
     [pvtype: cr /\d+:\d+:\d+:\d+:?/] # WTF!?! the help message just hangs if
                                      # the regex ends with a '+' so i tacked 
                                      # on a ':?' for no reason
     [mutex: -s --size -b --bitrate]
-    [mutex: -t --title -i --infile]
 
-    -a <n:+i>            \taid number (default: 128)
+    -a <n:+i>            \taid number
                            { $::aid = "-aid $n"; }
     --aid <n:+i>         \t[ditto]
 
@@ -62,15 +59,9 @@ my $specification = q(
                            { $::dvd_device = "-dvd-device $path"; }
     --dvd-device <path>  \t[ditto]
 
-    -e <n:i>             \tnice level (default: 10) (note that nice levels 
-                                below 0 may require special priviliges)
-                           { $::nice = $n; }
-    --nice <n:i>         \t[ditto]
-
-    -i <file:if>         \tinput file (defaults to dvd)
-                           { $::infile = "\"$file\"";
-                             $::aid = ""; }
-    --infile <file:if>   \t[ditto]
+    -k                   \tkeep temp files when finished
+                           { $::keep = 1; }
+    --keep               \t[ditto]
 
     -l                   \tdeinterlace video
                            { # maybe switch to pullup,softskip
@@ -98,15 +89,19 @@ my $specification = q(
                            { $::sid = "-sid ".$n; }
     --sid <n:+i>         \t[ditto]
 
-    -t <n:+i>            \tdvd title number (default: 1)
-                           { $::infile = "dvd://".$n; }
-    --title <n:+i>       \t[ditto]
-
     -w <n:+i>            \tvideo width (default: 640)
                            { # round width to nearest multiple of 16 to make 
                              # codecs more efficient
                              $::width = 16 * int(($n + 8)/16); }
     --width <n:+i>       \t[ditto]
+
+    -i                   \t(deprecated, do not use)
+                           { print "The '-i' and '-t' options are deprecated, ", 
+                             "please look at the help output.\n";
+                             exit 1; }
+    --infile             \t[ditto]
+    -t                   \t[ditto]
+    --title              \t[ditto]
     );
 
 # put tabs in $specification so Getopt::Declare doesn't complain
@@ -116,12 +111,9 @@ $specification =~ s/\\t/\t/g;
 my $args = Getopt::Declare->new($specification);
 exit(1) unless ($args);
 
-my $nice_prefix = ($nice==0 ? "" : "nice -n$nice ");
-
 # a nice function to either run or simply print system calls
 sub my_system {
     $_[0] =~ s/[\n ]+/ /gm;
-    $_[0] = $nice_prefix.$_[0];
     if($pretend) {
         print "$_[0]\n";
     } else {
@@ -135,7 +127,7 @@ sub my_system {
 }
 
 sub print_options {
-    print "# infile     = $infile\n" if $infile;
+    print "# infiles    = @ARGV\n" if @ARGV;
     print "# outfile    = $outfile\n";
     print "# bitrate    = $bitrate\n" if $bitrate;
     print "# size       = $size\n" if $size;
@@ -170,7 +162,7 @@ sub get_crop {
     # is best.
     if($crop eq "auto") {
         print "### Calculating crop region...\n";
-        $_ = (grep { /^crop area:/ } `mplayer $dvd_device $infile -vo null \\
+        $_ = (grep { /^crop area:/ } `mplayer $dvd_device @ARGV -vo null \\
             -ao null -vf cropdetect=24:4 -sstep 60 -frames 60 2>/dev/null`)[-1];
         $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
     } elsif($crop) {
@@ -183,7 +175,7 @@ sub audio_pass {
     # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
     my_system("mkfifo $prefix/pipe${suffix}");
     my_system("oggenc -o $prefix/audio${suffix}.ogg -b 96 $prefix/pipe${suffix} & 
-        mplayer -vo null -vc dummy -ao pcm:file=$prefix/pipe${suffix} $infile 
+        mplayer -vo null -vc dummy -ao pcm:file=$prefix/pipe${suffix} @ARGV
         $aid $dvd_device 2>/dev/null");
 
     # here we have to calculate the video bitrate if they just gave us a
@@ -219,7 +211,7 @@ sub audio_pass {
 
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system("mencoder $infile -o /dev/null 
+    my_system("mencoder @ARGV -o /dev/null 
         -passlogfile $prefix/divx2pass${suffix}.log -oac copy -ovc x264 -x264encopts 
         pass=1:bitrate=${bitrate}:turbo=1 -vf ${deint}${crop}${noise}scale=$width:-10 
         -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
@@ -227,7 +219,7 @@ sub video1_pass {
 
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system("mencoder $infile -o $prefix/video${suffix}.avi 
+    my_system("mencoder @ARGV -o $prefix/video${suffix}.avi 
         -passlogfile $prefix/divx2pass${suffix}.log -oac copy -ovc x264 -x264encopts 
         pass=2:bitrate=${bitrate} -vf ${deint}${crop}${noise}scale=$width:-10 
         -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
@@ -240,7 +232,19 @@ sub mux_pass {
 }
 
 sub rm_tmp {
-    unlink "$prefix/pipe${suffix}", "$prefix/audio${suffix}.ogg", "$prefix/divx2pass${suffix}.log", "$prefix/video${suffix}.avi";
+    return if $pretend;
+    # remove the temp files unless the user told us not too or unless the final 
+    # file size is off by more than 2 percent
+    my $final_size = -s $outfile;
+    my $diff = ($final_size/1024/1024 - $size) / $size * 100;
+    if($diff >= 2 || $diff <=-2) {
+        print "Final file size off by more than 2%, keeping temp files\n";
+        $keep = 1;
+    }
+    unless($keep) { 
+        unlink "$prefix/pipe${suffix}", "$prefix/audio${suffix}.ogg", 
+        "$prefix/divx2pass${suffix}.log", "$prefix/video${suffix}.avi";
+    }
 }
 
 get_crop();
@@ -255,7 +259,12 @@ rm_tmp();
     
 TODO:
 
-make help message not hang
 do some testing on the new deinterlacing method
 do some testing on the new denoising method
-perhaps remove the -i and -t switches so dvds arent a special case
+test to make sure that remaining command line args after parsing switches are
+    files or dvd tracks
+fix calls to system so that they do not use the shell
+    this will make the script deal with spaces and other shell metachars better
+    this will be non-trivial since i use the shell to pipe mplayer audio to oggenc
+switch to Getopt::Long so i have more control over the help message
+add a switch for setting the directory for the temp files
