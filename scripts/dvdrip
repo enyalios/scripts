@@ -5,7 +5,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.14";
+$main::VERSION  = "0.15";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
@@ -140,15 +140,15 @@ sub my_system {
 }
 
 sub print_options {
-    print "# infiles    = @infiles\n";
-    print "# outfile    = $outfile\n";
-    print "# bitrate    = $bitrate\n" if $bitrate;
-    print "# size       = $size\n" if $size;
-    print "# width      = $width\n";
-    print "# crop       = $crop\n" if $crop;
-    print "# dvd-device = $dvd_device\n" if $dvd_device;
-    print "# aid        = $aid\n" if $aid;
-    print "# sid        = $sid\n" if $sid;
+    print "# infiles     = @infiles\n";
+    print "# outfile     = $outfile\n";
+    print "# bitrate     = $bitrate\n" if $bitrate;
+    print "# size        = $size\n" if $size;
+    print "# width       = $width\n";
+    print "# crop        = $crop\n" if $crop;
+    print "# dvd-device  = $dvd_device\n" if $dvd_device;
+    print "# aid         = $aid\n" if $aid;
+    print "# sid         = $sid\n" if $sid;
     print "# deinterlacing\n" if $deint;
     print "# denoising\n" if $noise;
     print "# pretend rip\n" if $pretend;
@@ -250,8 +250,11 @@ sub rm_tmp {
     # remove the temp files unless the user told us not too or unless the final 
     # file size is off by more than 2 percent
     if($size) {
+        $outfile =~ s/\\(.)/$1/g;
         my $final_size = -s $outfile;
         my $diff = ($final_size/1024/1024 - $size) / $size * 100;
+        print "# target size = $size\n";
+        printf "# actual size = %d\n", $final_size/1024/1024;
         if($diff >= 2 || $diff <= -2) {
             print "Final file size off by more than 2%, keeping temp files\n";
             $keep = 1;
