@@ -126,7 +126,6 @@ exit(1) unless ($args);
 
 # a nice function to either run or simply print system calls
 sub my_system {
-    #$_[0] =~ s/[\n ]+/ /gm;
     if($pretend) {
         print "@_\n";
     } else {
