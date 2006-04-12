@@ -5,7 +5,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.12";
+$main::VERSION  = "0.13";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
@@ -177,7 +177,9 @@ sub get_crop {
         print "### Calculating crop region...\n";
         $_ = (grep { /^crop area:/ } `mplayer $dvd_device @infiles -vo null \\
             -ao null -vf cropdetect=24:4 -sstep 60 -frames 60 2>/dev/null`)[-1];
-        $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
+        $crop = (/-vf (crop=[\d:]+)/)[0];
+        die "Could not auto-detect crop region\n" unless $crop;
+        $crop .= ","
     } elsif($crop) {
         $crop = "crop=$crop,";
     }
