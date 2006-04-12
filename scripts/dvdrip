@@ -106,13 +106,13 @@ my $specification = q(
     --title              \t[ditto]
 
     <infiles>...         \tinput files [required][repeatable]
-                           { s/(['" \\\\])/\\\\$1/g for @infiles;
-                             for(@infiles) {
+                           { for(@infiles) {
                                 unless(/^dvd:\\/\\/\\d+$/ || -r $_) {
                                     print "Input file '$_' is not a valid ", 
                                     "dvd track or readable file\n";
                                     exit 1;
                                 }
+                                s/(['" \\\\])/\\\\$1/g;
                              }
                              push @::infiles, @infiles; }
     );
