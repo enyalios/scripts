@@ -5,7 +5,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.11";
+$main::VERSION  = "0.12";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
@@ -23,6 +23,7 @@ our $pretend     = "";
 our $noise       = "";
 our $width       = "640";
 our $keep        = "0";
+our @infiles     = ();
 
 # Getopt::Declare parameter specifications
 # read 'perldoc Getopt::Declare'
@@ -74,7 +75,8 @@ my $specification = q(
     --denoise            \t[ditto]
 
     -o <file:of>         \twrite movie to <file> (default: movie-<pid>.mkv)
-                           { $::outfile = $file; }
+                           { $file =~ s/(['" \\\\])/\\\\$1/g;
+                             $::outfile = $file; }
     --outfile <file:of>  \t[ditto]
 
     -p                   \tpretend (print out commands, but do not run them)
@@ -102,6 +104,17 @@ my $specification = q(
     --infile             \t[ditto]
     -t                   \t[ditto]
     --title              \t[ditto]
+
+    <infiles>...         \tinput files [required][repeatable]
+                           { s/(['" \\\\])/\\\\$1/g for @infiles;
+                             for(@infiles) {
+                                unless(/^dvd:\\/\\/\\d+$/ || -r $_) {
+                                    print "Input file '$_' is not a valid ", 
+                                    "dvd track or readable file\n";
+                                    exit 1;
+                                }
+                             }
+                             push @::infiles, @infiles; }
     );
 
 # put tabs in $specification so Getopt::Declare doesn't complain
@@ -127,9 +140,7 @@ sub my_system {
 }
 
 sub print_options {
-    die "no input files\n" unless @ARGV;
-    s/(['" \\])/\\$1/g for @ARGV, $outfile;
-    print "# infiles    = @ARGV\n" if @ARGV;
+    print "# infiles    = @infiles\n";
     print "# outfile    = $outfile\n";
     print "# bitrate    = $bitrate\n" if $bitrate;
     print "# size       = $size\n" if $size;
@@ -265,10 +276,7 @@ TODO:
 
 do some testing on the new deinterlacing method
 do some testing on the new denoising method
-test to make sure that remaining command line args after parsing switches are
-    files or dvd tracks
-fix calls to system so that they do not use the shell
-    this will make the script deal with spaces and other shell metachars better
-    this will be non-trivial since i use the shell to pipe mplayer audio to oggenc
+think about fixing calls to system so that they do not use the shell
+    right now regexs seem to work but i should give this more consideration
 switch to Getopt::Long so i have more control over the help message
 add a switch for setting the directory for the temp files
