@@ -175,7 +175,7 @@ sub get_crop {
     # is best.
     if($crop eq "auto") {
         print "### Calculating crop region...\n";
-        $_ = (grep { /^crop area:/ } `mplayer $dvd_device @infiles -vo null \\
+        $_ = (grep { /^crop area:/ } `mplayer $dvd_device @ARGV -vo null \\
             -ao null -vf cropdetect=24:4 -sstep 60 -frames 60 2>/dev/null`)[-1];
         $crop = (/-vf (crop=[\d:]+)/)[0] . ",";
     } elsif($crop) {
@@ -188,7 +188,7 @@ sub audio_pass {
     # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
     my_system("mkfifo $prefix/pipe${suffix}");
     my_system("oggenc -o $prefix/audio${suffix}.ogg -b 96 $prefix/pipe${suffix} & 
-        mplayer -vo null -vc dummy -ao pcm:file=$prefix/pipe${suffix} @infiles
+        mplayer -vo null -vc dummy -ao pcm:file=$prefix/pipe${suffix} @ARGV
         $aid $dvd_device 2>/dev/null");
 
     # here we have to calculate the video bitrate if they just gave us a
@@ -224,7 +224,7 @@ sub audio_pass {
 
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system("mencoder @infiles -o /dev/null 
+    my_system("mencoder @ARGV -o /dev/null 
         -passlogfile $prefix/divx2pass${suffix}.log -oac copy -ovc x264 -x264encopts 
         pass=1:bitrate=${bitrate}:turbo=1 -vf ${deint}${crop}${noise}scale=$width:-10 
         -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
@@ -232,7 +232,7 @@ sub video1_pass {
 
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system("mencoder @infiles -o $prefix/video${suffix}.avi 
+    my_system("mencoder @ARGV -o $prefix/video${suffix}.avi 
         -passlogfile $prefix/divx2pass${suffix}.log -oac copy -ovc x264 -x264encopts 
         pass=2:bitrate=${bitrate} -vf ${deint}${crop}${noise}scale=$width:-10 
         -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
