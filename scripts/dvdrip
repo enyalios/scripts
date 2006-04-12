@@ -5,16 +5,17 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.15";
+$main::VERSION  = "0.20";
 $ENV{MPLAYER_VERBOSE} = "-2";
+$SIG{CHLD} = 'IGNORE';
 
 # 'our' lets Getopt::Declare look at these, while 'my' would not
-our $aid         = "";
+our @aid         = ();
 our $bitrate     = "";
 our $crop        = "";
 our $size        = "700";
-our $dvd_device  = "";
-our $sid         = "";
+our @dvd_device  = ();
+our @sid         = ();
 our $outfile     = "movie-$$.mkv";
 our $deint       = "";
 our $pretend     = "";
@@ -42,7 +43,7 @@ my $specification = q(
     [mutex: -s --size -b --bitrate]
 
     -a <n:+i>            \taid number
-                           { $::aid = "-aid $n"; }
+                           { @::aid = ("-aid", "$n"); }
     --aid <n:+i>         \t[ditto]
 
     -b <n:+i>            \tbitrate in kbits [required]
@@ -56,7 +57,7 @@ my $specification = q(
     --crop [<region:cr>] \t[ditto]
 
     -d <path>            \tdvd device (default: /dev/dvd)
-                           { $::dvd_device = "-dvd-device $path"; }
+                           { @::dvd_device = ("-dvd-device", "$path"); }
     --dvd-device <path>  \t[ditto]
 
     -k                   \tkeep temp files when finished
@@ -87,7 +88,7 @@ my $specification = q(
     --size <n:+i>        \t[ditto]
 
     -S <n:+i>            \tsubtitle id number
-                           { $::sid = "-sid ".$n; }
+                           { @::sid = ("-sid", "$n"); }
     --sid <n:+i>         \t[ditto]
 
     -w <n:+i>            \tvideo width (default: 640)
@@ -106,12 +107,11 @@ my $specification = q(
 
     <infiles>...         \tinput files [required][repeatable]
                            { for(@infiles) {
-                                unless(/^dvd:\\/\\/\\d+$/ || -r $_) {
+                                unless(m#^dvd://\\d+$# || -r $_) {
                                     print "Input file '$_' is not a valid ", 
                                     "dvd track or readable input file\n";
                                     exit 1;
                                 }
-                                s/(['" \\\\])/\\\\$1/g;
                                 push @::infiles, $_;
                              }
                            }
@@ -126,16 +126,16 @@ exit(1) unless ($args);
 
 # a nice function to either run or simply print system calls
 sub my_system {
-    $_[0] =~ s/[\n ]+/ /gm;
+    #$_[0] =~ s/[\n ]+/ /gm;
     if($pretend) {
-        print "$_[0]\n";
+        print "@_\n";
     } else {
-        system $_[0];
-        if($? == -1) {
-            die "Failed to execute command: $_[0]\n";
-        } elsif($? >> 8 != 0) {
-            die "Command returned with error code: ", $? >> 8, ": $_[0]\n";
-        }
+        system @_;
+        #if($? == -1) {
+        #    die "Failed to execute command: @_\n";
+        #} elsif($? >> 8 != 0) {
+        #    die "Command returned with error code: ", $? >> 8, ": @_\n";
+        #}
     }
 }
 
@@ -146,9 +146,9 @@ sub print_options {
     print "# size        = $size\n" if $size;
     print "# width       = $width\n";
     print "# crop        = $crop\n" if $crop;
-    print "# dvd-device  = $dvd_device\n" if $dvd_device;
-    print "# aid         = $aid\n" if $aid;
-    print "# sid         = $sid\n" if $sid;
+    print "# dvd-device  = @dvd_device\n" if @dvd_device;
+    print "# aid         = @aid\n" if @aid;
+    print "# sid         = @sid\n" if @sid;
     print "# deinterlacing\n" if $deint;
     print "# denoising\n" if $noise;
     print "# pretend rip\n" if $pretend;
@@ -175,8 +175,9 @@ sub get_crop {
     # is best.
     if($crop eq "auto") {
         print "### Calculating crop region...\n";
-        $_ = (grep { /^crop area:/ } `mplayer $dvd_device @infiles -vo null \\
-            -ao null -vf cropdetect=50:4 -sstep 60 -frames 60 2>/dev/null`)[-1];
+        open CROP, '-|', "mplayer", @dvd_device, @infiles, 
+            qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60);
+        $_ = (<CROP>)[-1];
         $crop = (/-vf (crop=[\d:]+)/)[0];
         die "Could not auto-detect crop region\n" unless $crop;
         $crop .= ","
@@ -188,10 +189,18 @@ sub get_crop {
 sub audio_pass {
     print "### Encoding audio...\n";
     # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
-    my_system("mkfifo $temp_dir/pipe-$$");
-    my_system("oggenc -o $temp_dir/audio-$$.ogg -b 96 $temp_dir/pipe-$$ & 
-        mplayer -vo null -vc dummy -ao pcm:file=$temp_dir/pipe-$$ @infiles
-        $aid $dvd_device 2>/dev/null");
+    my_system("mkfifo", "$temp_dir/pipe-$$");
+    my $ppid = $$;
+    if(!fork) {
+        my_system(qw(oggenc -b 96 -o), "$temp_dir/audio-$ppid.ogg", 
+            "$temp_dir/pipe-$ppid");
+        exit;
+    }
+    my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$temp_dir/pipe-$$",
+        @infiles, @aid, @dvd_device);
+    # give oggenc some time to finish encoding whats left in the pipe, since
+    # mplayer will return before oggenc is done
+    sleep 1;
 
     # here we have to calculate the video bitrate if they just gave us a
     # target file size.  first we find the length and size of the audio track.
@@ -205,44 +214,52 @@ sub audio_pass {
             # if we are doing a 'pretend'
             print "\n### Determining video bitrate...\n";
             print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(ls -l ", 
-            "$temp_dir/audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames", 
+            "$temp_dir/audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames ", 
             "0 -identify -vo null -ao null $temp_dir/audio-$$.ogg 2>/dev/null ",
             "| sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e ", 
             "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
         } else {
-            my $alength = (map { (/^ID_LENGTH=([\d.]+)$/)[0] } 
-                `mplayer -v -frames 0 -identify -vo null -ao null \\
-                $temp_dir/audio-$$.ogg 2>/dev/null`)[0];
+            open IDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
+                "$temp_dir/audio-$$.ogg";
+            my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<IDENT>))[0];
+            $alength =~ s/^ID_LENGTH=([\d.]+)$/$1/;
+            chomp $alength;
             my $asize = -s "$temp_dir/audio-$$.ogg";
             die "Improper audio length: $alength seconds\n" unless $alength > 0;
             die "Improper audio size: $asize bytes\n" unless $asize > 0;
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
-            print "# bitrate    = $bitrate\n";
+            print  "\n";
+            printf "# alength     = %.2f seconds\n", $alength;
+            printf "# asize       = %.2f mb\n", $asize/1024/1024;
+            print  "# bitrate     = $bitrate kbit\n";
         }
     }
 }
 
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system("mencoder @infiles -passlogfile $temp_dir/divx2pass-$$.log 
-        -o /dev/null -oac copy -ovc x264 -x264encopts pass=1:bitrate=${bitrate}:turbo=1 
-        -vf ${deint}${crop}${noise}scale=$width:-10 -zoom $dvd_device $sid -msglevel 
-        avsync=5 2>/dev/null");
+    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5), 
+        @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o", 
+        "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
+        "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
+        @sid);
 }
 
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system("mencoder @infiles -passlogfile $temp_dir/divx2pass-$$.log 
-        -o $temp_dir/video-$$.avi -oac copy -ovc x264 -x264encopts 
-        pass=2:bitrate=${bitrate} -vf ${deint}${crop}${noise}scale=$width:-10 
-        -zoom $dvd_device $sid -msglevel avsync=5 2>/dev/null");
+    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5),
+        @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o",
+        "$temp_dir/video-$$.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
+        "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
+        @sid);
 }
 
 sub mux_pass {
     print "\n### Muxing audio and video...\n";
-    my_system("mkvmerge --engage allow_avc_in_vfw_mode --default-language 
-        eng -o $outfile -A $temp_dir/video-$$.avi $temp_dir/audio-$$.ogg");
+    my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
+        eng -o), "$outfile", "-A", "$temp_dir/video-$$.avi", 
+        "$temp_dir/audio-$$.ogg");
 }
 
 sub rm_tmp {
@@ -250,11 +267,10 @@ sub rm_tmp {
     # remove the temp files unless the user told us not too or unless the final 
     # file size is off by more than 2 percent
     if($size) {
-        $outfile =~ s/\\(.)/$1/g;
         my $final_size = -s $outfile;
         my $diff = ($final_size/1024/1024 - $size) / $size * 100;
         print "# target size = $size\n";
-        printf "# actual size = %d\n", $final_size/1024/1024;
+        printf "# actual size = %.0f\n", $final_size/1024/1024;
         if($diff >= 2 || $diff <= -2) {
             print "Final file size off by more than 2%, keeping temp files\n";
             $keep = 1;
@@ -279,8 +295,5 @@ rm_tmp();
 TODO:
 
 do some testing on the new deinterlacing method
-do some testing on the new denoising method
-think about fixing calls to system so that they do not use the shell
-    right now regexs seem to work but i should give this more consideration
 switch to Getopt::Long so i have more control over the help message
 add a switch for setting the directory for the temp files
