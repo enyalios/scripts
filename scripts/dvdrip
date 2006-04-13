@@ -5,7 +5,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.20";
+$main::VERSION  = "0.21";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -197,15 +197,16 @@ sub audio_pass {
     }
     my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$temp_dir/pipe-$$",
         @infiles, @aid, @dvd_device);
+
     # give oggenc some time to finish encoding whats left in the pipe, since
     # mplayer will return before oggenc is done
-    sleep 1;
+    sleep 1 unless $pretend;
 
     # here we have to calculate the video bitrate if they just gave us a
     # target file size.  first we find the length and size of the audio track.
     # then we find out how much space we have left after subtracting the audio
     # size and container overhead from the target file size.  this crazy
-    # calculation gives us or needed bitrate which we then round down to an
+    # calculation gives us our needed bitrate which we then round down to an
     # integer so mencoder doesnt barf.
     if(!$bitrate) {
         if($pretend) {
@@ -219,9 +220,9 @@ sub audio_pass {
             "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
         } else {
-            open IDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
+            open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
                 "$temp_dir/audio-$$.ogg";
-            my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<IDENT>))[0];
+            my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
             $alength =~ s/^ID_LENGTH=([\d.]+)$/$1/;
             chomp $alength;
             my $asize = -s "$temp_dir/audio-$$.ogg";
@@ -263,7 +264,7 @@ sub mux_pass {
 
 sub rm_tmp {
     return if $pretend;
-    # remove the temp files unless the user told us not too or unless the final 
+    # remove the temp files unless the user told us not to or unless the final 
     # file size is off by more than 2 percent
     if($size) {
         my $final_size = -s $outfile;
