@@ -8,7 +8,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.22";
+$main::VERSION  = "0.23";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -79,8 +79,7 @@ my $specification = q(
     --denoise            \t[ditto]
 
     -o <file:of>         \twrite movie to <file> (default: movie-<pid>.mkv)
-                           { $file =~ s/(['" \\\\])/\\\\$1/g;
-                             $::outfile = $file; }
+                           { $::outfile = $file; }
     --outfile <file:of>  \t[ditto]
 
     -p                   \tpretend (print out commands, but do not run them)
@@ -308,3 +307,6 @@ TODO:
 do some testing on the new deinterlacing method
 switch to Getopt::Long so i have more control over the help message
 add a switch for setting the directory for the temp files
+make oggenc output show up again (its on stderr which gets closed)
+do error checking on return status of system calls
+think about making the pretend output guaranteed correct
