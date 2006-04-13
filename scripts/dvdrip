@@ -1,4 +1,7 @@
 #!/usr/bin/perl
+#
+# $HeadURL$
+# $LastChangedRevision$
 
 use warnings;
 use strict;
