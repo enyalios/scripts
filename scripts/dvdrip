@@ -8,7 +8,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.23";
+$main::VERSION  = "0.24";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -135,7 +135,7 @@ sub my_system {
         my $child;
         unless($child = fork) {
             # we are the child, close stderr and run the command
-            close STDERR;
+            close STDERR if $_[0] =~ /mplayer|mencoder/;
             exec @_;
             #if($? == -1) {
             #    die "Failed to execute command: @_\n";
@@ -307,6 +307,5 @@ TODO:
 do some testing on the new deinterlacing method
 switch to Getopt::Long so i have more control over the help message
 add a switch for setting the directory for the temp files
-make oggenc output show up again (its on stderr which gets closed)
 do error checking on return status of system calls
 think about making the pretend output guaranteed correct
