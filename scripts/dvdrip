@@ -8,7 +8,7 @@ use strict;
 use Getopt::Declare;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.24";
+$main::VERSION  = "0.25";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -127,14 +127,19 @@ $specification =~ s/\\t/\t/g;
 my $args = Getopt::Declare->new($specification);
 exit(1) unless ($args);
 
-# a nice function to either run or simply print system calls
+# a nice function to either run or simply print system calls.  here we print
+# for pretends or if we are supposed to actually run the command, we fork,
+# exec, and then wait for the child to finish.  this gives us more flexibility
+# than just running 'system' but serves essentially the same purpose.  in this
+# case, it allows us to close stderr on mplayer and mencoder commands while
+# avoiding using the shell so we arent susceptible to weird chars in filenames.
 sub my_system {
     if($pretend) {
         print "@_\n";
     } else {
         my $child;
         unless($child = fork) {
-            # we are the child, close stderr and run the command
+            # we are the child, run the command
             close STDERR if $_[0] =~ /mplayer|mencoder/;
             exec @_;
             #if($? == -1) {
@@ -156,9 +161,9 @@ sub print_options {
     print "# size        = $size\n" if $size;
     print "# width       = $width\n";
     print "# crop        = $crop\n" if $crop;
-    print "# dvd-device  = @dvd_device\n" if @dvd_device;
-    print "# aid         = @aid\n" if @aid;
-    print "# sid         = @sid\n" if @sid;
+    print "# dvd-device  = $dvd_device[0]\n" if @dvd_device;
+    print "# aid         = $aid[1]\n" if @aid;
+    print "# sid         = $sid[1]\n" if @sid;
     print "# deinterlacing\n" if $deint;
     print "# denoising\n" if $noise;
     print "# pretend rip\n" if $pretend;
@@ -175,14 +180,13 @@ sub print_options {
     }
 }
 
+# this part is sorta crazy.  we want to auto-detect the crop region so we spawn
+# mplayer telling it to cropdetect, but to step thru the video 60 seconds at a
+# time but only do a max of 60 frames.  we also tell it not to show audio or
+# video here since this is just a command line script.  finally we grap the
+# 'crop=...' part from the last line that starts with 'crop area:' since this
+# is the region that mplayer decided is best.
 sub get_crop {
-    # this part is sorta crazy.  we want to auto-detect the crop region so
-    # we spawn mplayer telling it to cropdetect, but to step thru the video
-    # 60 seconds at a time but only do a max of 60 frames.  we also tell 
-    # it not to show audio or video here since this is just a command line
-    # script.  finally we grap the 'crop=...' part from the last line that
-    # starts with 'crop area:' since this is the region that mplayer decided
-    # is best.
     if($crop eq "auto") {
         print "### Calculating crop region...\n";
         open CROP, '-|', "mplayer", @dvd_device, @infiles, 
@@ -247,6 +251,19 @@ sub audio_pass {
     }
 }
 
+# this is the first video pass command,  most of this stuff can be found in the
+# mencoder man page but ill go thru some of it anyways.  we copy the audio from
+# the input file even tho we already made the ogg stream so that mencoder can
+# make sure the audio and video stay in sync by duping and dropping frames as
+# appropriate.  the '-msglevel' thing just makes the progress info show up even
+# when make all the rest of the output quiet.  we can write the output to
+# /dev/null since this pass is just to write out passlogfile.  for the
+# x264encopts, we tell it this is pass 1, the bitrate, and to skip really cpu
+# intensive calcs since we are only generating a logfile.  the video filters
+# the we apply obviously deinterlace, denoise, and scale,  the weird scaling
+# stuff tells it to scale to the specified width and whatever height to
+# maintain the aspect ratio but to round the height to the nearest multiple of
+# 16 since that makes the video codec happy.
 sub video1_pass {
     print "\n### Encoding first pass...\n";
     my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5), 
@@ -256,6 +273,9 @@ sub video1_pass {
         @sid);
 }
 
+# this is all basically the exact same thing as the first video pass except we
+# actually write out a file instead of just generating a log and we skip the
+# turbo option because of this.
 sub video2_pass {
     print "\n### Encoding second pass...\n";
     my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5),
@@ -265,6 +285,11 @@ sub video2_pass {
         @sid);
 }
 
+# here we are mixing the audio stream from the ogg file with the video stream
+# from the avi file we made.  the '-A' option tells mkvmerge to not use the
+# audio stream from the avi file (we don't want this since this was just to
+# allow mplayer to keep the audio and video in sync).  the default-language
+# option is just so that it knows the audio is english.
 sub mux_pass {
     print "\n### Muxing audio and video...\n";
     my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
@@ -272,15 +297,16 @@ sub mux_pass {
         "$temp_dir/audio-$$.ogg");
 }
 
+# remove the temp files unless the user told us not to or unless the final 
+# file size is off by more than 2 percent
 sub rm_tmp {
     return if $pretend;
-    # remove the temp files unless the user told us not to or unless the final 
-    # file size is off by more than 2 percent
     if($size) {
         my $final_size = -s $outfile;
         my $diff = ($final_size/1024/1024 - $size) / $size * 100;
-        print "# target size = $size mb\n";
-        printf "# actual size = %.0f mb\n", $final_size/1024/1024;
+        print "\n";
+        printf "# target size = %.1f mb\n", $size;
+        printf "# actual size = %.1f mb\n", $final_size/1024/1024;
         if($diff >= 2 || $diff <= -2) {
             print "Final file size off by more than 2%, keeping temp files\n";
             $keep = 1;
@@ -309,3 +335,5 @@ switch to Getopt::Long so i have more control over the help message
 add a switch for setting the directory for the temp files
 do error checking on return status of system calls
 think about making the pretend output guaranteed correct
+dvds come out small.  their video streams are too small by a factor of 24/30.
+    probably has something to do with frame rates.  fix this.
