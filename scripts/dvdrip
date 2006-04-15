@@ -5,127 +5,115 @@
 
 use warnings;
 use strict;
-use Getopt::Declare;
+use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.25";
+$main::VERSION  = "0.30";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
-# 'our' lets Getopt::Declare look at these, while 'my' would not
-my $pid          = $$;
-our @aid         = ();
-our $bitrate     = "";
-our $crop        = "";
-our $size        = "700";
-our @dvd_device  = ();
-our @sid         = ();
-our $outfile     = "movie-$$.mkv";
-our $deint       = "";
-our $pretend     = "";
-our $noise       = "";
-our $width       = "640";
-our $keep        = "0";
-our @infiles     = ();
-our $temp_dir    = ".";
+my $pid         = $$;
+my $bail        = 0;
+my @aid         = ();
+my $bitrate     = "";
+my $crop        = "";
+my $size        = "";
+my @dvd_device  = ();
+my @sid         = ();
+my $outfile     = "movie-$$.mkv";
+my $deint       = "";
+my $pretend     = "";
+my $noise       = "";
+my $width       = "640";
+my $keep        = "0";
+my @infiles     = ();
+my $temp_dir    = ".";
 
-# Getopt::Declare parameter specifications
-# read 'perldoc Getopt::Declare'
-# but, in short:
-# [strict] makes it die when there's an error
-# <n:+i> means match positive integer, store in $n for block
-# { block } is executed when an argument is matched
-# [ditto] means same as previous argument (and uses same block)
-# --switch param \tdescription (need tab immediately before description)
-# [required] means this arg or a [ditto] of this arg must be present
-# [mutex] means at most one of these args
-# Getopt::Declare automatically generates --help output
-my $specification = q(
-    [pvtype: cr /\d+:\d+:\d+:\d+:?/] # WTF!?! the help message just hangs if
-                                     # the regex ends with a '+' so i tacked 
-                                     # on a ':?' for no reason
-    [mutex: -s --size -b --bitrate]
+# this is a nice usage message that will get printed if anything goes wrong
+sub print_help {
+    print <<EOF;
+    
+Usage:
+  dvdrip [options] infile ...
 
-    -a <n:+i>            \taid number
-                           { @::aid = ("-aid", "$n"); }
-    --aid <n:+i>         \t[ditto]
+Options:
+  --aid         -a <n>            aid number
+  --bitrate     -b <n>            bitrate in kbits
+  --crop        -c [<n:n:n:n>]    crop region (omit region to auto-detect)
+  --dvd-device  -d <path>         dvd device
+  --keep        -k                do not delete temp files when done
+  --deinterlace -l                deinterlace video stream
+  --denoise     -n                denoise video stream
+  --outfile     -o <file>         write movie to <file> (movie-\$pid.mkv)
+  --pretend     -p                print out commands, but do not run them
+  --size        -s <n>            target filesize in mbs
+  --sid         -u <n>            subtitle id number
+  --width       -w <n>            video width (default: 640)
 
-    -b <n:+i>            \tbitrate in kbits [required]
-                           { $::bitrate = $n;
-                             $::size = ""; }
-    --bitrate <n:+i>     \t[ditto]
+  Short options may be bundled.
+  The '-i' and '-t' options are deprecated.
+  Specify dvd tracks as dvd://<n>.
 
-    -c [<region:cr>]     \tcrop borders (omit region to auto-detect)
-                           { $::crop = "auto"; 
-                             $::crop = $region if $region; }
-    --crop [<region:cr>] \t[ditto]
+EOF
+    exit 1;
+}
 
-    -d <path>            \tdvd device (default: /dev/dvd)
-                           { @::dvd_device = ("-dvd-device", "$path"); }
-    --dvd-device <path>  \t[ditto]
-
-    -k                   \tkeep temp files when finished
-                           { $::keep = 1; }
-    --keep               \t[ditto]
-
-    -l                   \tdeinterlace video
-                           { # maybe switch to pullup,softskip
-                             # will prob need -ofps 24000/1001 too
-                             $::deint = "lavcdeint,"; }
-    --deinterlace        \t[ditto]
-
-    -n                   \tdenoise video
-                           { $::noise = "hqdn3d,"; }
-    --denoise            \t[ditto]
-
-    -o <file:of>         \twrite movie to <file> (default: movie-<pid>.mkv)
-                           { $::outfile = $file; }
-    --outfile <file:of>  \t[ditto]
-
-    -p                   \tpretend (print out commands, but do not run them)
-                           { $::pretend = 1; }
-    --pretend            \t[ditto]
-
-    -s <n:+i>            \ttarget filesize in megabytes [required]
-                           { $::size = $n; }
-    --size <n:+i>        \t[ditto]
-
-    -S <n:+i>            \tsubtitle id number
-                           { @::sid = ("-sid", "$n"); }
-    --sid <n:+i>         \t[ditto]
-
-    -w <n:+i>            \tvideo width (default: 640)
-                           { # round width to nearest multiple of 16 to make 
-                             # codecs more efficient
-                             $::width = 16 * int(($n + 8)/16); }
-    --width <n:+i>       \t[ditto]
-
-    -i                   \t(deprecated, do not use)
-                           { print "The '-i' and '-t' options are deprecated, ", 
-                             "please look at the help output.\n";
-                             exit 1; }
-    --infile             \t[ditto]
-    -t                   \t[ditto]
-    --title              \t[ditto]
-
-    <infiles>...         \tinput files [required][repeatable]
-                           { for(@infiles) {
-                                unless(m#^dvd://\\d+$# || -r $_) {
-                                    print "Input file '$_' is not a valid ", 
-                                    "dvd track or readable input file\n";
-                                    exit 1;
-                                }
-                                push @::infiles, $_;
-                             }
-                           }
+sub parse_args {
+    Getopt::Long::Configure qw(bundling pass_through);
+    GetOptions(
+        'aid|a=i'        => sub { @aid = ("-aid", $_[1]) },
+        'bitrate|b=i'    => \$bitrate,
+        'crop|c'         => sub { $crop =
+            ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"auto" },
+        'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
+        'help|h'         => sub { print_help() },
+        'keep|k'         => \$keep,
+        'deinterlace|l'  => sub { $deint = "lacvdeint," },
+        'denoise|n'      => sub { $noise = "hqdn3d," },
+        'outfile|o=s'    => \$outfile,
+        'pretend|p'      => \$pretend,
+        'size|s=i'       => \$size,
+        'sid|u=i'        => sub { @sid = ("-sid", $_[1]) },
+        'width|w=i'      => sub { $width = 16 * int(($_[1] + 8)/16) },
+        '<>'             => sub { unless($_[0] =~ m#^dvd://\d+$# || -r $_[0]) {
+                                  print "Input file '$_[0]' is not a valid ", 
+                                  "dvd track or readable input file.\n";
+                                  $bail++; }
+                                  push @infiles, $_[0]; }
     );
+    
+    if($size && $bitrate)   { print "You cannot specify both a bitrate and a filesize.\n"; print_help(); }
+    if(!$size && !$bitrate) { print "You must specify either a bitrate or a filesize.\n";  print_help(); }
+    unless(@infiles)        { print "You must specify at least one input file.\n";         print_help(); }
+    print_help() if $bail;
+    
+    get_crop();
 
-# put tabs in $specification so Getopt::Declare doesn't complain
-$specification =~ s/\\t/\t/g;
+    print "# infiles     = @infiles\n";
+    print "# outfile     = $outfile\n";
+    print "# bitrate     = $bitrate\n" if $bitrate;
+    print "# size        = $size\n" if $size;
+    print "# width       = $width\n";
+    print "# crop        = $crop\n" if $crop;
+    print "# dvd-device  = $dvd_device[1]\n" if @dvd_device;
+    print "# aid         = $aid[1]\n" if @aid;
+    print "# sid         = $sid[1]\n" if @sid;
+    print "# deinterlacing\n" if $deint;
+    print "# denoising\n" if $noise;
+    print "# keeping temp files\n" if $keep;
+    print "# pretend rip\n" if $pretend;
+    print "\n";
 
-# $args is not used again--everything was done in blocks above
-my $args = Getopt::Declare->new($specification);
-exit(1) unless ($args);
+    if(!$pretend) {
+        local $| = 1; #autoflush on for this block
+        print "encoding in... ";
+        for (reverse 1 .. 5) {
+            print "$_ ";
+            sleep(1);
+        }
+        print "\n\n";
+    }
+}
 
 # a nice function to either run or simply print system calls.  here we print
 # for pretends or if we are supposed to actually run the command, we fork,
@@ -151,32 +139,6 @@ sub my_system {
             # we are the parent, just sit and wait for our kid to return
             waitpid($child, 0);
         }
-    }
-}
-
-sub print_options {
-    print "# infiles     = @infiles\n";
-    print "# outfile     = $outfile\n";
-    print "# bitrate     = $bitrate\n" if $bitrate;
-    print "# size        = $size\n" if $size;
-    print "# width       = $width\n";
-    print "# crop        = $crop\n" if $crop;
-    print "# dvd-device  = $dvd_device[1]\n" if @dvd_device;
-    print "# aid         = $aid[1]\n" if @aid;
-    print "# sid         = $sid[1]\n" if @sid;
-    print "# deinterlacing\n" if $deint;
-    print "# denoising\n" if $noise;
-    print "# pretend rip\n" if $pretend;
-    print "\n";
-
-    if(!$pretend) {
-        local $| = 1; #autoflush on for this block
-        print "encoding in... ";
-        for (reverse 1 .. 5) {
-            print "$_ ";
-            sleep(1);
-        }
-        print "\n\n";
     }
 }
 
@@ -318,8 +280,7 @@ sub rm_tmp {
     }
 }
 
-get_crop();
-print_options();
+parse_args();
 audio_pass();
 video1_pass();
 video2_pass();
@@ -331,8 +292,7 @@ rm_tmp();
 TODO:
 
 do some testing on the new deinterlacing method
-switch to Getopt::Long so i have more control over the help message
-add a switch for setting the directory for the temp files
+    maybe use "pullup,softskip," with "-ofps 24000/1001"
 do error checking on return status of system calls
 think about making the pretend output guaranteed correct
 dvds come out small.  their video streams are too small by a factor of 24/30.
