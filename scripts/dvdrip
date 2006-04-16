@@ -8,7 +8,7 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.30";
+$main::VERSION  = "0.31";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -68,7 +68,7 @@ sub parse_args {
         'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
-        'deinterlace|l'  => sub { $deint = "lacvdeint," },
+        'deinterlace|l'  => sub { $deint = "pullup,softskip," },
         'denoise|n'      => sub { $noise = "hqdn3d," },
         'outfile|o=s'    => \$outfile,
         'pretend|p'      => \$pretend,
@@ -292,7 +292,6 @@ rm_tmp();
 TODO:
 
 do some testing on the new deinterlacing method
-    maybe use "pullup,softskip," with "-ofps 24000/1001"
 do error checking on return status of system calls
 think about making the pretend output guaranteed correct
 dvds come out small.  their video streams are too small by a factor of 24/30.
