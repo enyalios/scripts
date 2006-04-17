@@ -8,7 +8,7 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.31";
+$main::VERSION  = "0.32";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -28,6 +28,7 @@ my $width       = "640";
 my $keep        = "0";
 my @infiles     = ();
 my $temp_dir    = ".";
+my @fps         = ();
 
 # this is a nice usage message that will get printed if anything goes wrong
 sub print_help {
@@ -68,7 +69,7 @@ sub parse_args {
         'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
-        'deinterlace|l'  => sub { $deint = "pullup,softskip," },
+        'deinterlace|l'  => sub { $deint = "pullup,softskip,"; @fps = qw(-ofps 24000/1001); },
         'denoise|n'      => sub { $noise = "hqdn3d," },
         'outfile|o=s'    => \$outfile,
         'pretend|p'      => \$pretend,
@@ -228,11 +229,11 @@ sub audio_pass {
 # 16 since that makes the video codec happy.
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5), 
+    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5 -ofps 24000/1001), 
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
-        @sid);
+        @sid @fps);
 }
 
 # this is all basically the exact same thing as the first video pass except we
@@ -240,11 +241,11 @@ sub video1_pass {
 # turbo option because of this.
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5),
+    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5 -ofps 24000/1001),
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o",
         "$temp_dir/video-$$.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
-        @sid);
+        @sid @fps);
 }
 
 # here we are mixing the audio stream from the ogg file with the video stream
