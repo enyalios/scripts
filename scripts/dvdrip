@@ -20,7 +20,7 @@ my $crop        = "";
 my $size        = "";
 my @dvd_device  = ();
 my @sid         = ();
-my $outfile     = "movie-$$.mkv";
+my $outfile     = "movie-$pid.mkv";
 my $deint       = "";
 my $pretend     = "";
 my $noise       = "";
@@ -51,7 +51,7 @@ Options:
   --sid         -u <n>            subtitle id number
   --width       -w <n>            video width (default: 640)
 
-  Short options may be bundled.
+  Short options may be bundled and long options abbreviated.
   The '-i' and '-t' options are deprecated.
   Specify dvd tracks as dvd://<n>.
 
@@ -69,7 +69,8 @@ sub parse_args {
         'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
-        'deinterlace|l'  => sub { $deint = "pullup,softskip,"; @fps = qw(-ofps 24000/1001); },
+        'deinterlace|l'  => sub { $deint = "pullup,softskip,"; 
+                                  @fps = qw(-ofps 24000/1001); },
         'denoise|n'      => sub { $noise = "hqdn3d," },
         'outfile|o=s'    => \$outfile,
         'pretend|p'      => \$pretend,
@@ -155,6 +156,7 @@ sub get_crop {
         open CROP, '-|', "mplayer", @dvd_device, @infiles, 
             qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60);
         $_ = (<CROP>)[-1];
+        close CROP;
         $crop = (/-vf (crop=[\d:]+)/)[0];
         die "Could not auto-detect crop region\n" unless $crop;
         $crop .= ","
@@ -200,6 +202,7 @@ sub audio_pass {
             open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
                 "$temp_dir/audio-$$.ogg";
             my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
+            close INDENT;
             $alength =~ s/^ID_LENGTH=([\d.]+)$/$1/;
             chomp $alength;
             my $asize = -s "$temp_dir/audio-$$.ogg";
