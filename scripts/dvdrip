@@ -8,7 +8,7 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.33";
+$main::VERSION  = "0.34";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -169,7 +169,7 @@ sub audio_pass {
     my_system("mkfifo", "$temp_dir/pipe-$$");
     if(!fork) {
         my_system(qw(oggenc -b 96 -o), "$temp_dir/audio-$pid.ogg", 
-            "$temp_dir/pipe-$pid");
+            "$temp_dir/pipe-$pid", $pretend?"&":());
         exit;
     }
     my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$temp_dir/pipe-$$",
@@ -229,7 +229,7 @@ sub audio_pass {
 # 16 since that makes the video codec happy.
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5 -ofps 24000/1001), 
+    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5), 
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
@@ -241,7 +241,7 @@ sub video1_pass {
 # turbo option because of this.
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5 -ofps 24000/1001),
+    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5),
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o",
         "$temp_dir/video-$$.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
@@ -296,4 +296,4 @@ do some testing on the new deinterlacing method
 do error checking on return status of system calls
 think about making the pretend output guaranteed correct
 dvds come out small.  their video streams are too small by a factor of 24/30.
-    probably has something to do with frame rates.  fix this.
+    probably has something to do with frame rates.  fix this. (fixed?)
