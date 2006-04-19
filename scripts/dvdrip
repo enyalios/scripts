@@ -8,12 +8,11 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.34";
+$main::VERSION  = "0.35";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
 my $pid         = $$;
-my $bail        = 0;
 my @aid         = ();
 my $bitrate     = "";
 my $crop        = "";
@@ -60,6 +59,7 @@ EOF
 }
 
 sub parse_args {
+    my $bail = 0;
     Getopt::Long::Configure qw(bundling pass_through);
     GetOptions(
         'aid|a=i'        => sub { @aid = ("-aid", $_[1]) },
@@ -147,15 +147,15 @@ sub my_system {
 # this part is sorta crazy.  we want to auto-detect the crop region so we spawn
 # mplayer telling it to cropdetect, but to step thru the video 60 seconds at a
 # time but only do a max of 60 frames.  we also tell it not to show audio or
-# video here since this is just a command line script.  finally we grap the
+# video here since this is just a command line script.  finally we grab the
 # 'crop=...' part from the last line that starts with 'crop area:' since this
 # is the region that mplayer decided is best.
 sub get_crop {
     if($crop eq "auto") {
         print "### Calculating crop region...\n";
         open CROP, '-|', "mplayer", @dvd_device, @infiles, 
-            qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60);
-        $_ = (<CROP>)[-1];
+            qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60 -v);
+        $_ = (grep { /Crop area:/ } <CROP>)[-1];
         close CROP;
         $crop = (/-vf (crop=[\d:]+)/)[0];
         die "Could not auto-detect crop region\n" unless $crop;
@@ -209,7 +209,6 @@ sub audio_pass {
             die "Improper audio length: $alength seconds\n" unless $alength > 0;
             die "Improper audio size: $asize bytes\n" unless $asize > 0;
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
-            print  "\n";
             printf "# alength     = %.2f seconds\n", $alength;
             printf "# asize       = %.2f mb\n", $asize/1024/1024;
             print  "# bitrate     = $bitrate kbit\n";
