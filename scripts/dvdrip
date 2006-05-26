@@ -8,7 +8,7 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.35";
+$main::VERSION  = "0.36";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -78,9 +78,10 @@ sub parse_args {
         'sid|u=i'        => sub { @sid = ("-sid", $_[1]) },
         'width|w=i'      => sub { $width = 16 * int(($_[1] + 8)/16) },
         '<>'             => sub { unless($_[0] =~ m#^dvd://\d+$# || -r $_[0]) {
-                                  print "Input file '$_[0]' is not a valid ", 
-                                  "dvd track or readable input file.\n";
-                                  $bail++; }
+                                      print "Input file '$_[0]' is not a valid ", 
+                                      "dvd track or readable input file.\n";
+                                      $bail++; }
+                                  @fps = qw(-ofps 24000/1001) if $_[0] =~ m#^dvd://\d+$#;
                                   push @infiles, $_[0]; }
     );
     
@@ -231,7 +232,7 @@ sub audio_pass {
 # 16 since that makes the video codec happy.
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5), 
+    my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel avsync=5), 
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
@@ -243,7 +244,7 @@ sub video1_pass {
 # turbo option because of this.
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system(qw(mencoder -oac copy -ovc x264 -zoom -msglevel avsync=5),
+    my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel avsync=5),
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o",
         "$temp_dir/video-$$.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
@@ -272,7 +273,7 @@ sub rm_tmp {
         print "\n";
         printf "# target size = %.1f mb\n", $size;
         printf "# actual size = %.1f mb\n", $final_size/1024/1024;
-        if($diff >= 2 || $diff <= -2) {
+        if(abs($diff) >= 2) {
             print "Final file size off by more than 2%, keeping temp files\n";
             $keep = 1;
         }
@@ -299,3 +300,5 @@ do error checking on return status of system calls
 think about making the pretend output guaranteed correct
 dvds come out small.  their video streams are too small by a factor of 24/30.
     probably has something to do with frame rates.  fix this. (fixed?)
+check to make sure necessary external programs exist before starting
+make dvdrip work on multiple input files
