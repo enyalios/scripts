@@ -236,7 +236,7 @@ sub video1_pass {
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
-        @sid, @fps);
+        @sid, @fps, @aid);
 }
 
 # this is all basically the exact same thing as the first video pass except we
@@ -248,7 +248,7 @@ sub video2_pass {
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o",
         "$temp_dir/video-$$.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
-        @sid, @fps);
+        @sid, @fps, @aid);
 }
 
 # here we are mixing the audio stream from the ogg file with the video stream
