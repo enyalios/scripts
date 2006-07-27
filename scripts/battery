@@ -1,0 +1,63 @@
+#!/bin/zsh
+
+BAT_DIR="/proc/acpi/battery/BAT0"
+
+case $1 in
+    (-l)
+        CUR_CAPAC=$(< $BAT_DIR/state | sed -ne 5p | perl -pe 's/.*?([0-9]+).*/$1/')
+        MAX_CAPAC=$(< $BAT_DIR/info | sed -ne 3p | perl -pe 's/.*?([0-9]+).*/$1/')
+        [[ "$MAX_CAPAC" != "" ]] && echo "100*$CUR_CAPAC/$MAX_CAPAC" | bc -l
+        ;;
+    (-t)
+        if [[ -e /proc/acpi ]]; then
+            CUR_CAPAC=$(< $BAT_DIR/state | sed -ne 5p | perl -pe 's/.*?([0-9]+).*/$1/')
+            RATE=$(< $BAT_DIR/state | sed -ne 4p | perl -pe 's/.*?([0-9]+).*/$1/')
+            if [[ "$RATE" -eq "0" ]]; then
+                echo "undefined"
+            else
+                echo "$CUR_CAPAC*60/$RATE" | bc
+            fi
+        elif [[ -e /proc/apm ]]; then
+            cat /proc/apm | awk '{print $8}'
+        fi
+        ;;
+    (-d)
+        BATT_PERC=`battery`
+        if grep discharging $BAT_DIR/state &> /dev/null; then
+            BATTERY_COLOR="red"
+            [[ "$BATT_PERC" -gt "10" ]] && BATTERY_COLOR="yellow"
+            [[ "$BATT_PERC" -gt "50" ]] && BATTERY_COLOR="green"
+        else
+            BATTERY_COLOR="blue"
+        fi  
+        osd_cat --barmode=percentage --percentage=$BATT_PERC --pos=bottom \
+        --align=center --color=$BATTERY_COLOR --offset=30 --outline=2 \
+        --font='-*-helvetica-*-r-*-*-20-*-*-*-*-*-*-*' --text="`battery -p`"
+        ;;
+    (-s)
+        if grep discharging $BAT_DIR/state &> /dev/null; then
+            echo Discharging
+        else
+            echo AC-power
+        fi
+        ;;
+    (-p)
+    if grep discharging $BAT_DIR/state &> /dev/null; then
+        echo "Discharging: `battery`% (`battery -t` minutes left)"
+    else
+        echo "AC-power: `battery`%"
+    fi
+    ;;
+    ("")
+        if [[ -e /proc/acpi ]]; then
+            CUR_CAPAC=$(< $BAT_DIR/state | sed -ne 5p | perl -pe 's/.*?([0-9]+).*/$1/')
+            MAX_CAPAC=$(< $BAT_DIR/info | sed -ne 3p | perl -pe 's/.*?([0-9]+).*/$1/')
+            [[ "$MAX_CAPAC" != "" ]] && echo "100*$CUR_CAPAC/$MAX_CAPAC" | bc
+        elif [[ -e /proc/apm ]]; then
+            cat /proc/apm | awk '{print $7}' | sed -e 's/%//'
+        fi
+        ;;
+    (*)
+        echo "usage:  `basename $0` [-l|-t|-d|-s|-p]"
+        ;;
+esac
