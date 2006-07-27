@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+
+getopts('mv');
+
+$file = $opt_m?
+    glob "$ENV{HOME}/.mozilla/default/*/prefs.js":
+    glob "$ENV{HOME}/.mozilla/firefox/*.default/prefs.js";
+
+die unless open(INPUT, "<$file");
+@lines = <INPUT>;
+$num_sessions = grep { /sessionsaver\.windows\.session/ } @lines;
+for(@lines) {
+    next unless /sessionsaver\.windows\.session/;
+    ($session_num, $string) = /^.*?".*?(\d+)".*?(z1[ |].+)  ?\d+"\);$/; 
+    next unless $string;
+    @tabs = split /[ |]\|\|/, $string;
+    print "Session $session_num:\n" if $num_sessions > 1;
+    for(@tabs) {
+        ($hist_num, $string) = /z1[ |]\|(\d+)[ |]\|-?\d+,-?\d+\| ?(.*)/;
+        @urls = split /[ |]\|-?\d+,-?\d+\| ?/, $string;
+        if($opt_v) { print "hist_num: $hist_num\n"; print "  $_\n" for @urls };
+        print "$urls[$hist_num]\n";
+    }
+}
+close INPUT;
