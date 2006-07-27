@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+#
+# this script will iterate over all of the movies in mythvideo that dont have
+# their imdb number set and try to grab info off of imdb.  it uses the imdb
+# helper script that comes with mythvideo to do all the dirty work.  just run
+# this script and then wait a very long time in order to enjoy all the gooey
+# metadata goodness.
+
+use strict;
+use warnings;
+use DBI;
+use LWP::Simple;
+
+# variables for tweaking
+my $imdb_script = "/usr/share/mythtv/mythvideo/scripts/imdb.pl";
+my $poster_cache = "$ENV{HOME}/.mythtv/MythVideo";
+my $movie_path = "/mnt/videos/movies/";
+
+# connect to the db and run the query
+my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
+    "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
+my $sth = $dbh->prepare("SELECT intid, title, inetref FROM videometadata
+                         WHERE filename like '$movie_path%'");
+$sth->execute();
+
+# prepare the query for updating info
+my $update_sql = $dbh->prepare("UPDATE videometadata SET
+    title      = ?, year       = ?, director   = ?, 
+    plot       = ?, userrating = ?, rating     = ?, 
+    length     = ?, coverfile  = ?, inetref    = ? 
+    WHERE intid = ?");
+
+# iterate over all of the movie entries
+while (my $ref = $sth->fetchrow_hashref()) {
+    next if $ref->{inetref} != 0;
+    printf "%-30s ", $ref->{title};
+
+    # use the imdb script to find the imdb number
+    my $imdb_num = `$imdb_script -M '$ref->{title}'`;
+    $imdb_num =~ s/:.*//s;
+    print "$imdb_num\n";
+    next unless $imdb_num;
+    
+    # use the imdb script to find the metadata
+    $_ = `$imdb_script -D $imdb_num`;
+    my @data = ("") x 8;
+    ($data[0]) = /^Title:(.*)$/m;
+    ($data[1]) = /^Year:(\d+)$/m;
+    ($data[2]) = /^Director:(.*)$/m;
+    ($data[3]) = /^Plot:(.*)$/m;
+    ($data[4]) = /^UserRating:(.*)$/m;
+    ($data[5]) = /^MovieRating:(.*)$/m;
+    ($data[6]) = /^Runtime:(\d+)$/m;
+    ($data[7]) = "No Cover";
+    
+    # use the imdb script to lookup the image and then grab it
+    my $img_url = `$imdb_script -P $imdb_num`;
+    $img_url =~ s/\n.*//s;
+    getstore($img_url, "$poster_cache/$imdb_num.jpg") if $img_url;
+    $data[7] = "$poster_cache/$imdb_num.jpg" if -e "$poster_cache/$imdb_num.jpg";
+
+    # run the sql query to update the info
+    $update_sql->execute( @data, $imdb_num, $ref->{intid} );
+}
+
+# disconnect from the db
+$dbh->disconnect();

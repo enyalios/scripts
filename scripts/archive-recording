@@ -1,0 +1,20 @@
+#!/bin/sh
+
+logger -t archive-recording "\"$1\" \"$2\" \"$3\" \"$4\""
+
+title=$1
+subtitle=$2
+chanid=$3
+starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
+
+cd /mnt/media/archive
+
+[[ "$title" != "Alias" ]] && ep_args="-lu"
+
+outfile=$(/home/enyalios/bin/episodes $ep_args "$title" "$subtitle")
+
+/usr/bin/mythtranscode --chanid $chanid --starttime $starttime --outfile "${outfile}.mpg" --mpeg2 --honorcutlist
+
+/home/enyalios/bin/dvdrip --bitrate 600 --crop --deinterlace --denoise --outfile "${outfile}.mkv" --width 480 "${outfile}.mpg" 2>&1 | perl -pe 's/^.*\r(?!$)//'
+
+rm "${outfile}.mpg" "${outfile}.mpg.map"
