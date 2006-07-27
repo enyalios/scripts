@@ -1,0 +1,119 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use LWP::Simple;
+use Data::Dumper;
+use Getopt::Std;
+
+my $cache_file = "/tmp/episode_cache";
+my ($title, $subtitle, $ext, %data, %opts);
+
+sub parse_args {
+    getopts('luh', \%opts);
+    HELP_MESSAGE() if $opts{h};
+    if(@ARGV == 2) { 
+        ($title, $subtitle) = @ARGV;
+    }
+    elsif(@ARGV == 1) { 
+        ($title, $subtitle, $ext) = $ARGV[0] =~ 
+        /^(.+?)[ _](?:-|\d+|\d+-\d+)?[ _](.+?)(\.[a-z]{3})?$/i;
+        $title ||= $ARGV[0] 
+    }
+    else { 
+        print "bad arguments\n"; 
+        HELP_MESSAGE(); 
+    }
+    for($title, $subtitle) { y/_/ / if $_ };
+    $ext ||= "";
+}
+
+sub HELP_MESSAGE {
+    print <<EOF;
+
+usage:
+    episodes <options> <title>
+    episodes <options> <title> <subtitle>
+    episodes <options> <filename>
+
+options:
+    -l    lowercase filenames
+    -u    convert spaces to underscores
+    -h    print help message
+
+EOF
+    exit 1;
+}
+        
+sub simple {
+    my $word = $_[0] || "";
+    for($word) { y/A-Z /a-z_/; y/-a-z_0-9//cd; }
+    return $word;
+}
+
+sub load_cache {
+    -e $cache_file ? %{do $cache_file} : ();
+}
+
+sub find_match {
+    my $simp_sub = simple($subtitle);
+    my $result = $data{simple($title)}{$simp_sub} || "";
+    unless($result) {
+        for(keys %{$data{simple($title)}}) {
+            $result = $data{simple($title)}{$_} if /$simp_sub.*/;
+        }
+    }
+    unless($result) {
+        for(keys %{$data{simple($title)}}) {
+            $result = $data{simple($title)}{$_} if /.*$simp_sub.*/;
+        }
+    }
+    return format_match($result);
+}
+
+sub grab_eps {
+    # find the url of the episode listing for the given show
+    (my $show_url, $title ) = get("http://www.tv.com/search.php?stype=all&qs=$title") 
+        =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
+    $show_url =~ s/summary\.html$/episode_listings.html/;
+
+    # loop over the episode pages and print out the episodes
+    # using this page first, follow by any other season pages
+    for("$show_url?season=1", get("$show_url") =~ /<option value="(.*=(?:[2-9]|[1-9]\d+))"/g) {
+        my ($season_num) = /(\d+)$/;
+        my $ep_num = 1;
+        my $page = get $_;
+        for($page =~ m!^\s+\d+\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html">(.*)</a>!mg) 
+        {
+            $data{simple($title)}{simple($_)} = 
+            sprintf("%s - %d%02d - %s", $title, $season_num, $ep_num++, $_);
+        }
+    }
+    write_cache();
+}
+
+sub write_cache {
+    open CACHE, ">$cache_file" 
+        or die "could not open '$cache_file' for writing: $!\n";
+    print CACHE Dumper \%data;
+    close CACHE;
+}
+
+sub format_match {
+    $_[0] =~ y/-_A-Za-z0-9 .,'()%?!//cd;
+    $_[0] = lc $_[0] if $opts{l};
+    $_[0] =~ s/ (- )?/_/g if $opts{u};
+    $_[0] =~ y/-a-z_0-9//cd if($opts{u} && $opts{l});
+    return $_[0];
+}
+
+parse_args();
+%data = load_cache();
+if($subtitle) {
+    my $match = find_match();
+    $match = (grab_eps(), find_match()) unless $match;
+    print $match ? "$match" : format_match("$title  $subtitle"), "$ext\n"; 
+} else {
+    grab_eps() unless $data{simple($title)};
+    print format_match($_), "\n" for sort values %{$data{simple($title)}};
+}

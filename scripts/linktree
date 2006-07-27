@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+#
+# A neat little script to generate a tree full of symlinks pointing to mythtv
+# recordings.  It's a lot easier to find shows this way rather than going into
+# mysql by hand and putting together the chanid, starttime, and endtimes.
+
+use strict;
+use warnings;
+use DBI;
+use File::Path;
+
+# configuration variables, edit to your liking
+my $media_root = "/mnt/media";
+my $link_root = "/mnt/media/by_name";
+my $underscore = 1;
+my $lowercase = 1;
+# this will be set smartly
+my $spacer = $underscore ? "_" : " ";
+
+# connect to the db and run the query
+my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
+    "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
+my $sth = $dbh->prepare("SELECT title, subtitle, basename FROM recorded");
+$sth->execute();
+
+# get rid of an old symlink tree if one exists
+rmtree "$link_root" if -e "$link_root";
+mkdir "$link_root";
+
+# iterate over all of the recorded tv shows
+while (my $ref = $sth->fetchrow_hashref()) {
+    # grab the extension from the target file
+    my ($ext) = $ref->{basename} =~ /\.(\w+)$/;
+    
+    # format the symlink name
+    for($ref->{title}, $ref->{subtitle}) { 
+        y/A-Z/a-z/ if $lowercase;
+        y/ /_/ if $underscore;
+        y/-a-zA-Z_ 0-9()',.//cd;
+    }
+    $ref->{subtitle} = $ref->{title} unless $ref->{subtitle};
+
+    # whine if the target is missing
+    die "missing target file '$media_root/$ref->{basename}\n"
+        unless -e "$media_root/$ref->{basename}";
+    
+    # make the show directory if necessary
+    unless(-e "$link_root/$ref->{title}") {
+        mkdir "$link_root/$ref->{title}" 
+            or die "could not create directory '$link_root/$ref->{title}'\n";
+    }
+     
+    # take care of shows that have mult eps with the same name
+    while(-e "$link_root/$ref->{title}/$ref->{subtitle}.$ext") {
+        no warnings 'uninitialized';
+        $ref->{subtitle} =~ s/(?:$spacer(\d+))?$/sprintf "%s%d", $spacer, $1 + 1/e;
+    }
+    
+    # make the actual symlink for the episode
+    symlink "$media_root/$ref->{basename}", 
+        "$link_root/$ref->{title}/$ref->{subtitle}.$ext"
+        or die "could not make symlink '$link_root/$ref->{title}/",
+        "$ref->{subtitle}.$ext' -> '$media_root/$ref->{basename}'\n";
+}
+
+# disconnect from the db
+$dbh->disconnect();
