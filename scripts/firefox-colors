@@ -1,0 +1,56 @@
+#!/bin/zsh
+
+# these times are in minutes past midnight
+RISE_DEFAULT=360  # 6:00 am
+SET_DEFAULT=1080  # 6:00 pm
+ZIPCODE=61801     # sets your zipcode for sun rise/set times
+
+TRUE_STRING='user_pref("browser.display.use_document_colors", true);'
+FALSE_STRING='user_pref("browser.display.use_document_colors", false);'
+PREF_FILE=$(ls /home/enyalios/.mozilla/firefox/*.default/user.js)
+WEATHER_URL="http://www.wunderground.com/cgi-bin/findweather/getForecast?query=$ZIPCODE"
+
+if [[ "$1" = "" ]]; then
+    TIMES=$(wget -qO - -T 3 $WEATHER_URL | sed -ne '/<h4>Rise<\/h4>/,+6p')
+    RISE_TIME=$(echo $TIMES | sed -ne 6p | perl -pe 's/.*?>(\d+):(\d+) .*/$1*60 + $2/e')
+    SET_TIME=$(echo $TIMES | sed -ne 7p | perl -pe 's/.*?>(\d+):(\d+) .*/($1 + 12)*60 + $2/e')
+    CUR_TIME=$(echo "$(date +%H)*60 + $(date +%M)" | bc)
+    [[ "$RISE_TIME" = "" ]] && RISE_TIME=$RISE_DEFAULT
+    [[ "$SET_TIME" = "" ]] && SET_TIME=$SET_DEFAULT
+    [[ "$CUR_TIME" -ge "$SET_TIME" || "$CUR_TIME" -lt "$RISE_TIME" ]] \
+        && SCHEME=custom || SCHEME=default
+    # next line is for debugging
+    #echo -e "$TIMES\nrise: $RISE_TIME\nset:  $SET_TIME\ncur:  $CUR_TIME\nscheme: $SCHEME" && exit
+else 
+    SCHEME=$1
+fi
+
+if [ "$SCHEME" = "custom" ]; then
+    if grep "$FALSE_STRING" $PREF_FILE > /dev/null ; then
+        exit 0;
+    fi
+        sed -i "s/$TRUE_STRING/$FALSE_STRING/" $PREF_FILE
+elif [ "$SCHEME" = "default" ]; then
+    if grep "$TRUE_STRING" $PREF_FILE > /dev/null ; then
+        exit 0;
+    fi
+    sed -i "s/$FALSE_STRING/$TRUE_STRING/" $PREF_FILE
+else
+    echo "Invalid scheme: $SCHEME"
+    echo "Usage:  `basename $0` [custom|default]"
+    exit 1
+fi
+
+if ps -e | grep "firefox-bin" > /dev/null; then
+    [[ -x $HOME/bin/pages ]] && $HOME/bin/pages > $HOME/.pages
+    export DISPLAY=:0.0
+#     DESKTOP=`wmctrl -l | grep -i firefox | awk '{print $2}'`
+    killall firefox-bin
+    sleep 1
+    firefox > /dev/null &
+#     while ! wmctrl -l | grep -qi firefox; do
+#         sleep .5
+#     done
+#     sleep .5
+#     wmctrl -r firefox -t $DESKTOP
+fi

@@ -1,0 +1,30 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+$/ = "\n\n";
+my $count = 0;
+my $names = 1, shift if $ARGV[0] eq "-n";
+my %cards;
+
+open INPUT, "<$ENV{HOME}/magic/oracle" or die "cant find input file\n";
+
+CARD: while(<INPUT>) {
+    for my $regex (@ARGV) {
+        next CARD unless /$regex/im;
+    }
+    my ($card_name) = /^CardName: +(.*)$/m;
+    next CARD if $cards{$card_name}++;
+    if($names) { 
+        print "$card_name\n" and next CARD;
+    } else {
+        1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m;
+        print;
+        $count++;
+    }
+}
+
+close INPUT;
+
+print "$count card(s) returned\n\n" unless $names;

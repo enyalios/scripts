@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use Term::ANSIColor;
+
+my @regexs;
+my $color_file = "$ENV{HOME}/.colors";
+
+if($ARGV[0] && ! -f $ARGV[0]) { 
+    my $regex = shift;
+    push @regexs, [qr/$regex/ , "bold yellow"];
+} else {
+    open(CONFIG, "<$color_file") or die "couldnt open '$color_file'\n";
+
+    while(<CONFIG>) {
+        next if /^\s*(#|$)/;
+        m#^\s*/(.*)/\s+([\w ]+)\s*$#;
+        push @regexs, [qr/$1/, $2];
+    }
+}
+
+while(my $line = <>) {
+    my @cols = ("RESET") x length $line;
+    for(@regexs) {
+        my ($regex, $color) = @{$_};
+        while($line =~ /$regex/g) {
+            if($-[1]) {
+                @cols[$-[1]..($+[1]-1)] = ($color) x ($+[1] - $-[1]);
+            } else {
+                @cols[$-[0]..($+[0]-1)] = ($color) x ($+[0] - $-[0]);
+            }
+        } 
+    }
+    my $last_color = "";
+    for(my $i = 0; $i < length $line; $i++) {
+        if($cols[$i] && $cols[$i] ne $last_color) {
+            print color("RESET"), color $cols[$i]; 
+        }
+        print substr $line, $i, 1;
+        $last_color = $cols[$i];
+    }
+}
