@@ -1,0 +1,49 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Date::Parse;
+use POSIX qw(strftime);
+use Term::ReadKey;
+
+$/ = "";
+my @maildir = @ARGV;
+@maildir = split /\n/, `find $ENV{HOME}/.maildir | grep /new\$ | grep -v /junk/` unless @maildir;
+my ($width) = GetTerminalSize();
+
+for my $dir(@maildir) {
+    opendir DIR, $dir or die "Cannot open directory '$dir': $!\n";
+    my @files = grep { !/^\./ && -f "$dir/$_" } readdir(DIR);
+    closedir DIR;
+
+    my @emails;
+    for(@files) {
+        my ($msg, @fields, $from, $to, $date, $epoch, $subject);
+        open $msg, "<$dir/$_" or die "Cannot open file '$dir/$_': $!\n";
+        @fields = split /\n(?!\s)/, <$msg>;
+        close $msg;
+
+        $date = (grep { /^date: /i } @fields)[0] || "jan 1 1970";
+        $date =~ s/^date: +//i;
+        $epoch = str2time $date; 
+        $date = strftime "%b %d %Y", localtime $epoch;
+
+        $from = (grep { /^from: /i } @fields)[0] || "???";
+        $from =~ s/^from: +(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+
+        $to      = (grep { /^to: /i } @fields)[0];
+
+        $subject = (grep { /^subject: /i } @fields)[0] || "";
+        $subject =~ s/^subject: +//i;
+        $subject =~ s/\n//g;
+        substr($subject, $width - 43) = "..." if length $subject > $width - 40;
+
+        push @emails, { date => $date, epoch => $epoch, 
+            from => $from, to => $to, subject => $subject };
+    }
+
+    print "$dir(", scalar @emails,  ")\n" if @emails;
+    for(sort { $a->{epoch} <=> $b->{epoch} } @emails) {
+        printf "  %-11s  %-23.23s  %-s\n", $_->{date}, $_->{from}, $_->{subject};
+    }
+}

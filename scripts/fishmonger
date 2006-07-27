@@ -1,0 +1,296 @@
+#!/usr/bin/perl -w
+
+# all the modules we'll need
+use strict;
+use Glib qw(TRUE FALSE);
+use Gtk2 -init;
+use Gtk2::Gdk::Keysyms;
+use Fcntl ':mode';
+use Cwd qw(abs_path getcwd);
+use File::stat;
+use Data::Dumper;
+
+# for translating num -> month
+my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+
+# ignore children to prevent zombies
+$SIG{CHLD} = 'IGNORE';
+
+# functions to get table data 
+# ( $_[0] = filename, $_[1] = hash of attribs, $_[2] = $dirname )
+my %get = (
+    mode  => sub { sprintf("%o", $_[1]->mode & 07777) },
+    links => sub { $_[1]->nlink },
+    uid   => sub { scalar getpwuid $_[1]->uid || $_[1]->uid },
+    gid   => sub { scalar getgrgid $_[1]->gid || $_[1]->gid },
+    size  => sub { 
+        my @exps = split //, "BKMGTPEZY";
+        my $number = $_[1]->size;
+        return $number if($number <= 1024); 
+        for my $power (reverse 0..$#exps) {
+            if ($number/(1024**$power) > 1 || $power == 0)
+            { return sprintf("%.1f", $number/1024**$power).$exps[$power]; } 
+        }
+    },
+    mtime => sub { 
+        my @t = localtime $_[1]->mtime;
+        my @now = localtime;
+        if($now[5] == $t[5]) {
+            sprintf("%s %2d %02d:%02d", $months[$t[4]], 
+            $t[3], $t[2], $t[1])
+        } else {
+            sprintf("%s %d, %d", $months[$t[4]],
+            $t[3], $t[5]+1900)
+        }
+    },
+    name  => sub { 
+        if(-l _) {
+            return "$_[0] -> " . readlink("$_[2]/$_[0]");
+        } else {
+            return "$_[0]";
+        }
+    },
+    color => sub { 
+        my $n = $_[0];
+        return 'blue' if -d _;
+        return '#00CCCC' if -l _;
+        return '#B0B000' if -p _;
+        return 'magenta' if -S _;
+        return '#CCCC00' if -b _;
+        return '#CCCC00' if -c _;
+        return '#00C000' if -x _;
+        return 'red' if $n =~ /\.(tar|t?gz|bz2?|tbz2?|zip)$/i;
+        return 'dark green' if $n =~ /\.(log|txt|pdf|ps)$/i;
+        return 'magenta' if $n =~ /\.(wmv|asf|avi|mpe?g|mov)$/i;
+        return 'magenta' if $n =~ /\.(jpe?g|png|bmp|gif|tiff?)$/i;
+        return 'dark cyan' if $n =~ /\.(mp3|ogg|wav|wma)$/i;
+        return 'black';
+    },
+    rsize => sub { $_[1]->size; },
+    rtime => sub { $_[1]->mtime; },
+    rname => sub { $_[0]; } 
+);
+
+# the data for the columns of the table
+#              name        type            data_function      xalign
+#                                                       colored     sortby
+my @cols = ( [ "Mode",     "Glib::Int",    $get{mode},  FALSE, 1.0, 0  ],
+             [ "Links",    "Glib::Int",    $get{links}, FALSE, 1.0, 1  ],
+             [ "UID",      "Glib::String", $get{uid},   FALSE, 0.0, 2  ],
+             [ "GID",      "Glib::String", $get{gid},   FALSE, 0.0, 3  ],
+             [ "Size",     "Glib::String", $get{size},  FALSE, 1.0, 8  ],
+             [ "MTime",    "Glib::String", $get{mtime}, FALSE, 0.0, 9  ],
+             [ "Filename", "Glib::String", $get{name},  TRUE,  0.0, 10 ],
+             [ "color",    "Glib::String", $get{color}, FALSE, 0.0, 7  ],
+             [ "rsize",    "Glib::Int",    $get{rsize}, FALSE, 0.0, 8  ],
+             [ "rtime",    "Glib::Int",    $get{rtime}, FALSE, 0.0, 9  ],
+             [ "rname",    "Glib::String", $get{rname}, FALSE, 0.0, 10 ] );
+
+my $dirname = abs_path(shift || getcwd());
+
+sub populate_list($) {
+    my $dirname = shift;
+    opendir DIR, "$dirname" or die "couldnt open $dirname\n";
+    my @files = readdir DIR or die "couldnt read $dirname\n";
+    closedir DIR;
+
+    # make our list
+    my $list = Gtk2::ListStore->new(map {@{$_}[1]} @cols);
+    my $filename;
+    for $filename (sort grep {/^(\.\.|[^.].*)$/} @files) {
+        my $st = lstat "$dirname/$filename";
+        $list->set($list->append, map {($_, &{$cols[$_][2]}($filename, $st, $dirname))} 0..@cols-1);
+    }
+    return $list;
+}
+
+sub silent_exec (@) {
+    unless(fork()) { close STDOUT; close STDERR; exec(@_); }
+}
+
+my $window = Gtk2::Window->new;
+$window->set_default_size(600, 400);
+$window->signal_connect(destroy => sub {Gtk2->main_quit});
+$window->signal_connect(key_press_event => sub {
+    my ($widget, $event) = @_;
+    if ($event->keyval == $Gtk2::Gdk::Keysyms{Escape}) 
+    { Gtk2->main_quit; return 1; }
+    if ($event->keyval == $Gtk2::Gdk::Keysyms{BackSpace})
+    { $dirname = abs_path("$dirname/.."); view_directory("$dirname"); return 1; }
+    if ($event->keyval == $Gtk2::Gdk::Keysyms{F5})
+    { view_directory($dirname); return 1; }
+    if ($event->keyval == $Gtk2::Gdk::Keysyms{quoteleft})
+    { view_directory($ENV{HOME}); return 1; }
+    if ($event->keyval == $Gtk2::Gdk::Keysyms{F1})
+    { system("$0 '$dirname' &"); return 1; }
+    return;
+});
+
+# create the scrolled window
+my $scrolled_window = Gtk2::ScrolledWindow->new;
+$scrolled_window->set_policy("automatic", "always");
+$window->add($scrolled_window);
+
+my $view = Gtk2::TreeView->new;
+$view->set_rules_hint(TRUE);
+#$view->get_selection->set_mode('multiple');
+
+my @signal_ids;
+
+sub view_directory ($) {
+    $dirname = shift;
+    $window->set_title("$dirname");
+
+    my $list = populate_list($dirname);
+    $view->set_model($list);
+    $view->set_search_column(10);
+    $view->signal_handler_disconnect($_) for @signal_ids;
+    @signal_ids = ();
+    push @signal_ids, $view->signal_connect(button_release_event => sub { 
+        my (undef, $event) = @_;
+        # Do completely normal things unless this is a right-button click.
+        return FALSE unless $event->button == 3;
+
+        # otherwise, pop up a context menu that lets the user select the
+        # virtual column on which to sort.
+        my $menu = Gtk2::Menu->new;
+        foreach ("View All Pictures", "Play All Music", "Play Random Media", "bar", "Properties", "bar", "Quit") {
+            my $item;
+            if($_ eq "bar") {
+                $item = Gtk2::MenuItem->new;
+                $menu->append($item);
+                $item->show;
+                next;
+            }
+            $item = Gtk2::MenuItem->new($_);
+            $menu->append ($item);
+            $item->show;
+            $item->signal_connect (activate => sub {
+                my (undef, $selected) = @_;
+                if($selected eq "View All Pictures") {
+                    my $iter = $list->get_iter_first;
+                    my @files;
+                    while($iter) {
+                        my $file = $list->get($iter, 10);
+                        push @files, "$dirname/$file" if $file =~/\.(jpe?g|png|tiff?|gif|bmp)$/i;
+                        $iter = $list->iter_next($iter);
+                    }
+                    if(@files) {
+                        silent_exec("xv", "-geometry", "+0+0", @files);
+                    } else {
+                        print "No pictures to view.\n";
+                    }
+                }
+                elsif($selected eq "Play All Music") {
+                    my $iter = $list->get_iter_first;
+                    my @files;
+                    while($iter) {
+                        my $file = $list->get($iter, 10);
+                        push @files, "$dirname/$file" if $file =~/\.(mp3|ogg|wav|wma)$/i;
+                        $iter = $list->iter_next($iter);
+                    }
+                    if(@files) {
+                        silent_exec("xterm", "-e", "mplayer", @files);
+                    } else {
+                        print "No songs to play.\n";
+                    }
+                }
+                elsif($selected eq "Play Random Media") {
+                    my $iter = $list->get_iter_first;
+                    my (@files, $file);
+                    while($iter) {
+                        $file = $list->get($iter, 10);
+                        push @files, "$dirname/$file" if $file =~ /\.(wmv|avi|asf|mpe?g|mov)$/i;
+                        push @files, "$dirname/$file" if $file =~ /\.(mp3|ogg|wav|wma)$/i;
+                        $iter = $list->iter_next($iter);
+                    }
+                    if(@files) {
+                        $file = $files[int(rand(@files))];
+                        if($file =~ /\.(wmv|avi|asf|mpe?g|mov)$/i)
+                            { silent_exec( "mplayer", $file); }
+                        elsif($file =~ /\.(mp3|ogg|wav|wma)$/i)
+                            { silent_exec( "xterm", "-e", "mplayer", $file ); }
+                        else
+                            { print "shouldnt be here!\n"; }
+                    } else {
+                        print "Nothing to play.\n";
+                    }
+                }
+                elsif($selected eq "Properties") {
+                    my $monolog = Gtk2::Dialog->new(
+                        'Properties',
+                        $window,
+                        [ qw( destroy-with-parent ) ],
+                        'gtk-ok' => 'accept'
+                    );
+                    my $text;
+                    my $st = stat $dirname . "/" . $list->get(scalar $view->get_selection->get_selected, 10);
+                    $text .= "$_\n" for @$st;
+                    print Dumper($st);
+                    $monolog->vbox->add( Gtk2::Label->new( "$text" ) );
+                    $monolog->signal_connect (response => sub { $_[0]->destroy });
+                    $monolog->show_all();
+                }
+                elsif($selected eq "Quit") {
+                    Gtk2->main_quit;
+                }
+                else { print "should not be here either!\n"; }
+            }, $_);
+        }
+        $menu->popup (undef, undef, undef, undef,
+        $event->button, $event->time);
+        return TRUE; # stop propagation!
+    });
+    push @signal_ids, $view->signal_connect(row_activated => sub {
+        my ($treeview, $path, $column) = @_;
+        my @values = $list->get($list->get_iter($path));
+        my $fullpath = "$dirname/$values[10]";
+        my $st = stat($fullpath);
+        if($st->mode & S_IFDIR && -r _) {
+            $list->clear;
+            $dirname = abs_path($fullpath);
+            view_directory($dirname);
+        } else {
+            if($values[10] =~ /\.(wmv|avi|asf|mpe?g|mov)$/i)
+            { silent_exec("mplayer",  $fullpath) }
+            elsif($values[10] =~ /\.(mp3|ogg|wav|wma)$/i)
+            { silent_exec("xterm", "-e", "mplayer '$fullpath'") }
+            elsif($values[10] =~ /\.(jpe?g|png|tiff?|gif|bmp)$/i)
+            { silent_exec("xv", "-geometry", "+0+0", $fullpath) }
+            elsif($values[10] =~ /\.(ps|pdf)$/i)
+            { silent_exec("gv", $fullpath) }
+            elsif(-T _)
+            { silent_exec("xterm", "-e", "less", "-+F", $fullpath) }
+            else
+            { print "No handler found for file '$fullpath'.\n" }
+        }
+    });
+}
+
+#for (0..$list->get_n_columns-1) {
+for (0..6) {
+    my $renderer = Gtk2::CellRendererText->new;
+    $renderer->set (xalign => $cols[$_][4]);
+    my $col = Gtk2::TreeViewColumn->new_with_attributes($cols[$_][0], 
+    $renderer, text => $_, $cols[$_][3] ? (foreground => 7) : () );
+    $col->set_sort_column_id($cols[$_][5]);
+    $view->append_column($col);
+}
+$scrolled_window->add($view);
+
+view_directory($dirname);
+
+$window->show_all;
+
+Gtk2->main;
+
+=for TODO
+
+make the mode column more like in ls
+launch external programs depending on file type (some progress)
+use $LS_COLORS data to color dir entries
+implement context menus on dir entries for fm operations
+implement a properties dialog
+add the ability to toggle if hidden files are viewable
+fail gracefully for unreadable directories (some progress)
+make the window appear before all files are stat-ed

@@ -1,0 +1,71 @@
+#!/usr/bin/perl -w
+
+# use a helpful module
+use Term::ANSIColor qw(:constants);
+
+# declare some vars for easy tweaking
+$bar_width  = 18;
+$dev_width  = 15;
+$warn_perc  = 90;
+$emerg_perc = 98;
+$header_color = GREEN;
+$df_args = "";
+
+# declare some vars not for tweaking
+@exponents = split //, "KMGTPEZY";
+$format = "%s%s %6s %6s %6s %5s%% %s %-s%s\n";
+$stop_color = RESET;
+
+# helpful function for formatting our numbers
+sub trunc($) {
+    $number = shift;
+    for $power (reverse 0..@exponents) {
+        if ($number/(1024**$power) > 1 || $power == 0) {
+            return sprintf("%.1f", $number/1024**$power).$exponents[$power];
+} } }
+
+$no_color = "1" unless -t STDOUT;
+while(@ARGV) {
+    $_ = shift @ARGV;
+    $no_color = "1" if /^-b$/;
+    $no_color = "0" if /^-c$/;
+    $df_args .= " $_" unless /^-/;
+}
+
+if($no_color) { $header_color = ""; $stop_color = "" }
+# print out a nice header line
+printf $format, $header_color, "Filesystem" . " " x ($dev_width - 10), "Size", "Used",
+    "Avail", "Use", "[" . "-" x $bar_width . "]", "Mounted", $stop_color;
+
+# do our magic
+for $line (`/bin/df -P $df_args`) {
+    # preliminary administrivia
+    chomp $line;
+    next if $line =~ /^Filesystem.*Mounted on$/;
+    ($device,  $total, $used, $avail, undef, $mount) = split / +/, $line;
+    next if $device eq "none";
+
+    # format the device name correctly
+    if(length($device) > $dev_width)
+    { substr($device, 0, length($device) - $dev_width + 2) = ".." }
+    $device .= " " x ($dev_width - length($device));
+
+    # pretty print all our numbers
+    $perc    = sprintf "%.1f", $used/$total*100;
+    $_ = trunc $_ for $avail, $total, $used;
+
+    # now a nice usage bar
+    $bar     = "[" . "#" x int($perc/100*$bar_width);
+    $bar    .= "-" x ($bar_width - int($perc/100*$bar_width)) . "]";
+
+    # warn with some wacky colors
+    $color   = RESET;
+    $color   = YELLOW if $perc > $warn_perc;
+    $color   = RED if $perc > $emerg_perc;
+
+    $color = "" if $no_color;
+    
+    # and finally print it all out
+    printf $format, $color, $device, $total, $used, $avail,
+        $perc, $bar, $mount, $stop_color;
+}

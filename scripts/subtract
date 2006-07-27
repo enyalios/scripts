@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+
+sub get_lines {
+    open(FILE, "<$_[0]") or die "Cannot open '$_[0]': $!.\n";
+    return <FILE>;
+}
+
+die "need exactly 2 args.\n" unless @ARGV == 2;
+
+@lines{get_lines($ARGV[0])} = ();
+delete @lines{get_lines($ARGV[1])};
+
+for(sort keys %lines) { print if exists $lines{$_} }
