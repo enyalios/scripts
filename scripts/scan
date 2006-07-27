@@ -1,0 +1,20 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my $output = `/sbin/iwlist eth1 scan`;
+my @data;
+
+sub by_essid   { $a->{essid} cmp $b->{essid} || $b->{quality} <=> $a->{quality} }
+sub by_quality { $b->{quality} <=> $a->{quality} || $a->{essid} cmp $b->{essid} }
+
+my @access_points = split /\s*Cell \d+ - /, $output;
+for(@access_points) {
+    my ($address, $essid, $enc, $quality) = /Address: ([0-9A-F:]+).*?ESSID:"(.*?)".*?Encryption key:(\w*).*?Quality=(\d+)\/100/sm;
+    next unless $address && $essid && $enc && $quality;
+    push @data, { address => $address, quality => $quality, essid => $essid, enc => $enc };
+}
+
+for(sort by_quality @data) {
+    printf "%3d %1s %-16s %s\n", $_->{quality}, ($_->{enc} eq "on")?"*":"", $_->{essid}, $_->{address}; 
+}

@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+undef $/;
+
+while(1) {
+    open(BATTERY, "</proc/acpi/battery/BAT0/state") or die "couldnt find battery\n";
+    my $data = <BATTERY>;
+    my $discharging = ($data =~ /^charging state:\s+charging/m)?0:1;
+    my $remaining = ($data =~ /^remaining.*?(\d+) mWh$/m)[0];
+    my $rate = ($data =~ /^present rate.*?(\d+) mW$/m)[0];
+    if($remaining && $rate) {
+        my $time = $remaining/$rate*60;
+        system("/usr/sbin/hibernate") if($time < 5 && $discharging);
+        #print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n";
+    }
+    sleep 60
+}
