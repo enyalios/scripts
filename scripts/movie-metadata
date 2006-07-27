@@ -19,8 +19,8 @@ my $movie_path = "/mnt/videos/movies/";
 # connect to the db and run the query
 my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
     "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
-my $sth = $dbh->prepare("SELECT intid, title, inetref FROM videometadata
-                         WHERE filename like '$movie_path%'");
+my $sth = $dbh->prepare("SELECT intid, title FROM videometadata WHERE 
+                         filename like '$movie_path%' and inetref = 0");
 $sth->execute();
 
 # prepare the query for updating info
@@ -32,7 +32,6 @@ my $update_sql = $dbh->prepare("UPDATE videometadata SET
 
 # iterate over all of the movie entries
 while (my $ref = $sth->fetchrow_hashref()) {
-    next if $ref->{inetref} != 0;
     printf "%-30s ", $ref->{title};
 
     # use the imdb script to find the imdb number
