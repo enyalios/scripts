@@ -5,7 +5,6 @@ use warnings;
 use Time::Local;
 use Term::ANSIColor;
 use Getopt::Std;
-use Date::Manip;
 use POSIX 'floor';
 
 my @days = qw(31 xx 31 30 31 30 31 31 30 31 30 31);
@@ -51,7 +50,7 @@ sub calendar {
         # comment out the next 7 lines to get rid of my workday highlighting
         for(@mon) { 
             next unless /^\d+$/;
-            my $index = (Date_DaysSince1BC($mon, $_ + 1,$year)-3) % 14;
+            my $index = (days_since_1970($mon, $_, $year)-3) % 14;
             if(($index >= $sched[0] && $index <= $sched[1]) || 
                ($index >= $sched[2] && $index <= $sched[3])) {
                 $_ = $work_color . sprintf("%2d", $_) . $stop_color; 
@@ -106,6 +105,13 @@ sub parse_args {
     }
     $opts{m} = 0 if $opts{s};
     push(@day_names, shift @day_names) if $opts{m};
+}
+
+sub days_since_1970 {
+    my ($month, $day, $year) = @_;
+    my $seconds_in_a_day = 60*60*24;
+    my $seconds = timelocal 0, 0, 0, $day, $month-1, $year;
+    return int $seconds / $seconds_in_a_day;
 }
 
 parse_args();
