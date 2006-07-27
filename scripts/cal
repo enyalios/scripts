@@ -1,0 +1,141 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Time::Local;
+use Term::ANSIColor;
+use Getopt::Std;
+use Date::Manip;
+use POSIX 'floor';
+
+my @days = qw(31 xx 31 30 31 30 31 31 30 31 30 31);
+my @month_names = qw(January February March April May June
+    July August September October November December);
+my @day_names = qw(Su Mo Tu We Th Fr Sa);
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+my ($mon, $yr);
+my %opts;
+my $num_months;
+my $today_color = color('BOLD YELLOW');
+my $work_color = color('GREEN');
+my $stop_color = color('RESET');
+my @month;
+my $spacer = " ";
+my @sched = qw(3 6 9 12);
+
+sub calendar {
+    my ($mon, $year, $start_day) = @_;
+
+    my @now = (localtime)[3, 4, 5];
+
+    $mon = ($now[1] + 1) unless $mon;
+    $year = ($now[2] + 1900) unless $year;
+    $start_day = 0 unless defined $start_day;
+
+    die "Start day $start_day out of range"
+    if ($start_day < 0 || $start_day > 6);
+
+    my $first;
+
+    $first = (localtime timelocal 0, 0, 0, 1, $mon-1, $year)[6];
+
+    $first -= $start_day;
+    $first += 7 if ($first < 0);
+
+    my @mon = (1 .. _days($mon, $year));
+    
+    if($opts{c}) {
+        if($now[1]+1 == $mon && $now[2]+1900 == $year) {
+            $mon[$now[0] - 1] = $today_color . sprintf("%2d", $now[0]) . $stop_color;
+        }
+        # comment out the next 7 lines to get rid of my workday highlighting
+        for(@mon) { 
+            next unless /^\d+$/;
+            my $index = (Date_DaysSince1BC($mon, $_ + 1,$year)-3) % 14;
+            if(($index >= $sched[0] && $index <= $sched[1]) || 
+               ($index >= $sched[2] && $index <= $sched[3])) {
+                $_ = $work_color . sprintf("%2d", $_) . $stop_color; 
+            }
+        }
+    }
+
+    my @first_wk = (undef) x 7;
+    @first_wk[$first .. 6] = splice @mon, 0, 6 - $first + 1;
+
+    my @month = (\@first_wk);
+
+    while (my @wk = splice @mon, 0, 7) {
+        push @month, \@wk;
+    }
+
+    $#{$month[-1]} = 6;
+    push @month, [ (undef) x 7 ] while($#{month} < 5);
+
+    return wantarray ? @month : \@month;
+}
+
+sub _days {
+    my ($mon, $yr) = @_;
+
+    return $days[$mon - 1] unless $mon == 2;
+    return _isleap($yr) ? 29 : 28;
+}
+
+sub _isleap {
+    return 1 unless $_[0] % 400;
+    return   unless $_[0] % 100;
+    return 1 unless $_[0] % 4;
+    return;
+}
+
+sub parse_args {
+    getopts('13ycbsmn:', \%opts);
+    if(@ARGV == 1) { $opts{y} = 1; }
+    if(@ARGV == 2) { delete $opts{y}; }
+    $yr = pop @ARGV || ((localtime)[5] + 1900);
+    $mon = pop @ARGV || (localtime)[4] + 1;
+    die "Month $mon out of range. (1-12)\n" if(($mon < 1) || ($mon > 12));
+    $num_months = $opts{n} || 1;
+    if($opts{1}) { $num_months = 1; }
+    if($opts{3}) { $num_months = 3; $mon--; }
+    if($opts{y}) { $num_months = 12; $mon = 1; $spacer = "  "; }
+    $opts{c} = 1 if -t STDOUT;
+    delete $opts{c} if $opts{b};
+    if (($yr < 1902) || ($yr + ($mon + $num_months - 2)/12 >= 2038)) {
+        die "Year $yr out of range. (1902-2037)\n";
+    }
+    $opts{m} = 0 if $opts{s};
+    push(@day_names, shift @day_names) if $opts{m};
+}
+
+parse_args();
+
+printf "%35s\n\n", $yr if $opts{y};
+while($num_months > 0) {
+    my $chunk;
+    $chunk = ($num_months < 4)? $num_months : 3;
+    
+    for(0 .. $chunk-1) {
+        $month[$_] = [ calendar(($mon-1+$_)%12+1,
+            $yr+floor(($mon+$_-1)/12), $opts{m}) ];
+        my $header = "$month_names[($mon-1+$_)%12]";
+        $header .= " " . ($yr+floor(($mon+$_-1)/12)) unless $opts{y};
+        $header = " " x ((20 - length($header))/2 + ($opts{y}?.5:0)) . $header;
+        printf "%-21s%s", $header, $spacer;
+    }
+    print "\n";
+
+    print "@day_names $spacer" x $chunk;
+    print "\n";
+    for my $week (0 .. 5) {
+        for my $month_num (0 .. $chunk-1) {
+            print map({ $_ ? sprintf "%2s ", $_ : '   ' } 
+                @{$month[$month_num][$week]}), $spacer;
+        }
+        print "\n";
+    }
+
+    $num_months -= 3;
+    $mon += 3;
+}
+print "\n" if $opts{y};
