@@ -1,4 +1,12 @@
 #!/usr/bin/perl
+#
+# update your card database with this command:
+# wget -O - 'http://ww2.wizards.com/gatherer/Index.aspx?output=Text+Spoiler' \
+# | perl -pe 'BEGIN { undef $/ } s/^.*?\n<table class="TextResultsTable" \
+# border="0">\n//s; s/\n<\/table>.*?$//s; s/\r//g;' | perl -pe 's/<.*?>//g; \
+# s/^((?:CardName|Cost|Type|Pow\/Tgh|Rules Text|Set\/Rarity):)?/sprintf \
+# "%-13.13s", $1/e; s/^ *&nbsp;&nbsp;//; s/\xC3\x86/AE/g; s/oSi/S/g;' > \
+# ~/magic/oracle
 
 use strict;
 use warnings;
