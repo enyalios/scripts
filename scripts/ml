@@ -6,12 +6,17 @@ use Date::Parse;
 use POSIX qw(strftime);
 use Term::ReadKey;
 
-$/ = "";
-my @maildir = @ARGV;
-@maildir = split /\n/, `find $ENV{HOME}/.maildir | grep /new\$ | grep -v /junk/` unless @maildir;
+my @maildirs = @ARGV;
 my ($width) = GetTerminalSize();
+unless(@maildirs) {
+    open BOXES, "<$ENV{HOME}/.mailboxes" or 
+        die "Could not open '$ENV{HOME}/.mailboxes': $!\n";
+    @maildirs = map { scalar(s#\n#/new#, $_) } <BOXES>;
+}
 
-for my $dir(@maildir) {
+$/ = "";
+
+for my $dir(@maildirs) {
     opendir DIR, $dir or die "Cannot open directory '$dir': $!\n";
     my @files = grep { !/^\./ && -f "$dir/$_" } readdir(DIR);
     closedir DIR;
