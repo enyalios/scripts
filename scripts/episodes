@@ -10,14 +10,14 @@ my $cache_file = "/tmp/episode_cache";
 my ($title, $subtitle, $ext, %data, %opts);
 
 sub parse_args {
-    getopts('luhv', \%opts);
+    getopts('luhvc', \%opts);
     HELP_MESSAGE() if $opts{h};
     if(@ARGV == 2) { 
         ($title, $subtitle) = @ARGV;
     }
     elsif(@ARGV == 1) { 
         ($title, $subtitle, $ext) = $ARGV[0] =~ 
-        /^(.+?)[ _](?:-|\d+|\d+-\d+)?[ _](.+?)(\.[a-z]{3})?$/i;
+        /^(.+?)[- _]+[-\dsex]*[- _]+(.+?)(\.[a-z]{3})?$/i;
         $title ||= $ARGV[0] 
     }
     else { 
@@ -41,6 +41,7 @@ options:
     -u    convert spaces to underscores
     -h    print help message
     -v    verbose info
+    -c    cache-only (skip internet lookups)
 
 EOF
     exit 1;
@@ -115,7 +116,10 @@ parse_args();
 %data = load_cache();
 if($subtitle) {
     my $match = find_match();
-    $match = (grab_eps(), find_match()) unless $match;
+    if(!$match && !$opts{c}) {
+        grab_eps();
+        $match = find_match();
+    }
     print $match ? "$match" : format_match("$title  $subtitle"), "$ext\n"; 
 } else {
     grab_eps() unless $data{simple($title)};
