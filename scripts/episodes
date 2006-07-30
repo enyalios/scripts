@@ -37,11 +37,11 @@ usage:
     episodes <options> <filename>
 
 options:
+    -c    cache-only (skip internet lookups)
+    -h    print help message
     -l    lowercase filenames
     -u    convert spaces to underscores
-    -h    print help message
     -v    verbose info
-    -c    cache-only (skip internet lookups)
 
 EOF
     exit 1;
