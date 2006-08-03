@@ -105,6 +105,7 @@ sub write_cache {
 }
 
 sub format_match {
+    $_[0] =~ s/&/and/g;
     $_[0] =~ y/-_A-Za-z0-9 .,'()%?!//cd;
     $_[0] = lc $_[0] if $opts{l};
     $_[0] =~ s/ (- )?/_/g if $opts{u};
