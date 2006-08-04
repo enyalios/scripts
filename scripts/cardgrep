@@ -1,15 +1,37 @@
 #!/usr/bin/perl
 #
-# update your card database with this command:
-# wget -O - 'http://ww2.wizards.com/gatherer/Index.aspx?output=Text+Spoiler' | perl -pe 'BEGIN { undef $/ } s/^.*?\n<table class="TextResultsTable" border="0">\n//s; s/\n<\/table>.*?$//s; s/\r//g;' | perl -pe 's/<.*?>//g; s/^((?:CardName|Cost|Type|Pow\/Tgh|Rules Text|Set\/Rarity):)?/sprintf "%-13.13s", $1/e; s/^ *&nbsp;&nbsp;//; s/\xC3\x86/AE/g; s/oSi/S/g;' > ~/magic/oracle
+# this script both updates your list of all magic cards and searches thru it
+# for specific cards.  to update the info use 'cardgrep -u'.  to search, use
+# 'cardgrep <regex1> <regex2>...'.  there is also a '-n' switch to just print
+# out the card names without all their text.
 
 use strict;
 use warnings;
+use Getopt::Std;
 
 $/ = "\n\n";
 my $count = 0;
-my $names = 1, shift if $ARGV[0] eq "-n";
+my %opts;
+getopts('nu', \%opts);
 my %cards;
+
+if($opts{u}) {
+    require LWP::Simple;
+    print "updating card data...\n";
+    my $data = LWP::Simple::get("http://ww2.wizards.com/gatherer/Index.aspx?output=Text+Spoiler");
+    for($data) {
+        s/^.*?\n<table class="TextResultsTable" border="0">\n//s;
+        s/\n<\/table>.*?$//s;
+        s/\r|<.*?>|&nbsp;//g;
+        s/\xC3\x86/AE/g;
+        s/oSi/S/g;
+        s/^((?:CardName:|Cost:|Type:|Pow\/Tgh:|Rules Text:|Set\/Rarity:|))?(?=.)/sprintf "%-13.13s", $1/meg; 
+    }
+    open OUTPUT, ">$ENV{HOME}/magic/oracle" or 
+        die "cant open output file '$ENV{HOME}/magic/oracle': $!\n";
+    print OUTPUT $data;
+    exit;
+}
 
 open INPUT, "<$ENV{HOME}/magic/oracle" or die "cant find input file\n";
 
@@ -19,7 +41,7 @@ CARD: while(<INPUT>) {
     }
     my ($card_name) = /^CardName: +(.*)$/m;
     next CARD if $cards{$card_name}++;
-    if($names) { 
+    if($opts{n}) { 
         print "$card_name\n" and next CARD;
     } else {
         1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m;
@@ -30,4 +52,4 @@ CARD: while(<INPUT>) {
 
 close INPUT;
 
-print "$count card(s) returned\n\n" unless $names;
+print "$count card(s) returned\n\n" unless $opts{n};
