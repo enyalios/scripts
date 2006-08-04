@@ -17,7 +17,7 @@ sub parse_args {
     }
     elsif(@ARGV == 1) { 
         ($title, $subtitle, $ext) = $ARGV[0] =~ 
-        /^(.+?)[- _]+[-\dsex]*[- _]+(.+?)(\.[a-z]{3})?$/i;
+        /^(.+?)[- _]+[-\dsex]*[- _]+(.+?)(\.[a-z]{2,4})?$/i;
         $title ||= $ARGV[0] 
     }
     else { 
@@ -82,7 +82,9 @@ sub grab_eps {
 
     # loop over the episode pages and print out the episodes
     # using this page first, follow by any other season pages
-    for("$show_url?season=1", get("$show_url") =~ /<option value="(.*season=(?:[2-9]|[1-9]\d+))(?!\d)/g) {
+    my @seasons = ("$show_url?season=1", get("$show_url") =~ /<option value="(.*season=(?:[2-9]|[1-9]\d+))(?!\d)/g);
+    my $season_length = length(($seasons[-1] =~ /(\d+)$/)[0]);
+    for(@seasons) {
         print "  getting season page: $_\n" if $opts{v};
         my ($season_num) = /(\d+)$/;
         my $ep_num = 1;
@@ -91,7 +93,7 @@ sub grab_eps {
         {
             print "    found episode: $_\n" if $opts{v};
             $data{simple($title)}{simple($_)} = 
-            sprintf("%s - %d%02d - %s", $title, $season_num, $ep_num++, $_);
+            sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $_);
         }
     }
     write_cache();
