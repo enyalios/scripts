@@ -16,6 +16,8 @@ my $imdb_script = "/usr/share/mythtv/mythvideo/scripts/imdb.pl";
 my $poster_cache = "$ENV{HOME}/.mythtv/MythVideo";
 my $movie_path = "/mnt/videos/movies/";
 
+die "cant write to poster directory!\n" unless -w $poster_cache;
+
 # connect to the db and run the query
 my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
     "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
@@ -35,7 +37,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
     printf "%-30s ", $ref->{title};
 
     # use the imdb script to find the imdb number
-    my $imdb_num = `$imdb_script -M '$ref->{title}'`;
+    my $imdb_num = `$imdb_script -M "$ref->{title}"`;
     $imdb_num =~ s/:.*//s;
     print "$imdb_num\n";
     next unless $imdb_num;
