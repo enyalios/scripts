@@ -20,7 +20,7 @@ $stop_color = RESET;
 sub trunc($) {
     $number = shift;
     for $power (reverse 0..@exponents) {
-        if ($number/(1024**$power) > 1 || $power == 0) {
+        if ($number/(1024**$power) > .97 || $power == 0) {
             return sprintf("%.1f", $number/1024**$power).$exponents[$power];
 } } }
 
