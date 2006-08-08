@@ -42,7 +42,7 @@ sub GetData {
 
   my @list;
 
-  #the first time in the list we return is the nice title of the show.
+  # the first item in the list we return is the nice title of the show.
   push @list, $title;
 
   my $page = get $show_url;
@@ -99,9 +99,9 @@ sub UpdateShow {
   foreach my $ref ( @shows){
 
     # This count lets us know how many episodes of any given title
-    # we have processed. Shows are listed cronologially we rely on this
+    # we have processed. Shows are listed chronologically we rely on this
     # to sort out problems with 1 show having 2 episodes that have the exact
-    # same name connical name. 
+    # same canonical name. 
     $duplicateEpisodeCount{$ref->{title}}++;
 
     # these guys control the changes that are made to the title to try and
@@ -124,13 +124,13 @@ sub UpdateShow {
       $workingShow =~ s/[:\*\?"<>\\\/|]//g;
       $workingShow =~ s/&/and/g;
 
-      # The order of things is important here! Conisder the example
+      # The order of things is important here! Consider the example
       # Spin City - 425 - Goodbye 1.avi
       # Spin City - 426 - Goodbye 2.avi
       # both fail the first match cause tv.com uses (1) and (2)
       # both match exactly 1 when we remove parens, looking stops here
       # but if we continues both would match if we removes the numbers, which
-      # is what removing parentheical referances, step 2, does.
+      # is what removing parenthetical references, step 2, does.
       # Step 1 must come before step 2!
 
       # step 3 for paul's stuff is roughly independent and can be placed
@@ -139,23 +139,23 @@ sub UpdateShow {
       # On 0 try the title as is, with evil chars ^above^ removed of course.
       # On 1 try title without parens
       if( $modifyTitleCounter == 1 ){
-	$workingTitle =~ s/[\(\)]//g;
+        $workingTitle =~ s/[\(\)]//g;
       }
-      # On 2 try title with parentheitcal phrases removed
+      # On 2 try title with parenthetical phrases removed
       elsif( $modifyTitleCounter == 2 ){
-	$workingTitle =~ s/\s*\(.*\)\s*//g;
+        $workingTitle =~ s/\s*\(.*?\)\s*//g;
       }
       # on 3 try paul's filename format
       elsif( $modifyTitleCounter == 3 ){
-	$workingTitle = lc($workingTitle);
-	$workingTitle =~ s/- //g;
-	$workingTitle =~ s/ /_/g;
-	$workingTitle =~ s/\W//g;
+        $workingTitle = lc($workingTitle);
+        $workingTitle =~ s/ - / /g;
+        $workingTitle =~ s/ /_/g;
+        $workingTitle =~ s/\W//g;
 
-	$workingShow = lc($workingShow);
-	$workingShow =~ s/- //g;
-	$workingShow =~ s/ /_/g;
-	$workingShow =~ s/\W//g;
+        $workingShow = lc($workingShow);
+        $workingShow =~ s/ - / /g;
+        $workingShow =~ s/ /_/g;
+        $workingShow =~ s/\W//g;
       }
 
       # now get all the id's for episodes that match the current formatting
@@ -168,7 +168,7 @@ sub UpdateShow {
 
       $modifyTitleCounter++;
 
-      # if we got any results or if we have tired all vereations then stop
+      # if we got any results or if we have tired all variations then stop
     } until( @{$listRef} > 0 || $modifyTitleCounter > $modifyTitleCounterMax);
 
     my $intid;
@@ -176,14 +176,14 @@ sub UpdateShow {
     #if we got results
     if( @{$listRef} > 0){
 
-      # This little expression does the figuring for the duplicate episode 
-      # title situation. It also handles single titles gracefully. We have a 
-      # count of how many episodes with this cannonical title we have seen so
-      # far. We also have a list of all the episodes with this cannonical 
-      # title in cronolical order. Use the Nth item in the list where N = the
+      # This little expression does the figuring for the duplicate episode
+      # title situation. It also handles single titles gracefully. We have a
+      # count of how many episodes with this canonical title we have seen so
+      # far. We also have a list of all the episodes with this cannonical title
+      # in chronological order. Use the Nth item in the list where N = the
       # count in the hash. -1 corrects for array position from the count.
 
-      # This only works because evrything is in cronolical order!
+      # This only works because everything is in chronological order!
       $intid = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]}[0];
 
       #we need to make the plot SQL safe before we insert it.
@@ -202,7 +202,6 @@ sub UpdateShow {
 
       $rs = $dbh->prepare(qq{UPDATE videometadata SET director = "$ref->{director}", plot = "$ref->{plot}", userrating = "$ref->{rating}", year = "$ref->{year}" WHERE intid = "$intid"});
       print "Updated $niceTitle\n" if $rs->execute();
-      $rs->finish();
 
     }
     else{
@@ -210,17 +209,18 @@ sub UpdateShow {
     }
   }
 
-  $rs->finish();
   $dbh->disconnect();
 }
 
 
 # MAIN --------------------------------------------------
 
-#get the data from tv.com
+# get the data from tv.com
 my @episodes = GetData($show);
 
 # both functions use the first position the the list to hold the
 # show's name.
 
 UpdateShow(@episodes);
+
+# vim:sw=2
