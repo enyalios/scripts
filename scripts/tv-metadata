@@ -13,6 +13,7 @@ my $password = "mythtv";
 
 # we don't handle arguments yet so for now use this
 my $show = "spin city";
+my $override = 0;
 
 
 # mostly here for debuggin, not really used.
@@ -21,6 +22,7 @@ sub PrintEpisode {
   my ($ref) = @_;
 
   print "Title: $ref->{title}\n";
+  print "Number: $ref->{number}\n";
   print "Year: $ref->{year}\n";
   print "Director: $ref->{director}\n";
   print "Rating: $ref->{rating}\n";
@@ -52,9 +54,10 @@ sub GetData {
 
     my %episode;
 
-    $_ =~ m|<h1><a.*>\s+\d+\.\s+(.*)\s+</a> </h1>|;
+    $_ =~ m|<h1><a.*>\s+(\d+)\.\s+(.*)\s+</a> </h1>|;
     #print "$1\n";
-    $episode{title} = $1;
+    $episode{number} = $1;
+    $episode{title} = $2;
 
     $_ =~ m|First aired:</span>\s*\d+/\d+/(\d+)<br/>|;
     #print "$1\n";
@@ -160,7 +163,7 @@ sub UpdateShow {
 
       # now get all the id's for episodes that match the current formatting
       # of the title
-      $rs = $dbh->prepare(qq{SELECT intid FROM videometadata WHERE filename like "%$workingShow%$workingTitle%" ORDER BY filename ASC});
+      $rs = $dbh->prepare(qq{SELECT intid, title, inetref FROM videometadata WHERE filename like "%$workingShow%$workingTitle%" ORDER BY filename ASC});
       # we depend of sorting by filename to return episodes in cronolical order.
 
       $rs->execute();
@@ -170,8 +173,6 @@ sub UpdateShow {
 
       # if we got any results or if we have tired all variations then stop
     } until( @{$listRef} > 0 || $modifyTitleCounter > $modifyTitleCounterMax);
-
-    my $intid;
 
     #if we got results
     if( @{$listRef} > 0){
@@ -184,25 +185,29 @@ sub UpdateShow {
       # count in the hash. -1 corrects for array position from the count.
 
       # This only works because everything is in chronological order!
-      $intid = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]}[0];
+      my $intid = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]}[0];
+      my $niceTitle = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]}[1];
+      my $inetref = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]}[2];
 
-      #we need to make the plot SQL safe before we insert it.
-      $ref->{plot} =~ s/\n//g;
-      $ref->{plot} =~ s/\r//g;
-      $ref->{plot} =~ s/"/\\"/g;
-      $ref->{plot} =~ s/'/\\'/g;
-      $ref->{plot} =~ s/\x92/\\'/g;
-      $ref->{plot} =~ s/\x93/\\"/g;
-      $ref->{plot} =~ s/\x94/\\"/g;
-      $ref->{plot} =~ s/\x96/-/g;
 
-      $rs = $dbh->prepare(qq{SELECT title FROM videometadata WHERE intid = "$intid"});
-      $rs->execute();
-      my $niceTitle = $rs->fetchrow_array();
+      if( $inetref == 0 || $override ){
 
-      $rs = $dbh->prepare(qq{UPDATE videometadata SET director = "$ref->{director}", plot = "$ref->{plot}", userrating = "$ref->{rating}", year = "$ref->{year}" WHERE intid = "$intid"});
-      print "Updated $niceTitle\n" if $rs->execute();
+	#we need to make the plot SQL safe before we insert it.
+	$ref->{plot} =~ s/\n//g;
+	$ref->{plot} =~ s/\r//g;
+	$ref->{plot} =~ s/"/\\"/g;
+	$ref->{plot} =~ s/'/\\'/g;
+	$ref->{plot} =~ s/\x92/\\'/g;
+	$ref->{plot} =~ s/\x93/\\"/g;
+	$ref->{plot} =~ s/\x94/\\"/g;
+	$ref->{plot} =~ s/\x96/-/g;
 
+	$ref->{number} = "NAN" unless $ref->{number};
+
+	$rs = $dbh->prepare(qq{UPDATE videometadata SET director = "$ref->{director}", plot = "$ref->{plot}", userrating = "$ref->{rating}", year = "$ref->{year}", inetref = "$ref->{number}" WHERE intid = "$intid"});
+
+	print "Updated $niceTitle\n" if $rs->execute();
+      }
     }
     else{
       print "Could not find match for $show $ref->{title}\n";
