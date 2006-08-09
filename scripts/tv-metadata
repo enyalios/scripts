@@ -7,7 +7,7 @@ use DBI;
 use POSIX qw(ceil floor);
 
 # Static variables
-my $imagePath = "/home/mythuser/.mythtv/MythVideo/";
+my $imagePath = "/home/mythuser/.mythtv/MythVideo";
 my $imageTime = "1:00";
 
 
@@ -195,32 +195,32 @@ sub UpdateShow {
 
       if( $inetref == 0 || $override ){
 
-	#we need to make the plot SQL safe before we insert it.
-	$ref->{plot} =~ s/\n//g;
-	$ref->{plot} =~ s/\r//g;
-	$ref->{plot} =~ s/"/\\"/g;
-	$ref->{plot} =~ s/'/\\'/g;
-	$ref->{plot} =~ s/\x92/\\'/g;
-	$ref->{plot} =~ s/\x93/\\"/g;
-	$ref->{plot} =~ s/\x94/\\"/g;
-	$ref->{plot} =~ s/\x96/-/g;
+        #we need to make the plot SQL safe before we insert it.
+        $ref->{plot} =~ s/\n//g;
+        $ref->{plot} =~ s/\r//g;
+        $ref->{plot} =~ s/"/\\"/g;
+        $ref->{plot} =~ s/'/\\'/g;
+        $ref->{plot} =~ s/\x92/\\'/g;
+        $ref->{plot} =~ s/\x93/\\"/g;
+        $ref->{plot} =~ s/\x94/\\"/g;
+        $ref->{plot} =~ s/\x96/-/g;
 
-	# some shows may not have a number for some reason, if they don't
-	# we'll use NAN (not a number) for the inetref because we need
-	# something non zero. This will als fix it if the number is zero.
-	$ref->{number} = "NAN" unless $ref->{number};
+        # some shows may not have a number for some reason, if they don't
+        # we'll use NAN (not a number) for the inetref because we need
+        # something non zero. This will als fix it if the number is zero.
+        $ref->{number} = "NAN" unless $ref->{number};
 
-	# possibly optional, this function gets a screen capture
-	# from the episode and places in the right place on the filesystem.
-	# it returns the full path to the image.
+        # possibly optional, this function gets a screen capture
+        # from the episode and places in the right place on the filesystem.
+        # it returns the full path to the image.
 
-	# currently using midentify to get the real pixle widths isn't done
-	# so we use some sane defaults, but this will need to be fixed.
-	my $image = GrabImage($show,$filename,480,360);
+        # currently using midentify to get the real pixle widths isn't done
+        # so we use some sane defaults, but this will need to be fixed.
+        my $image = GrabImage($show,$filename,480,360);
 
-	$rs = $dbh->prepare(qq{UPDATE videometadata SET director = "$ref->{director}", plot = "$ref->{plot}", userrating = "$ref->{rating}", year = "$ref->{year}", inetref = "$ref->{number}", coverfile = "$image" WHERE intid = "$intid"});
+        $rs = $dbh->prepare(qq{UPDATE videometadata SET director = "$ref->{director}", plot = "$ref->{plot}", userrating = "$ref->{rating}", year = "$ref->{year}", inetref = "$ref->{number}", coverfile = "$image" WHERE intid = "$intid"});
 
-	print "Updated $niceTitle\n" if $rs->execute();
+        print "Updated $niceTitle\n" if $rs->execute();
       }
     }
     else{
@@ -237,42 +237,42 @@ sub GrabImage {
 
   my ( $show, $filename, $width, $height ) = @_;
 
-  $filename =~ m/( - |_)(\d+)\1/;
-  my $seasonEpNumber = $2;
+  my ($seasonEpNumber) = $filename =~ m/(?: - |_)(\d+)\1/;
 
   # simplify the show title
   $show = lc($show);
   $show =~ s/\W//g;
 
   # make the directory for this show if we need to.
-  `mkdir "$imagePath$show"` unless -e "$imagePath$show";
+  mkdir "$imagePath/$show" unless -e "$imagePath/$show";
+  die "$imagePath/$show is not a directory\n" unless -d "$imagePath/$show";
 
   # if the image for this show does not exist, make it
-  unless( -e "$imagePath$show/$seasonEpNumber.png" || -e "$imagePath$show/$seasonEpNumber.jpg" ){
+  unless( -e "$imagePath/$show/$seasonEpNumber.png" || -e "$imagePath/$show/$seasonEpNumber.jpg" ){
 
     # get the right aspect ratio regardless of the input aspect ratio
-    if( $width > $height ){
+    if( $width > $height/0.68289 ){
       $width = ceil($height*0.68289);
     }
     else{
-      $height = ceil($width*0.68289);
+      $height = ceil($width/0.68289);
     }
 
     # make mplayer do all the work for us.
     # TODO: Right now it drops the images in the current directory, it would
     # be good to put them in /tmp or something.
-    `mplayer -vf crop=$width:$height -nosound -vo png:z=9 -ss $imageTime -frames 5 \"$filename\" &> /dev/null`;
+    system("mplayer -vf crop=$width:$height -nosound -vo png:z=9 -ss $imageTime -frames 5 \"$filename\"");
 
     # Take the last frame and use it as the image for this show.
-    `mv 00000005.png $imagePath$show/$seasonEpNumber.png`;
+    rename "00000005.png" "$imagePath/$show/$seasonEpNumber.png";
 
     # clean up the current directory.
-    `rm -f 0000000*.png`;
+    unlink <0000000*.png>;
   }
 
   # returning the full path to insert in the database seems to be the best
   # way to avoid doing work twice, while still compartmentizing things.
-  return "$imagePath$show/$seasonEpNumber.png";
+  return "$imagePath/$show/$seasonEpNumber.png";
 }
 
 
@@ -287,6 +287,4 @@ my @episodes = GetData($show);
 
 UpdateShow(@episodes);
 
-# vim:sw=2
-
-
+# vim:sw=2:ts=8
