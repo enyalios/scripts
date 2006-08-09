@@ -76,7 +76,7 @@ sub UpdateShow {
 
   my %duplicateEpisodeCount;
 
-  foreach my $ref ( @shows){
+  foreach my $ref (@shows){
 
     # This count lets us know how many episodes of any given title
     # we have processed. Shows are listed chronologically we rely on this
@@ -151,54 +151,46 @@ sub UpdateShow {
     } until( @{$listRef} > 0 || $modifyTitleCounter > $modifyTitleCounterMax);
 
     #if we got results
-    if( @{$listRef} > 0){
+    print "Could not find match for '$show: $ref->{title}'\n" and next unless(@{$listRef});
 
-      # This little expression does the figuring for the duplicate episode
-      # title situation. It also handles single titles gracefully. We have a
-      # count of how many episodes with this canonical title we have seen so
-      # far. We also have a list of all the episodes with this cannonical title
-      # in chronological order. Use the Nth item in the list where N = the
-      # count in the hash. -1 corrects for array position from the count.
+    # This little expression does the figuring for the duplicate episode
+    # title situation. It also handles single titles gracefully. We have a
+    # count of how many episodes with this canonical title we have seen so
+    # far. We also have a list of all the episodes with this cannonical title
+    # in chronological order. Use the Nth item in the list where N = the
+    # count in the hash. -1 corrects for array position from the count.
 
-      # This only works because everything is in chronological order!
-      my ($intid, $niceTitle, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
+    # This only works because everything is in chronological order!
+    my ($intid, $niceTitle, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
 
-      if( $inetref == 0 || $opts{f} ){
+    print "Skipping '$show: $ref->{title}'\n" and next if($inetref != 0 && !$opts{f});
 
-        #we need to make the plot SQL safe before we insert it.
-        $ref->{plot} =~ s/\n//g;
-        $ref->{plot} =~ s/\r//g;
-        $ref->{plot} =~ s/\x92/\'/g;
-        $ref->{plot} =~ s/\x93/\"/g;
-        $ref->{plot} =~ s/\x94/\"/g;
-        $ref->{plot} =~ s/\x96/-/g;
-        $ref->{plot} =~ s/<.*?>//g;
+    #we need to make the plot SQL safe before we insert it.
+    $ref->{plot} =~ s/\n//g;
+    $ref->{plot} =~ s/\r//g;
+    $ref->{plot} =~ s/\x92/\'/g;
+    $ref->{plot} =~ s/\x93/\"/g;
+    $ref->{plot} =~ s/\x94/\"/g;
+    $ref->{plot} =~ s/\x96/-/g;
+    $ref->{plot} =~ s/<.*?>//g;
 
-        # some shows may not have a number for some reason, if they don't we'll
-        # use -1 for the inetref because we need something non zero. This will
-        # also fix it if the number is zero.
-        $ref->{number} = "-1" unless $ref->{number};
+    # some shows may not have a number for some reason, if they don't we'll
+    # use -1 for the inetref because we need something non zero. This will
+    # also fix it if the number is zero.
+    $ref->{number} = "-1" unless $ref->{number};
 
-        # possibly optional, this function gets a screen capture
-        # from the episode and places in the right place on the filesystem.
-        # it returns the full path to the image.
+    # possibly optional, this function gets a screen capture
+    # from the episode and places in the right place on the filesystem.
+    # it returns the full path to the image.
 
-        # we use midentify to get the real pixel widths.
+    # we use midentify to get the real pixel widths.
 
-        my %vinfo;
-        /^(\w+)=(.*)$/, $vinfo{$1} = $2 for(split "\n", `midentify "$filename"`);
-        my $image = GrabImage($imagePath, $show, $filename, $vinfo{"ID_VIDEO_WIDTH"}, $vinfo{"ID_VIDEO_HEIGHT"});
+    my %vinfo;
+    /^(\w+)=(.*)$/, $vinfo{$1} = $2 for(split "\n", `midentify "$filename"`);
+    my $image = GrabImage($imagePath, $show, $filename, $vinfo{"ID_VIDEO_WIDTH"}, $vinfo{"ID_VIDEO_HEIGHT"});
 
-        print "Updated $niceTitle\n" if $update_query->execute($ref->{director}, $ref->{plot}, $ref->{rating}, $ref->{year}, $ref->{number}, $image, int($vinfo{ID_LENGTH}/60), $intid);
-      } else {
-        print "Skipping '$show: $ref->{title}'\n";
-      }
-    }
-    else{
-      print "Could not find match for '$show: $ref->{title}'\n";
-    }
+    print "Updated $niceTitle\n" if $update_query->execute($ref->{director}, $ref->{plot}, $ref->{rating}, $ref->{year}, $ref->{number}, $image, int($vinfo{ID_LENGTH}/60), $intid);
   }
-
 }
 
 # This function will grab an image if needed for the given episode.
