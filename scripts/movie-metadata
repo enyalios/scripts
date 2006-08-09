@@ -13,10 +13,7 @@ use LWP::Simple;
 
 # variables for tweaking
 my $imdb_script = "/usr/share/mythtv/mythvideo/scripts/imdb.pl";
-my $poster_cache = "$ENV{HOME}/.mythtv/MythVideo";
 my $movie_path = "/mnt/videos/movies/";
-
-die "cant write to poster directory!\n" unless -w $poster_cache;
 
 # connect to the db and run the query
 my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
@@ -24,6 +21,11 @@ my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
 my $sth = $dbh->prepare("SELECT intid, title FROM videometadata WHERE 
                          filename like '$movie_path%' and inetref = 0");
 $sth->execute();
+
+my $rs = $dbh->prepare("select data from settings where value = 'VideoArtworkDir'");
+$rs->execute();
+my $poster_cache = $rs->fetchall_arrayref()->[0]->[0];
+die "cant write to poster directory!\n" unless -w $poster_cache;
 
 # prepare the query for updating info
 my $update_sql = $dbh->prepare("UPDATE videometadata SET
@@ -44,24 +46,19 @@ while (my $ref = $sth->fetchrow_hashref()) {
     
     # use the imdb script to find the metadata
     $_ = `$imdb_script -D $imdb_num`;
-    my @data = ("") x 8;
-    ($data[0]) = /^Title:(.*)$/m;
-    ($data[1]) = /^Year:(\d+)$/m;
-    ($data[2]) = /^Director:(.*)$/m;
-    ($data[3]) = /^Plot:(.*)$/m;
-    ($data[4]) = /^UserRating:(.*)$/m;
-    ($data[5]) = /^MovieRating:(.*)$/m;
-    ($data[6]) = /^Runtime:(\d+)$/m;
-    ($data[7]) = "No Cover";
+    my %data;
+    /^(.*?):(.*)/, $data{$1} = $2 for(split "\n");
+    $data{Cover} = "No Cover";
     
     # use the imdb script to lookup the image and then grab it
     my $img_url = `$imdb_script -P $imdb_num`;
     $img_url =~ s/\n.*//s;
     getstore($img_url, "$poster_cache/$imdb_num.jpg") if $img_url;
-    $data[7] = "$poster_cache/$imdb_num.jpg" if -e "$poster_cache/$imdb_num.jpg";
+    $data{Cover} = "$poster_cache/$imdb_num.jpg" if -e "$poster_cache/$imdb_num.jpg";
 
     # run the sql query to update the info
-    $update_sql->execute( @data, $imdb_num, $ref->{intid} );
+    $update_sql->execute( @data{qw/Title Year Director Plot UserRating 
+            MovieRating Runtime Cover/}, $imdb_num, $ref->{intid} );
 }
 
 # disconnect from the db
