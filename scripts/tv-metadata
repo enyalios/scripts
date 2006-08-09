@@ -55,34 +55,14 @@ sub GetData {
   my $page = get $show_url;
 
   foreach( split(/<div class="pl-5 pr-5">/,$page)){
-    #print $_;
-
     my %episode;
 
-    $_ =~ m|<h1><a.*>\s+(\d+)\.\s+(.*)\s+</a> </h1>|;
-    #print "$1\n";
-    $episode{number} = $1;
-    $episode{title} = $2;
+    ($episode{number}, $episode{title}) =  $_ =~ m|<h1><a.*>\s+(\d+)\.\s+(.*)\s+</a> </h1>|;
+    ($episode{year}) = $_ =~ m|First aired:</span>\s*\d+/\d+/(\d+)<br/>|;
+    ($episode{director}) = $_ =~ m|Director:</span>\s+<a href=".*"> (.*)</a>|;
+    ($episode{rating}) = $_ =~ m|Global rating:</span>\s+<a href.*>(\d+\.\d+)</a>|;
+    ($episode{plot}) = $_ =~ m|</div>\s+<p>(.*)</p>\s+</div>|s;
 
-    $_ =~ m|First aired:</span>\s*\d+/\d+/(\d+)<br/>|;
-    #print "$1\n";
-    $episode{year} = $1;
-
-    $_ =~ m|Director:</span>\s+<a href=".*"> (.*)</a>|;
-    #print "$1\n";
-    $episode{director} = $1;
-
-    $_ =~ m|Global rating:</span>\s+<a href.*>(\d+\.\d+)</a>|;
-    #print "$1\n";
-    $episode{rating} = $1;
-
-    $_ =~ m|</div>\s+<p>(.*)</p>\s+</div>|;
-    #print "$1\n";
-    $episode{plot} = $1;
-
-    #print "------------------------------\n";
-
-    #  PrintEpisode(\%episode);
     push @list, \%episode if $episode{title};
   }
   return @list;
