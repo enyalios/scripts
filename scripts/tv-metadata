@@ -4,7 +4,8 @@ use strict;
 use warnings;
 use LWP::Simple;
 use DBI;
-use POSIX qw(ceil floor);
+use POSIX "ceil";
+use Getopt::Std;
 
 # Static variables
 my $imageTime = "1:00";
@@ -17,9 +18,7 @@ my $user = "mythtv";
 my $password = "mythtv";
 
 # we don't handle arguments yet so for now use this
-my $show = "spin city";
-my $override = 1;
-
+my %opts;
 
 # mostly here for debuggin, not really used.
 sub PrintEpisode {
@@ -164,7 +163,7 @@ sub UpdateShow {
       # This only works because everything is in chronological order!
       my ($intid, $niceTitle, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
 
-      if( $inetref == 0 || $override ){
+      if( $inetref == 0 || $opts{f} ){
 
         #we need to make the plot SQL safe before we insert it.
         $ref->{plot} =~ s/\n//g;
@@ -184,18 +183,19 @@ sub UpdateShow {
         # from the episode and places in the right place on the filesystem.
         # it returns the full path to the image.
 
-        # currently using midentify to get the real pixle widths isn't done
-        # so we use some sane defaults, but this will need to be fixed.
+        # we use midentify to get the real pixel widths.
 
         my %vinfo;
         /^(\w+)=(.*)$/, $vinfo{$1} = $2 for(split "\n", `midentify "$filename"`);
         my $image = GrabImage($imagePath, $show, $filename, $vinfo{"ID_VIDEO_WIDTH"}, $vinfo{"ID_VIDEO_HEIGHT"});
 
         print "Updated $niceTitle\n" if $update_query->execute($ref->{director}, $ref->{plot}, $ref->{rating}, $ref->{year}, $ref->{number}, $image, int($vinfo{ID_LENGTH}/60), $intid);
+      } else {
+        print "Skipping '$show: $ref->{title}'\n";
       }
     }
     else{
-      print "Could not find match for $show $ref->{title}\n";
+      print "Could not find match for '$show: $ref->{title}'\n";
     }
   }
 
@@ -248,7 +248,7 @@ sub GrabImage {
 sub db_init {
   my $dbh = DBI->connect("DBI:mysql:database=$database;host=$hostname", $user, $password);
   my $update_query = $dbh->prepare("UPDATE videometadata SET director = ?, plot = ?, userrating = ?, year = ?, inetref = ?, coverfile = ?, length = ? WHERE intid = ?");
-  my $select_query = $dbh->prepare(qq{SELECT intid, title, inetref, filename FROM videometadata WHERE filename like ? ORDER BY filename ASC});
+  my $select_query = $dbh->prepare("SELECT intid, title, inetref, filename FROM videometadata WHERE filename like ? ORDER BY filename ASC");
   my $rs = $dbh->prepare("select data from settings where value = 'VideoArtworkDir'");
   $rs->execute();
   my $imagePath = $rs->fetchall_arrayref()->[0]->[0];
@@ -256,15 +256,34 @@ sub db_init {
   return $dbh, $update_query, $select_query, $imagePath;
 }
 
+sub print_help {
+  print <<EOF;
+  
+Usage:
+  tv-metadata [options] show1 [show2 ...]
+
+Options:
+  -h    this help screen
+  -f    force (override existing data)
+
+EOF
+  exit 1;
+}
+
 # MAIN --------------------------------------------------
+
+getopts('hf', \%opts);
+print_help() if($opts{h} || @ARGV == 0);
 
 my ($dbh, $update_query, $select_query, $imagePath) = db_init();
 
-# get the data from tv.com
-my @episodes = GetData($show);
+for my $show (@ARGV) {
+  # get the data from tv.com
+  my @episodes = GetData($show);
 
-# the first element of the @episodes array holds the show name
-UpdateShow($select_query, $update_query, $imagePath, @episodes);
+  # the first element of the @episodes array holds the show name
+  UpdateShow($select_query, $update_query, $imagePath, @episodes);
+}
 
 $dbh->disconnect();
 
