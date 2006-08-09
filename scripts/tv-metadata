@@ -12,7 +12,7 @@ my $imageTime = "1:00";
 
 # Database
 my $database = "mythconverg";
-my $hostname = "mythtv";
+my $hostname = "localhost";
 my $user = "mythtv";
 my $password = "mythtv";
 
@@ -175,10 +175,10 @@ sub UpdateShow {
         $ref->{plot} =~ s/\x96/-/g;
         $ref->{plot} =~ s/<.*?>//g;
 
-        # some shows may not have a number for some reason, if they don't
-        # we'll use NAN (not a number) for the inetref because we need
-        # something non zero. This will als fix it if the number is zero.
-        $ref->{number} = "NAN" unless $ref->{number};
+        # some shows may not have a number for some reason, if they don't we'll
+        # use -1 for the inetref because we need something non zero. This will
+        # also fix it if the number is zero.
+        $ref->{number} = "-1" unless $ref->{number};
 
         # possibly optional, this function gets a screen capture
         # from the episode and places in the right place on the filesystem.
