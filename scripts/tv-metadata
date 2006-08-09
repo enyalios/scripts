@@ -7,7 +7,6 @@ use DBI;
 use POSIX qw(ceil floor);
 
 # Static variables
-my $imagePath = "/home/mythuser/.mythtv/MythVideo";
 my $imageTime = "1:00";
 
 
@@ -89,19 +88,12 @@ sub GetData {
   return @list;
 }
 
-
 # this takes the list produced above and matches it to filenames that
 # appear in the mythtv database. it does episode title matching to figure
 # things out, but handles duplicate episode titles correctly.
 sub UpdateShow {
 
-  my $show = shift @_;
-  my @shows = @_;
-
-  #Database
-  my $dsn = "DBI:mysql:database=$database;host=$hostname";
-  my $dbh  = DBI->connect($dsn, $user, $password);
-  my $rs;
+  my ($select_query, $update_query, $imagePath, $show, @shows) = @_;
 
   my %duplicateEpisodeCount;
 
@@ -169,11 +161,10 @@ sub UpdateShow {
 
       # now get all the id's for episodes that match the current formatting
       # of the title
-      $rs = $dbh->prepare(qq{SELECT intid, title, inetref, filename FROM videometadata WHERE filename like "%$workingShow%$workingTitle%" ORDER BY filename ASC});
-      # we depend of sorting by filename to return episodes in cronolical order.
+      # we depend of sorting by filename to return episodes in chronological order.
 
-      $rs->execute();
-      $listRef = $rs->fetchall_arrayref();
+      $select_query->execute("%$workingShow%$workingTitle%");
+      $listRef = $select_query->fetchall_arrayref();
 
       $modifyTitleCounter++;
 
@@ -198,12 +189,11 @@ sub UpdateShow {
         #we need to make the plot SQL safe before we insert it.
         $ref->{plot} =~ s/\n//g;
         $ref->{plot} =~ s/\r//g;
-        $ref->{plot} =~ s/"/\\"/g;
-        $ref->{plot} =~ s/'/\\'/g;
-        $ref->{plot} =~ s/\x92/\\'/g;
-        $ref->{plot} =~ s/\x93/\\"/g;
-        $ref->{plot} =~ s/\x94/\\"/g;
+        $ref->{plot} =~ s/\x92/\'/g;
+        $ref->{plot} =~ s/\x93/\"/g;
+        $ref->{plot} =~ s/\x94/\"/g;
         $ref->{plot} =~ s/\x96/-/g;
+        $ref->{plot} =~ s/<.*?>//g;
 
         # some shows may not have a number for some reason, if they don't
         # we'll use NAN (not a number) for the inetref because we need
@@ -216,11 +206,12 @@ sub UpdateShow {
 
         # currently using midentify to get the real pixle widths isn't done
         # so we use some sane defaults, but this will need to be fixed.
-        my $image = GrabImage($show,$filename,480,360);
 
-        $rs = $dbh->prepare(qq{UPDATE videometadata SET director = "$ref->{director}", plot = "$ref->{plot}", userrating = "$ref->{rating}", year = "$ref->{year}", inetref = "$ref->{number}", coverfile = "$image" WHERE intid = "$intid"});
+        my %vinfo;
+        /^(\w+)=(.*)$/, $vinfo{$1} = $2 for(split "\n", `midentify "$filename"`);
+        my $image = GrabImage($imagePath, $show, $filename, $vinfo{"ID_VIDEO_WIDTH"}, $vinfo{"ID_VIDEO_HEIGHT"});
 
-        print "Updated $niceTitle\n" if $rs->execute();
+        print "Updated $niceTitle\n" if $update_query->execute($ref->{director}, $ref->{plot}, $ref->{rating}, $ref->{year}, $ref->{number}, $image, int($vinfo{ID_LENGTH}/60), $intid);
       }
     }
     else{
@@ -228,16 +219,15 @@ sub UpdateShow {
     }
   }
 
-  $dbh->disconnect();
 }
 
 # This function will grab an image if needed for the given episode.
 # It will return the filename.
 sub GrabImage {
 
-  my ( $show, $filename, $width, $height ) = @_;
+  my ( $imagePath, $show, $filename, $width, $height ) = @_;
 
-  my ($seasonEpNumber) = $filename =~ m/(?: - |_)(\d+)\1/;
+  my $seasonEpNumber = ($filename =~ m/( - |_)(\d+)\1/)[1];
 
   # simplify the show title
   $show = lc($show);
@@ -261,10 +251,10 @@ sub GrabImage {
     # make mplayer do all the work for us.
     # TODO: Right now it drops the images in the current directory, it would
     # be good to put them in /tmp or something.
-    system("mplayer -vf crop=$width:$height -nosound -vo png:z=9 -ss $imageTime -frames 5 \"$filename\"");
+    system("mplayer -vf crop=$width:$height -nosound -vo png:z=9 -ss $imageTime -frames 5 \"$filename\" &> /dev/null");
 
     # Take the last frame and use it as the image for this show.
-    rename "00000005.png" "$imagePath/$show/$seasonEpNumber.png";
+    rename "00000005.png", "$imagePath/$show/$seasonEpNumber.png";
 
     # clean up the current directory.
     unlink <0000000*.png>;
@@ -275,16 +265,27 @@ sub GrabImage {
   return "$imagePath/$show/$seasonEpNumber.png";
 }
 
+sub db_init {
+  my $dbh = DBI->connect("DBI:mysql:database=$database;host=$hostname", $user, $password);
+  my $update_query = $dbh->prepare("UPDATE videometadata SET director = ?, plot = ?, userrating = ?, year = ?, inetref = ?, coverfile = ?, length = ? WHERE intid = ?");
+  my $select_query = $dbh->prepare(qq{SELECT intid, title, inetref, filename FROM videometadata WHERE filename like ? ORDER BY filename ASC});
+  my $rs = $dbh->prepare("select data from settings where value = 'VideoArtworkDir'");
+  $rs->execute();
+  my $imagePath = $rs->fetchall_arrayref()->[0]->[0];
 
+  return $dbh, $update_query, $select_query, $imagePath;
+}
 
 # MAIN --------------------------------------------------
+
+my ($dbh, $update_query, $select_query, $imagePath) = db_init();
 
 # get the data from tv.com
 my @episodes = GetData($show);
 
-# both functions use the first position the the list to hold the
-# show's name.
+# the first element of the @episodes array holds the show name
+UpdateShow($select_query, $update_query, $imagePath, @episodes);
 
-UpdateShow(@episodes);
+$dbh->disconnect();
 
 # vim:sw=2:ts=8
