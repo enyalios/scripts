@@ -37,14 +37,11 @@ sub PrintEpisode {
 
 # this takes in a title to search for on tv.com and handles all the parsing
 sub GetData {
-
-  my ($title) = @_;
-
+  my ($old_title) = my ($title) = @_;
+  $title =~ s/_/ /;
   (my $show_url, $title ) = get("http://www.tv.com/search.php?stype=all&qs=$title") =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
-
-  die "could not find any show by that name!\n" unless $show_url;
+  print "Could not find show '$old_title'\n" and return unless $show_url;
   $show_url =~ s/summary\.html$/episode_guide.html?printable=1/;
-  #print "\$show_url: $show_url\n";
 
   my @list;
 
@@ -130,12 +127,12 @@ sub UpdateShow {
         $workingTitle = lc($workingTitle);
         $workingTitle =~ s/ - /_/g;
         $workingTitle =~ s/ /_/g;
-        $workingTitle =~ s/\W//g;
+        $workingTitle =~ s/[^-\w]//g;
 
         $workingShow = lc($workingShow);
         $workingShow =~ s/ - /_/g;
         $workingShow =~ s/ /_/g;
-        $workingShow =~ s/\W//g;
+        $workingShow =~ s/[^-\w]//g;
       }
 
       # now get all the id's for episodes that match the current formatting
@@ -151,7 +148,7 @@ sub UpdateShow {
     } until( @{$listRef} > 0 || $modifyTitleCounter > $modifyTitleCounterMax);
 
     #if we got results
-    print "Could not find match for '$show: $ref->{title}'\n" and next unless(@{$listRef});
+    print "Could not find match for '$show - $ref->{title}'\n" and next unless(@{$listRef});
 
     # This little expression does the figuring for the duplicate episode
     # title situation. It also handles single titles gracefully. We have a
@@ -161,9 +158,10 @@ sub UpdateShow {
     # count in the hash. -1 corrects for array position from the count.
 
     # This only works because everything is in chronological order!
-    my ($intid, $niceTitle, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
+    my ($intid, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
+    (my $nice_title = $filename) =~ s#.*/##;
 
-    print "Skipping '$show: $ref->{title}'\n" and next if($inetref != 0 && !$opts{f});
+    print "Skipped '$nice_title'\n" and next if($inetref != 0 && !$opts{f});
 
     #we need to make the plot SQL safe before we insert it.
     $ref->{plot} =~ s/\n//g;
@@ -189,7 +187,7 @@ sub UpdateShow {
     /^(\w+)=(.*)$/, $vinfo{$1} = $2 for(split "\n", `midentify "$filename"`);
     my $image = GrabImage($imagePath, $show, $filename, $vinfo{"ID_VIDEO_WIDTH"}, $vinfo{"ID_VIDEO_HEIGHT"});
 
-    print "Updated $niceTitle\n" if $update_query->execute($ref->{director}, $ref->{plot}, $ref->{rating}, $ref->{year}, $ref->{number}, $image, int($vinfo{ID_LENGTH}/60), $intid);
+    print "Updated '$nice_title'\n" if $update_query->execute($ref->{director}, $ref->{plot}, $ref->{rating}, $ref->{year}, $ref->{number}, $image, int($vinfo{ID_LENGTH}/60), $intid);
   }
 }
 
@@ -199,7 +197,7 @@ sub GrabImage {
 
   my ( $imagePath, $show, $filename, $width, $height ) = @_;
 
-  my $seasonEpNumber = ($filename =~ m/( - |_)(\d+)\1/)[1];
+  my $seasonEpNumber = ($filename =~ m/( - |_)([-\d]+)\1/)[1];
 
   # simplify the show title
   $show = lc($show);
@@ -213,7 +211,7 @@ sub GrabImage {
   unless( -e "$imagePath/$show/$seasonEpNumber.png" || -e "$imagePath/$show/$seasonEpNumber.jpg" ){
 
     # get the right aspect ratio regardless of the input aspect ratio
-    if( $width > $height/0.68289 ){
+    if( $width > $height*0.68289 ){
       $width = ceil($height*0.68289);
     }
     else{
@@ -240,7 +238,7 @@ sub GrabImage {
 sub db_init {
   my $dbh = DBI->connect("DBI:mysql:database=$database;host=$hostname", $user, $password);
   my $update_query = $dbh->prepare("UPDATE videometadata SET director = ?, plot = ?, userrating = ?, year = ?, inetref = ?, coverfile = ?, length = ? WHERE intid = ?");
-  my $select_query = $dbh->prepare("SELECT intid, title, inetref, filename FROM videometadata WHERE filename like ? ORDER BY filename ASC");
+  my $select_query = $dbh->prepare("SELECT intid, inetref, filename FROM videometadata WHERE filename like ? ORDER BY filename ASC");
   my $rs = $dbh->prepare("select data from settings where value = 'VideoArtworkDir'");
   $rs->execute();
   my $imagePath = $rs->fetchall_arrayref()->[0]->[0];
@@ -265,9 +263,22 @@ EOF
 # MAIN --------------------------------------------------
 
 getopts('hf', \%opts);
-print_help() if($opts{h} || @ARGV == 0);
+print_help() if $opts{h};
 
 my ($dbh, $update_query, $select_query, $imagePath) = db_init();
+
+if(@ARGV == 0) {
+  my %shows;
+  my $rs = $dbh->prepare("SELECT filename FROM videometadata WHERE filename like '%/tv/%' and inetref = 0");
+  $rs->execute();
+  $shows{$_}++ for(map { scalar($_->[0] =~ s#^.*/(.*?)(_| - )[-\d]+\2.*$#$1#, $_->[0]) } @{$rs->fetchall_arrayref()});
+  $rs = $dbh->prepare("SELECT filename FROM videometadata WHERE filename like '%/tv/%' and inetref != 0");
+  $rs->execute();
+  $shows{$_} = 0 for(map { scalar($_->[0] =~ s#^.*/(.*?)(_| - )[-\d]+\2.*$#$1#, $_->[0]) } @{$rs->fetchall_arrayref()});
+  $shows{$_} > 1 and push @ARGV, $_ for(keys %shows);
+  print "$_\n" for @ARGV;
+  exit
+}
 
 for my $show (@ARGV) {
   # get the data from tv.com
