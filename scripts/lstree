@@ -42,6 +42,7 @@ sub get_subtree {
         @list = sort grep { !/^\.\.?$/ } readdir DIR;
         closedir DIR;
         @list = grep { !/^\./ } @list unless $opts{a};
+        @list = grep { !/$opts{p}/ } @list if $opts{p};
         @list = grep { -d "$item/$_" } @list if $opts{d};
         @list = grep { -d "$item/$_" || /$opts{r}/ } @list if $opts{r};
     }
@@ -93,14 +94,14 @@ Options:
     -d          list only directories
     -h          print this help message
     -l          long format (like ls -l)
-    -r regex    print only directories and files matching "regex"
+    -p regex    prune items matching "regex"
 
 EOF
     
     exit 1;
 }
 
-getopts('adhlr:', \%opts);
+getopts('adhlp:', \%opts);
 print_help if $opts{h};
 long_format_filter() if $opts{l};
 $ARGV[0] = "." unless @ARGV;
