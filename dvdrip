@@ -28,6 +28,7 @@ my $keep        = "0";
 my @infiles     = ();
 my $temp_dir    = ".";
 my @fps         = ();
+my @chapters    = ();
 
 # this is a nice usage message that will get printed if anything goes wrong
 sub print_help {
@@ -46,6 +47,7 @@ Options:
   --denoise     -n                denoise video stream
   --outfile     -o <file>         write movie to <file> (movie-\$pid.mkv)
   --pretend     -p                print out commands, but do not run them
+  --chapters    -r [<file>]       copy dvd chapters information
   --size        -s <n>            target filesize in mbs
   --sid         -u <n>            subtitle id number
   --width       -w <n>            video width (default: 640)
@@ -66,6 +68,8 @@ sub parse_args {
         'bitrate|b=i'    => \$bitrate,
         'crop|c'         => sub { $crop =
             ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"auto" },
+        'chapters|r'     => sub { $chapters[0] = "--chapters";
+            $chapters[1] = (-r $ARGV[0]?shift @ARGV:"") },
         'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
@@ -88,9 +92,12 @@ sub parse_args {
     if($size && $bitrate)   { print "You cannot specify both a bitrate and a filesize.\n"; print_help(); }
     if(!$size && !$bitrate) { print "You must specify either a bitrate or a filesize.\n";  print_help(); }
     unless(@infiles)        { print "You must specify at least one input file.\n";         print_help(); }
+    if(scalar @chapters && $chapters[1] eq "" && !scalar @dvd_device) 
+    { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
     print_help() if $bail;
     
     get_crop();
+    get_chapters();
 
     print "# infiles     = @infiles\n";
     print "# outfile     = $outfile\n";
@@ -101,6 +108,7 @@ sub parse_args {
     print "# dvd-device  = $dvd_device[1]\n" if @dvd_device;
     print "# aid         = $aid[1]\n" if @aid;
     print "# sid         = $sid[1]\n" if @sid;
+    print "# chapters    = $chapters[1]\n" if (scalar @chapters);
     print "# deinterlacing\n" if $deint;
     print "# denoising\n" if $noise;
     print "# keeping temp files\n" if $keep;
@@ -163,6 +171,28 @@ sub get_crop {
         $crop .= ","
     } elsif($crop) {
         $crop = "crop=$crop,";
+    }
+}
+
+sub get_chapters {
+    return unless (scalar @chapters && $chapters[1] eq "");
+    
+    $chapters[1] = "chapters-$pid";
+
+    print "### Getting chapter information...\n";
+    open DVDXCHAP, '-|', "dvdxchap", $dvd_device[1];
+    my @chapter_info = <DVDXCHAP>;
+    close CROP;
+
+    # if we're pretending, don't generate chapters file now but 
+    if ($pretend) {
+	print "echo '";
+	print @chapter_info;
+	print "' > $chapters[1]\n";
+    } else {
+	open CHAPTERS, '>', $chapters[1];
+	print CHAPTERS @chapter_info;
+	close CHAPTERS;
     }
 }
 
@@ -260,7 +290,7 @@ sub mux_pass {
     print "\n### Muxing audio and video...\n";
     my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
         eng -o), "$outfile", "-A", "$temp_dir/video-$$.avi", 
-        "$temp_dir/audio-$$.ogg");
+        "$temp_dir/audio-$$.ogg",@chapters);
 }
 
 # remove the temp files unless the user told us not to or unless the final 
@@ -280,7 +310,8 @@ sub rm_tmp {
     }
     unless($keep) { 
         unlink "$temp_dir/pipe-$$", "$temp_dir/audio-$$.ogg", 
-        "$temp_dir/divx2pass-$$.log", "$temp_dir/video-$$.avi";
+        "$temp_dir/divx2pass-$$.log", "$temp_dir/video-$$.avi", 
+	"$temp_dir/chapters-$$";
     }
 }
 
