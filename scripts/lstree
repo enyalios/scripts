@@ -1,0 +1,107 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use Getopt::Std;
+use List::Util "max";
+
+my %opts;
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+sub HELP_MESSAGE { print_help() }
+sub VERSION_MESSAGE { print_help() }
+
+sub tree {
+    my ($prefix, $item) = @_;
+    my @list = get_subtree($item);
+    print $prefix =~ /(-[-\+]-)$/ ? $1 : $prefix;
+    my $len = print_item($item);
+    $prefix = sprintf "%-*s", length($prefix) + $len, $prefix if !$opts{l};
+    $prefix =~ s/-\+-/ | /g;
+    $prefix =~ y/-`\+/   /;
+    print "\n" if(!@list || $opts{l});
+    for(0 .. $#list) {
+        my $suffix;
+        if($opts{l}) {
+            if($_ != $#list) { $suffix = "  |-" }
+            else             { $suffix = "  `-" }
+        } else {
+            if(!$_ && @list == 1) { $suffix = "---" }
+            elsif(!$_)            { $suffix = "-+-" }
+            elsif($_ != $#list)   { $suffix = " |-" }
+            else                  { $suffix = " `-" }
+        }
+        tree("$prefix$suffix", "$item/$list[$_]");
+    }
+}
+
+sub get_subtree {
+    my ($item) = @_;
+    my @list;
+    if(-d $item && -r _) {
+        opendir DIR, "$item" or die "couldnt open '$item': $!\n";
+        @list = sort grep { !/^\.\.?$/ } readdir DIR;
+        closedir DIR;
+        @list = grep { !/^\./ } @list unless $opts{a};
+        @list = grep { -d "$item/$_" } @list if $opts{d};
+        @list = grep { -d "$item/$_" || /$opts{r}/ } @list if $opts{r};
+    }
+    return @list;
+}
+
+sub print_item {
+    my ($item) = @_;
+    (my $basename = $item) =~ s#.*/([^/]+)/?#$1#;
+    if($opts{l}) {
+        my $details = `ls -lhd "$item"`;
+        $details =~ s/^((?:[^ ]+ *?){8}).*\n/$1/g;
+        printf "%s (%s)",  $basename, $details;
+    } else {
+        print $basename;
+    }
+    return length $basename;
+}
+
+sub long_format_filter {
+    my ($pid, $pos, $old_pos, $width, @lines);
+    return if $pid = open(STDOUT, "|-"); # return if parent
+    die "cannot fork: $!" unless defined $pid;
+
+    while(<STDIN>) {
+        $old_pos = $pos || 0;
+        $pos = index $_, "-";
+        if($pos != $old_pos) {
+            $width = max map { length $_->[0] } @lines;
+            printf "%-*s %s\n", $width, $_->[0], $_->[1]  for(@lines);
+            @lines = ();
+        }
+        push @lines, [ /^(.*) +(\(.*\))$/ ];
+    }
+    $width = max map { length $_->[0] } @lines;
+    printf "%-*s %s\n", $width, $_->[0], $_->[1]  for(@lines);
+
+    exit;
+}
+
+sub print_help {
+    print <<EOF;
+
+Usage:
+    lstree [options] dir ...
+
+Options:
+    -a          show hidden files and directories
+    -d          list only directories
+    -h          print this help message
+    -l          long format (like ls -l)
+    -r regex    print only directories and files matching "regex"
+
+EOF
+    
+    exit 1;
+}
+
+getopts('adhlr:', \%opts);
+print_help if $opts{h};
+long_format_filter() if $opts{l};
+$ARGV[0] = "." unless @ARGV;
+tree("", $_) for @ARGV;
