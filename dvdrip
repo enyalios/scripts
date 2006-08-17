@@ -8,7 +8,7 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.36";
+$main::VERSION  = "0.37";
 $ENV{MPLAYER_VERBOSE} = "-2";
 $SIG{CHLD} = 'IGNORE';
 
@@ -47,7 +47,7 @@ Options:
   --denoise     -n                denoise video stream
   --outfile     -o <file>         write movie to <file> (movie-\$pid.mkv)
   --pretend     -p                print out commands, but do not run them
-  --chapters    -r [<file>]       copy dvd chapters information
+  --chapters    -r [<file>]       use chapter info (omit file to auto-detect)
   --size        -s <n>            target filesize in mbs
   --sid         -u <n>            subtitle id number
   --width       -w <n>            video width (default: 640)
@@ -68,8 +68,8 @@ sub parse_args {
         'bitrate|b=i'    => \$bitrate,
         'crop|c'         => sub { $crop =
             ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"auto" },
-        'chapters|r'     => sub { $chapters[0] = "--chapters";
-            $chapters[1] = (-r $ARGV[0]?shift @ARGV:"") },
+        'chapters|r'     => sub { @chapters = ("--chapters",
+                                (-r $ARGV[0]?shift @ARGV:"")) },
         'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
@@ -92,7 +92,7 @@ sub parse_args {
     if($size && $bitrate)   { print "You cannot specify both a bitrate and a filesize.\n"; print_help(); }
     if(!$size && !$bitrate) { print "You must specify either a bitrate or a filesize.\n";  print_help(); }
     unless(@infiles)        { print "You must specify at least one input file.\n";         print_help(); }
-    if(scalar @chapters && $chapters[1] eq "" && !scalar @dvd_device) 
+    if(@chapters && !$chapters[1] && !@dvd_device) 
     { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
     print_help() if $bail;
     
@@ -175,7 +175,7 @@ sub get_crop {
 }
 
 sub get_chapters {
-    return unless (scalar @chapters && $chapters[1] eq "");
+    return unless (@chapters && !$chapters[1]);
     
     $chapters[1] = "chapters-$pid";
 
@@ -185,14 +185,14 @@ sub get_chapters {
     close CROP;
 
     # if we're pretending, don't generate chapters file now but 
-    if ($pretend) {
-	print "echo '";
-	print @chapter_info;
-	print "' > $chapters[1]\n";
+    if($pretend) {
+        print "echo '";
+        print @chapter_info;
+        print "' > $chapters[1]\n";
     } else {
-	open CHAPTERS, '>', $chapters[1];
-	print CHAPTERS @chapter_info;
-	close CHAPTERS;
+        open CHAPTERS, '>', $chapters[1];
+        print CHAPTERS @chapter_info;
+        close CHAPTERS;
     }
 }
 
@@ -290,7 +290,7 @@ sub mux_pass {
     print "\n### Muxing audio and video...\n";
     my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
         eng -o), "$outfile", "-A", "$temp_dir/video-$$.avi", 
-        "$temp_dir/audio-$$.ogg",@chapters);
+        "$temp_dir/audio-$$.ogg", @chapters);
 }
 
 # remove the temp files unless the user told us not to or unless the final 
@@ -311,7 +311,7 @@ sub rm_tmp {
     unless($keep) { 
         unlink "$temp_dir/pipe-$$", "$temp_dir/audio-$$.ogg", 
         "$temp_dir/divx2pass-$$.log", "$temp_dir/video-$$.avi", 
-	"$temp_dir/chapters-$$";
+        "$temp_dir/chapters-$$";
     }
 }
 
