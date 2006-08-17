@@ -108,7 +108,7 @@ sub parse_args {
     print "# dvd-device  = $dvd_device[1]\n" if @dvd_device;
     print "# aid         = $aid[1]\n" if @aid;
     print "# sid         = $sid[1]\n" if @sid;
-    print "# chapters    = $chapters[1]\n" if (scalar @chapters);
+    print "# chapters    = $chapters[1]\n" if @chapters;
     print "# deinterlacing\n" if $deint;
     print "# denoising\n" if $noise;
     print "# keeping temp files\n" if $keep;
