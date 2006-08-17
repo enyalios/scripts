@@ -37,6 +37,7 @@ sub tree {
 sub get_subtree {
     my ($item) = @_;
     my @list;
+    return @list if(-l "$item" && !$opts{f});
     if(-d $item && -r _) {
         opendir DIR, "$item" or die "couldnt open '$item': $!\n";
         @list = sort grep { !/^\.\.?$/ } readdir DIR;
@@ -87,21 +88,22 @@ sub print_help {
     print <<EOF;
 
 Usage:
-    lstree [options] dir ...
+  lstree [options] dir ...
 
 Options:
-    -a          show hidden files and directories
-    -d          list only directories
-    -h          print this help message
-    -l          long format (like ls -l)
-    -p regex    prune items matching "regex"
+  -a          show hidden files and directories
+  -d          list only directories
+  -f          follow symlinks
+  -h          print this help message
+  -l          long format (like ls -l)
+  -p regex    prune items matching "regex"
 
 EOF
     
     exit 1;
 }
 
-getopts('adhlp:', \%opts);
+getopts('adfhlp:', \%opts);
 print_help if $opts{h};
 long_format_filter() if $opts{l};
 $ARGV[0] = "." unless @ARGV;
