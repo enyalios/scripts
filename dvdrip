@@ -17,7 +17,7 @@ my @aid         = ();
 my $bitrate     = "";
 my $crop        = "";
 my $size        = "";
-my @dvd_device  = ();
+my @dvd_device  = ("-dvd-device", "/dev/dvd");
 my @sid         = ();
 my $outfile     = "movie-$pid.mkv";
 my $deint       = "";
@@ -70,7 +70,7 @@ sub parse_args {
             ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"auto" },
         'chapters|r'     => sub { @chapters = ("--chapters",
                                 (-r $ARGV[0]?shift @ARGV:"")) },
-        'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
+        'dvd-device|d=s' => sub { $dvd_device[1] = $_[1] },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
         'deinterlace|l'  => sub { $deint = "pullup,softskip,"; 
@@ -92,28 +92,29 @@ sub parse_args {
     if($size && $bitrate)   { print "You cannot specify both a bitrate and a filesize.\n"; print_help(); }
     if(!$size && !$bitrate) { print "You must specify either a bitrate or a filesize.\n";  print_help(); }
     unless(@infiles)        { print "You must specify at least one input file.\n";         print_help(); }
-    if(@chapters && !$chapters[1] && !@dvd_device) 
+    if(@chapters && !$chapters[1] && $infiles[0] !~ m#^dvd://\d+$#) 
     { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
     print_help() if $bail;
     
     get_crop();
-    get_chapters();
 
-    print "# infiles     = @infiles\n";
-    print "# outfile     = $outfile\n";
-    print "# bitrate     = $bitrate\n" if $bitrate;
-    print "# size        = $size\n" if $size;
-    print "# width       = $width\n";
-    print "# crop        = $crop\n" if $crop;
-    print "# dvd-device  = $dvd_device[1]\n" if @dvd_device;
-    print "# aid         = $aid[1]\n" if @aid;
-    print "# sid         = $sid[1]\n" if @sid;
-    print "# chapters    = $chapters[1]\n" if @chapters;
+    print "# infiles      = @infiles\n";
+    print "# outfile      = $outfile\n";
+    print "# bitrate      = $bitrate\n" if $bitrate;
+    print "# size         = $size\n" if $size;
+    print "# width        = $width\n";
+    print "# crop         = $crop\n" if $crop;
+    print "# dvd-device   = $dvd_device[1]\n" if @dvd_device;
+    print "# aid          = $aid[1]\n" if @aid;
+    print "# sid          = $sid[1]\n" if @sid;
+    print "# chapter-file = ", $chapters[1] || "grab from dvd", "\n" if @chapters;
     print "# deinterlacing\n" if $deint;
     print "# denoising\n" if $noise;
     print "# keeping temp files\n" if $keep;
     print "# pretend rip\n" if $pretend;
     print "\n";
+
+    get_chapters();
 
     if(!$pretend) {
         local $| = 1; #autoflush on for this block
@@ -178,18 +179,18 @@ sub get_chapters {
     return unless (@chapters && !$chapters[1]);
     
     $chapters[1] = "chapters-$pid";
+    my ($title) = $infiles[0] =~ m#^dvd://(\d+)$#;
 
     print "### Getting chapter information...\n";
-    open DVDXCHAP, '-|', "dvdxchap", $dvd_device[1];
-    my @chapter_info = <DVDXCHAP>;
-    close CROP;
 
     # if we're pretending, don't generate chapters file now but 
     if($pretend) {
-        print "echo '";
-        print @chapter_info;
-        print "' > $chapters[1]\n";
+        print "dvdxchap -t $title $dvd_device[1] > $chapters[1]\n\n";
     } else {
+        open DVDXCHAP, '-|', "dvdxchap", "-t", $title, $dvd_device[1];
+        my @chapter_info = <DVDXCHAP>;
+        close DVDXCHAP;
+        
         open CHAPTERS, '>', $chapters[1];
         print CHAPTERS @chapter_info;
         close CHAPTERS;
@@ -240,9 +241,9 @@ sub audio_pass {
             die "Improper audio length: $alength seconds\n" unless $alength > 0;
             die "Improper audio size: $asize bytes\n" unless $asize > 0;
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
-            printf "# alength     = %.2f seconds\n", $alength;
-            printf "# asize       = %.2f mb\n", $asize/1024/1024;
-            print  "# bitrate     = $bitrate kbit\n";
+            printf "# alength      = %.2f seconds\n", $alength;
+            printf "# asize        = %.2f mb\n", $asize/1024/1024;
+            print  "# bitrate      = $bitrate kbit\n";
         }
     }
 }
