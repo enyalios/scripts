@@ -137,6 +137,7 @@ sub my_system {
     if($pretend) {
         print "@_\n";
     } else {
+        find_program($_[0]);
         my $child;
         unless($child = fork) {
             # we are the child, run the command
@@ -170,6 +171,7 @@ sub get_crop {
             " END {print \$c}')\n\n";
             $crop="\${crop_region},";
         } else {
+            find_program("mplayer");
             open CROP, '-|', "mplayer", @dvd_device, @infiles, 
             qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60 -v);
             $_ = (grep { /Crop area:/ } <CROP>)[-1];
@@ -195,6 +197,7 @@ sub get_chapters {
     if($pretend) {
         print "dvdxchap -t $title $dvd_device[1] > $chapters[1]\n\n";
     } else {
+        find_program("dvdxchap");
         open DVDXCHAP, '-|', "dvdxchap", "-t", $title, $dvd_device[1];
         my @chapter_info = <DVDXCHAP>;
         close DVDXCHAP;
@@ -239,6 +242,7 @@ sub audio_pass {
             "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
         } else {
+            find_program("mplayer");
             open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
                 "$temp_dir/audio-$$.ogg";
             my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
@@ -322,6 +326,13 @@ sub rm_tmp {
         "$temp_dir/divx2pass-$$.log", "$temp_dir/video-$$.avi", 
         "$temp_dir/chapters-$$";
     }
+}
+
+sub find_program {
+    my ($program) = @_;
+
+    system("which $program &> /dev/null") == 0
+        or die "Cannot find program '$program' in your path.\n";
 }
 
 parse_args();
