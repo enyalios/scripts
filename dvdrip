@@ -67,7 +67,7 @@ sub parse_args {
         'aid|a=i'        => sub { @aid = ("-aid", $_[1]) },
         'bitrate|b=i'    => \$bitrate,
         'crop|c'         => sub { $crop =
-            ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"auto" },
+            ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"autodetect" },
         'chapters|r'     => sub { @chapters = ("--chapters",
                                 (-r $ARGV[0]?shift @ARGV:"")) },
         'dvd-device|d=s' => sub { $dvd_device[1] = $_[1] },
@@ -96,7 +96,6 @@ sub parse_args {
     { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
     print_help() if $bail;
     
-    get_crop();
 
     print "# infiles      = @infiles\n";
     print "# outfile      = $outfile\n";
@@ -114,6 +113,7 @@ sub parse_args {
     print "# pretend rip\n" if $pretend;
     print "\n";
 
+    get_crop();
     get_chapters();
 
     if(!$pretend) {
@@ -161,15 +161,23 @@ sub my_system {
 # 'crop=...' part from the last line that starts with 'crop area:' since this
 # is the region that mplayer decided is best.
 sub get_crop {
-    if($crop eq "auto") {
+    if($crop eq "autodetect") {
         print "### Calculating crop region...\n";
-        open CROP, '-|', "mplayer", @dvd_device, @infiles, 
+        if($pretend) {
+            print "crop_region=\$(mplayer @dvd_device @infiles -vo null -ao ",
+            "null -vf cropdetect=50:4 -sstep 60 -frames 60 -v 2>/dev/null | ",
+            "perl -lne '\$c = \$1 if /^.*Crop area:.*-vf (crop=[\\d:]+).*\$/;",
+            " END {print \$c}')\n\n";
+            $crop="\${crop_region},";
+        } else {
+            open CROP, '-|', "mplayer", @dvd_device, @infiles, 
             qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60 -v);
-        $_ = (grep { /Crop area:/ } <CROP>)[-1];
-        close CROP;
-        $crop = (/-vf (crop=[\d:]+)/)[0];
-        die "Could not auto-detect crop region\n" unless $crop;
-        $crop .= ","
+            $_ = (grep { /Crop area:/ } <CROP>)[-1];
+            close CROP;
+            $crop = (/-vf (crop=[\d:]+)/)[0];
+            die "Could not auto-detect crop region\n" unless $crop;
+            $crop .= ","
+        }
     } elsif($crop) {
         $crop = "crop=$crop,";
     }
