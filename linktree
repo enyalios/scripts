@@ -64,4 +64,5 @@ while (my $ref = $sth->fetchrow_hashref()) {
 }
 
 # disconnect from the db
+$sth->finish();
 $dbh->disconnect();
