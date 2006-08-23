@@ -8,9 +8,8 @@ use strict;
 use Getopt::Long;
 
 # declaring variables and setting up the defaults
-$main::VERSION  = "0.37";
+$main::VERSION  = "0.38";
 $ENV{MPLAYER_VERBOSE} = "-2";
-$SIG{CHLD} = 'IGNORE';
 
 my $pid         = $$;
 my @aid         = ();
@@ -103,7 +102,7 @@ sub parse_args {
     print "# size         = $size\n" if $size;
     print "# width        = $width\n";
     print "# crop         = $crop\n" if $crop;
-    print "# dvd-device   = $dvd_device[1]\n" if @dvd_device;
+    print "# dvd-device   = $dvd_device[1]\n" if $dvd_device[1] ne "/dev/dvd";
     print "# aid          = $aid[1]\n" if @aid;
     print "# sid          = $sid[1]\n" if @sid;
     print "# chapter-file = ", $chapters[1] || "grab from dvd", "\n" if @chapters;
@@ -143,14 +142,15 @@ sub my_system {
             # we are the child, run the command
             close STDERR if $_[0] =~ /mplayer|mencoder/;
             exec @_;
-            #if($? == -1) {
-            #    die "Failed to execute command: @_\n";
-            #} elsif($? >> 8 != 0) {
-            #    die "Command returned with error code: ", $? >> 8, ": @_\n";
-            #}
         } else {
             # we are the parent, just sit and wait for our kid to return
             waitpid($child, 0);
+            # check to make sure that everything went according to plan
+            if($? == -1) {
+                die "Failed to execute command: @_\n";
+            } elsif($? >> 8 != 0) {
+                die "Command returned with error code: ", $? >> 8, ": @_\n";
+            }
         }
     }
 }
@@ -212,17 +212,18 @@ sub audio_pass {
     print "### Encoding audio...\n";
     # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
     my_system("mkfifo", "$temp_dir/pipe-$$");
-    if(!fork) {
+    my $child = fork;
+    if(!$child) {
         my_system(qw(oggenc -b 96 -o), "$temp_dir/audio-$pid.ogg", 
             "$temp_dir/pipe-$pid", $pretend?"&":());
         exit;
     }
     my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$temp_dir/pipe-$$",
         @infiles, @aid, @dvd_device);
-
-    # give oggenc some time to finish encoding whats left in the pipe, since
-    # mplayer will return before oggenc is done
-    sleep 1 unless $pretend;
+    
+    # wait for oggenc to finish encoding whats left in the pipe, since mplayer
+    # will return before oggenc is done
+    waitpid($child, 0);
 
     # here we have to calculate the video bitrate if they just gave us a
     # target file size.  first we find the length and size of the audio track.
@@ -328,6 +329,8 @@ sub rm_tmp {
     }
 }
 
+# this sub checks to make sure that the helper programs we need exist before we
+# try to call them
 sub find_program {
     my ($program) = @_;
 
@@ -347,9 +350,6 @@ rm_tmp();
 TODO:
 
 do some testing on the new deinterlacing method
-do error checking on return status of system calls
 think about making the pretend output guaranteed correct
-dvds come out small.  their video streams are too small by a factor of 24/30.
-    probably has something to do with frame rates.  fix this. (fixed?)
-check to make sure necessary external programs exist before starting
 make dvdrip work on multiple input files
+make sure we dont have any weird sig child bugs
