@@ -66,9 +66,9 @@ sub parse_args {
         'aid|a=i'        => sub { @aid = ("-aid", $_[1]) },
         'bitrate|b=i'    => \$bitrate,
         'crop|c'         => sub { $crop =
-            ($ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"autodetect" },
+            (@ARGV && $ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"autodetect" },
         'chapters|r'     => sub { @chapters = ("--chapters",
-                                (-r $ARGV[0]?shift @ARGV:"")) },
+                                (@ARGV && -r $ARGV[0]?shift @ARGV:"")) },
         'dvd-device|d=s' => sub { $dvd_device[1] = $_[1] },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
@@ -211,14 +211,14 @@ sub get_chapters {
 sub audio_pass {
     print "### Encoding audio...\n";
     # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
-    my_system("mkfifo", "$temp_dir/pipe-$$");
+    my_system("mkfifo", "$temp_dir/pipe-$pid");
     my $child = fork;
     if(!$child) {
         my_system(qw(oggenc -b 96 -o), "$temp_dir/audio-$pid.ogg", 
             "$temp_dir/pipe-$pid", $pretend?"&":());
         exit;
     }
-    my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$temp_dir/pipe-$$",
+    my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$temp_dir/pipe-$pid",
         @infiles, @aid, @dvd_device);
     
     # wait for oggenc to finish encoding whats left in the pipe, since mplayer
@@ -237,20 +237,20 @@ sub audio_pass {
             # if we are doing a 'pretend'
             print "\n### Determining video bitrate...\n";
             print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(ls -l ", 
-            "$temp_dir/audio-$$.ogg | awk '{print \$5}')) / \$(mplayer -frames ", 
-            "0 -identify -vo null -ao null $temp_dir/audio-$$.ogg 2>/dev/null ",
+            "$temp_dir/audio-$pid.ogg | awk '{print \$5}')) / \$(mplayer -frames ", 
+            "0 -identify -vo null -ao null $temp_dir/audio-$pid.ogg 2>/dev/null ",
             "| sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e ", 
             "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
         } else {
             find_program("mplayer");
             open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
-                "$temp_dir/audio-$$.ogg";
+                "$temp_dir/audio-$pid.ogg";
             my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
             close INDENT;
             $alength =~ s/^ID_LENGTH=([\d.]+)$/$1/;
             chomp $alength;
-            my $asize = -s "$temp_dir/audio-$$.ogg";
+            my $asize = -s "$temp_dir/audio-$pid.ogg";
             die "Improper audio length: $alength seconds\n" unless $alength > 0;
             die "Improper audio size: $asize bytes\n" unless $asize > 0;
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
@@ -277,7 +277,7 @@ sub audio_pass {
 sub video1_pass {
     print "\n### Encoding first pass...\n";
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel avsync=5), 
-        @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o", 
+        @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
         @sid, @fps, @aid);
@@ -289,8 +289,8 @@ sub video1_pass {
 sub video2_pass {
     print "\n### Encoding second pass...\n";
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel avsync=5),
-        @infiles, "-passlogfile", "$temp_dir/divx2pass-$$.log", "-o",
-        "$temp_dir/video-$$.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
+        @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
+        "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
         @sid, @fps, @aid);
 }
@@ -303,8 +303,8 @@ sub video2_pass {
 sub mux_pass {
     print "\n### Muxing audio and video...\n";
     my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
-        eng -o), "$outfile", "-A", "$temp_dir/video-$$.avi", 
-        "$temp_dir/audio-$$.ogg", @chapters);
+        eng -o), "$outfile", "-A", "$temp_dir/video-$pid.avi", 
+        "$temp_dir/audio-$pid.ogg", @chapters);
 }
 
 # remove the temp files unless the user told us not to or unless the final 
@@ -323,9 +323,9 @@ sub rm_tmp {
         }
     }
     unless($keep) { 
-        unlink "$temp_dir/pipe-$$", "$temp_dir/audio-$$.ogg", 
-        "$temp_dir/divx2pass-$$.log", "$temp_dir/video-$$.avi", 
-        "$temp_dir/chapters-$$";
+        unlink "$temp_dir/pipe-$pid", "$temp_dir/audio-$pid.ogg", 
+        "$temp_dir/divx2pass-$pid.log", "$temp_dir/video-$pid.avi", 
+        "$temp_dir/chapters-$pid";
     }
 }
 
