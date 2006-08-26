@@ -72,7 +72,7 @@ sub parse_args {
         'dvd-device|d=s' => sub { $dvd_device[1] = $_[1] },
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
-        'deinterlace|l'  => sub { $deint = "pullup,softskip,"; 
+        'deinterlace|l'  => sub { $deint = "pp=fd,"; 
                                   @fps = qw(-ofps 24000/1001); },
         'denoise|n'      => sub { $noise = "hqdn3d," },
         'outfile|o=s'    => \$outfile,
