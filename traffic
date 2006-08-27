@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my @exponents = split //, "bkmgtpezy";
+my %old;
+my $num_ifs = 0;
+
+# format the numbers all pretty
+sub fnum {
+    my ($number) = @_;
+    for my $power (reverse 0..@exponents) {
+        if ($number/(1024**$power) > .97 || $power == 1) {
+            return sprintf("%5.1f %s", $number/1024**$power, $exponents[$power]);
+} } }
+
+print "\n";
+while(1) { # keep doing this until they ^C
+    print "\e[${num_ifs}A"; # go up $num_ifs lines
+    $num_ifs = 0;
+    # get only lines with an iface name or TX RX info
+    my $lines = join "", grep { /^\w|RX bytes:.*TX bytes:/ } `/sbin/ifconfig`;
+    # join together the iface name with the transmit data
+    $lines =~ s/^(\w.*)\n/$1/mg;
+    
+    # then do stuff for each interface
+    for(split "\n", $lines) {
+        my ($iface, $rx, $tx) = /^(\w+).*RX bytes:(\d+).*TX bytes:(\d+)/;
+        next if $iface eq "lo";
+        
+        # only print something if we have historical data
+        printf "%-8s %7s/sec down, %7s/sec up", $iface, 
+            fnum($rx - $old{$iface}{rx}), fnum($tx - $old{$iface}{tx})
+            if defined $old{$iface}{tx};
+        print "\n";
+
+        $old{$iface}{rx} = $rx;
+        $old{$iface}{tx} = $tx;
+        $num_ifs++;
+    }
+
+    sleep 1;
+}
+
+__END__
+# and this is the simple one-liner that i wrote first
+#!/bin/sh
+while true; do 
+    /sbin/ifconfig eth0 | awk '
+        /RX bytes:/ {
+            sub(/bytes:/, "", $2); 
+            print $2
+        }'
+    sleep 1
+done | perl -ne '
+    BEGIN {$| = 1}; 
+    printf "\r%8.2f k/s", ($_ - $l)/1024 if $l; 
+    $l = $_;'
