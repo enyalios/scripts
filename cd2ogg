@@ -8,21 +8,33 @@ my $cddb_helper = "/usr/lib/perl5/vendor_perl/5.8.8/cddb.pl";
 my %info;
 /^(?:track )?([^:]+): (.*)$/, $info{$1} = $2 for `$cddb_helper -I`;
 
-mkdir $info{title};
-chdir $info{title};
+my $stitle = $info{title};
+y/A-Z /a-z_/, y/a-z0-9_-//cd for $stitle;
+mkdir $stitle;
+chdir $stitle;
 
-system("cdparanoia -ZB"); # remove the -Z to do it paranoidly
+for(my $index = 1; $info{$index}; $index++) {
+    if(my $pid = fork) {
+        waitpid $pid, 0;
+    } else {
+        my $simple_name = sprintf "%s %02d %s", $info{artist}, $index, $info{$index};
+        for($simple_name) { y/A-Z /a-z_/; y/a-z0-9_-//cd; $_ .= ".ogg"; }
 
-for my $wav_file (<track*.cdda.wav>) {
-    my ($number) = $wav_file =~ /^track0*(\d+)\.cdda\.wav$/;
-    
-    my $simple_name = sprintf "%s %02d %s", $info{artist}, $number, $info{$number};
-    for($simple_name) { y/A-Z /a-z_/; y/a-z0-9_-//cd; $_ .= ".ogg"; }
-
-    system(qw(oggenc -q 5), "--artist", $info{artist}, "--album", $info{title},
-        "--tracknum", $number, "--title", $info{$number}, "--genre", $info{genre}, 
-        "--date", $info{year}, "--output", $simple_name, $wav_file) == 0 
-        or print "oggenc failed on '$simple_name'\n";
+        exec "cdparanoia", "-Z", $index, "-" if open(STDOUT, "|-");
+        exec qw(oggenc -Qq 5), "--artist", $info{artist}, "--album", $info{title},
+            "--tracknum", $index, "--title", $info{$index}, "--genre", $info{genre}, 
+            "--date", $info{year}, "--output", $simple_name, "-";
+    }
 }
 
-unlink <track*.cdda.wav>;
+__END__
+
+TODO:
+lots of error checking (return codes and such)
+option to make it paranoid
+comment stuff, the logic is a bit weird
+
+requirements:
+dev-perl/CDDB_get
+media-sound/vorbis-tools
+media-sound/cdparanoia
