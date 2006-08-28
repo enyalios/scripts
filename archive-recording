@@ -7,6 +7,8 @@ subtitle=$2
 chanid=$3
 starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
 
+[[ "$subtitle" == "" ]] && subtitle="unknown_episode"
+
 cd /mnt/media/archive
 
 [[ "$title" != "Alias" ]] && ep_args="-lu"
