@@ -1,0 +1,28 @@
+#!/usr/bin/perl 
+
+use strict;
+use warnings;
+
+my $cddb_helper = "/usr/lib/perl5/vendor_perl/5.8.8/cddb.pl";
+
+my %info;
+/^(?:track )?([^:]+): (.*)$/, $info{$1} = $2 for `$cddb_helper -I`;
+
+mkdir $info{title};
+chdir $info{title};
+
+system("cdparanoia -ZB"); # remove the -Z to do it paranoidly
+
+for my $wav_file (<track*.cdda.wav>) {
+    my ($number) = $wav_file =~ /^track0*(\d+)\.cdda\.wav$/;
+    
+    my $simple_name = sprintf "%s %02d %s", $info{artist}, $number, $info{$number};
+    for($simple_name) { y/A-Z /a-z_/; y/a-z0-9_-//cd; $_ .= ".ogg"; }
+
+    system(qw(oggenc -q 5), "--artist", $info{artist}, "--album", $info{title},
+        "--tracknum", $number, "--title", $info{$number}, "--genre", $info{genre}, 
+        "--date", $info{year}, "--output", $simple_name, $wav_file) == 0 
+        or print "oggenc failed on '$simple_name'\n";
+}
+
+unlink <track*.cdda.wav>;
