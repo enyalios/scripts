@@ -1,4 +1,7 @@
 #!/usr/bin/perl -w
+#
+# this script is a much prettier replacement for df.  it has little bars to
+# show you the fullness and colors things when they are getting full.
 
 # use a helpful module
 use Term::ANSIColor qw(:constants);
