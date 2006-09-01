@@ -1,26 +1,41 @@
 #!/usr/bin/perl 
+#
+# this script turns cds into a nicely named directory of ogg files.  just run
+# cd2ogg with no oggs and wait to finish.  i may add some arguments at some
+# point, but for now it does what i need.
 
 use strict;
 use warnings;
 
+# this comes from CDDB_get which is available in portage or on CPAN
 my $cddb_helper = "/usr/lib/perl5/vendor_perl/5.8.8/cddb.pl";
 
+# stuff the CDDB data into %info
 my %info;
 /^(?:track )?([^:]+): (.*)$/, $info{$1} = $2 for `$cddb_helper -I`;
 
+# make a directory for the album
 my $stitle = $info{title};
 y/A-Z /a-z_/, y/a-z0-9_-//cd for $stitle;
 mkdir $stitle;
 chdir $stitle;
 
-for(my $index = 1; $info{$index}; $index++) {
+# loop over all the songs in %info
+for(my $index = 1; defined $info{$index}; $index++) {
+
+    # we fork here and wait since we need to make calls to exec.  hmm, actually
+    # i can prob just use 'system' here instead of forking and 'exec'ing.  i
+    # will look into that.
     if(my $pid = fork) {
         waitpid $pid, 0;
     } else {
+        # find a simple name for the song
         my $simple_name = sprintf "%s %02d %s", $info{artist}, $index, $info{$index};
         for($simple_name) { y/A-Z /a-z_/; y/a-z0-9_-//cd; $_ .= ".ogg"; }
 
+        # here we run cdparanoia...
         exec "cdparanoia", "-Z", $index, "-" if open(STDOUT, "|-");
+        # ...and pipe it to oggenc via an output filter
         exec qw(oggenc -Qq 5), "--artist", $info{artist}, "--album", $info{title},
             "--tracknum", $index, "--title", $info{$index}, "--genre", $info{genre}, 
             "--date", $info{year}, "--output", $simple_name, "-";

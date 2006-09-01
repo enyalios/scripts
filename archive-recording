@@ -1,22 +1,32 @@
 #!/bin/sh
+#
+# this is a basic script to run mythtv recordings through dvdrip.  it should be
+# added as a user job to mythtv to make it nice and easy to run.
 
 logger -t archive-recording "\"$1\" \"$2\" \"$3\" \"$4\""
 
+# rename our arguments
 title=$1
 subtitle=$2
 chanid=$3
 starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
 
+# this is in case mythtv is missing subtitle data
 [[ "$subtitle" == "" ]] && subtitle="unknown_episode"
 
 cd /mnt/media/archive
 
 [[ "$title" != "Alias" ]] && ep_args="-lu"
 
+# find a good filename
 outfile=$(/home/enyalios/bin/episodes $ep_args "$title" "$subtitle")
 
-/usr/bin/mythtranscode --chanid $chanid --starttime $starttime --outfile "${outfile}.mpg" --mpeg2 --honorcutlist
+# cut out the commercials and make a nice mpeg2 for passing to dvdrip
+/usr/bin/mythtranscode --chanid $chanid --starttime $starttime --outfile \
+    "${outfile}.mpg" --mpeg2 --honorcutlist
 
-/home/enyalios/bin/dvdrip --bitrate 600 --crop --deinterlace --denoise --outfile "${outfile}.mkv" --width 480 "${outfile}.mpg" 2>&1 | perl -pe 's/^.*\r(?!$)//'
+# run dvdrip and strip out lots of stuff for the log files
+/home/enyalios/bin/dvdrip --bitrate 600 --crop --deinterlace --denoise --outfile \
+    "${outfile}.mkv" --width 480 "${outfile}.mpg" 2>&1 | perl -pe 's/^.*\r(?!$)//'
 
 rm "${outfile}.mpg" "${outfile}.mpg.map"

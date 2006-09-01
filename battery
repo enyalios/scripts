@@ -1,4 +1,10 @@
 #!/bin/zsh
+#
+# this script prints out all kinds of useful information about acpi battery
+# status.  it can either just print out the percent the battery is at, or print
+# out how much time is left, or a nice string telling you about the battery, or
+# even display the battery status using xosd.  just do 'battery -h' to see all
+# the options.
 
 BAT_DIR="/proc/acpi/battery/BAT0"
 

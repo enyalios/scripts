@@ -2,6 +2,10 @@
 #
 # $HeadURL$
 # $LastChangedRevision$
+#
+# this is an awesome script for turning any video files into mkv files with
+# h.264 video and ogg vorbis audio.  its quite flexible so run 'dvdrip -h' to
+# see all of the options.
 
 use warnings;
 use strict;
