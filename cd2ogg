@@ -6,48 +6,103 @@
 
 use strict;
 use warnings;
+use Getopt::Std;
+
+# our pretty help message
+sub print_help {
+    print <<EOF;
+
+Usage:
+  cd2ogg [options]
+
+Options:
+  -d <device>       use <device> rather than /dev/cdrom
+  -h                print this help message
+  -p                read from cd paranoidly (slower)
+  -m <file>         use <file> rather than web lookup for metadata
+
+EOF
+
+    exit 1;
+}
 
 # this comes from CDDB_get which is available in portage or on CPAN
 my $cddb_helper = "/usr/lib/perl5/vendor_perl/5.8.8/cddb.pl";
 
-# stuff the CDDB data into %info
+# parse our arguments
+my %opts;
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+sub HELP_MESSAGE { print_help() }
+sub VERSION_MESSAGE { print_help() }
+getopts("hpd:m:", \%opts);
+my $cdrom = $opts{d} || "/dev/cdrom";
+print_help() if $opts{h};
+
+# look up the CDDB data, print it out, and stuff it into %info
 my %info;
-/^(?:track )?([^:]+): (.*)$/, $info{$1} = $2 for `$cddb_helper -I`;
+for(`$cddb_helper -I -c "$cdrom"`) {
+    print;
+    /^(?:track )?([^:]+): (.*)$/;
+    $info{$1} = $2;
+}
+die "could not find cddb data for cd.\n" unless defined $info{title};
+
+# figure out the number of sectors on the cd for speed calculations
+my ($num_sectors) = `cdparanoia -Q -d "$cdrom" 2>&1` =~ /^TOTAL +(\d+)/m;
+
+# print out a countdown so they can make sure the metadata is right
+{
+    $| = 1;
+    print "\nstarting in... ";
+    print "$_ " and sleep 1 for reverse 1 .. 5;
+    print "\n";
+}
+my $start_time = time;
 
 # make a directory for the album
 my $stitle = $info{title};
 y/A-Z /a-z_/, y/a-z0-9_-//cd for $stitle;
-mkdir $stitle;
+mkdir $stitle unless -d $stitle;
 chdir $stitle;
 
 # loop over all the songs in %info
 for(my $index = 1; defined $info{$index}; $index++) {
 
-    # we fork here and wait since we need to make calls to exec.  hmm, actually
-    # i can prob just use 'system' here instead of forking and 'exec'ing.  i
-    # will look into that.
+    # find a simple name for the song
+    my $simple_name = sprintf "%s %02d %s", $info{artist}, $index, $info{$index};
+    for($simple_name) { y/A-Z /a-z_/; y/a-z0-9_-//cd; $_ .= ".ogg"; }
+
+    print "ripping $simple_name\n";
+    
+    # we fork here and wait since we need to make calls to exec.  the reason i
+    # fork and do two exec's rather than just doing an exec and a system call
+    # is so that i can still output text from the main program to stdout
+    # without it getting send to oggenc.
     if(my $pid = fork) {
         waitpid $pid, 0;
     } else {
-        # find a simple name for the song
-        my $simple_name = sprintf "%s %02d %s", $info{artist}, $index, $info{$index};
-        for($simple_name) { y/A-Z /a-z_/; y/a-z0-9_-//cd; $_ .= ".ogg"; }
-
         # here we run cdparanoia...
-        exec "cdparanoia", "-Z", $index, "-" if open(STDOUT, "|-");
-        # ...and pipe it to oggenc via an output filter
+        exec "cdparanoia", $opts{p}?():("-Z"), $index, "-d", $cdrom, "-" if open(STDOUT, "|-");
+        # ...and pipe it to oggenc via a sneaky open fork output filter
         exec qw(oggenc -Qq 5), "--artist", $info{artist}, "--album", $info{title},
-            "--tracknum", $index, "--title", $info{$index}, "--genre", $info{genre}, 
-            "--date", $info{year}, "--output", $simple_name, "-";
+        "--tracknum", $index, "--title", $info{$index}, "--genre", $info{genre}, 
+        "--date", $info{year}, "--output", $simple_name, "-";
     }
 }
+
+my $total_time = time - $start_time;
+printf "finished rip in: %d minute%s, %d second%s (%.1fx)\n", 
+    int($total_time / 60), int($total_time / 60) == 1 ? "" : "s", 
+    $total_time % 60, ($total_time % 60) == 1 ? "" : "s", 
+    $num_sectors / 75 / $total_time;
 
 __END__
 
 TODO:
 lots of error checking (return codes and such)
 option to make it paranoid
-comment stuff, the logic is a bit weird
+option to make it read metadata from a file
+parse the cdparanoia output and print out something prettier
 
 requirements:
 dev-perl/CDDB_get
