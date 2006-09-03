@@ -98,35 +98,45 @@ sub do_directory {
     chdir $stitle;
 }
 
+sub get_trackdata {
+    # grab data from cdparanoia
+    my $data = `cdparanoia -Q -d "$opts{d}" 2>&1`;
+    
+    # get the number of sectors
+    my ($num_sectors) = $data =~ /^TOTAL +(\d+)/m;
+
+    # figure out which tracks are audio
+    my @audio_tracks = $data =~ /^ +(\d+)\./mg;
+    
+    return $num_sectors, @audio_tracks;
+}
 
 sub main {
     parse_args();
     my %info = get_metadata();
+    my ($num_sectors, @audio_tracks) = get_trackdata();
     
     # print out a countdown so they can make sure the metadata is right
     {
         $| = 1;
-        print "\nstarting in... ";
+        print "\nripping in... ";
         print "$_ " and sleep 1 for reverse 1 .. 5;
-        print "\n";
+        print "\n\n";
     }
-
-    # figure out the number of sectors on the cd and also note the time for
-    # speed calculations at the end
-    my ($num_sectors) = `cdparanoia -Q -d "$opts{d}" 2>&1` =~ /^TOTAL +(\d+)/m;
-    my $start_time = time;
 
     do_directory($info{title});
 
-    # loop over all the songs in %info
-    my $index = 1;
-    rip_song($index++, %info) while defined $info{$index};
+    # figure out the number of sectors on the cd and also note the time for
+    # speed calculations at the end
+    my $start_time = time;
 
+    # rip all of the audio tracks
+    rip_song($_, %info) for @audio_tracks;
+
+    # print out a footer with total time and speed info
     my $total_time = time - $start_time;
-    printf "finished rip in: %d minute%s, %d second%s (%.1fx)\n", 
-        int($total_time / 60), int($total_time / 60) == 1 ? "" : "s", 
-        $total_time % 60, ($total_time % 60) == 1 ? "" : "s", 
-        $num_sectors / 75 / $total_time;
+    printf "total rip time: %d:%02d (%.1fx)\n", int($total_time / 60), 
+        $total_time % 60, $num_sectors / 75 / $total_time;
 }
 
 main();
@@ -135,7 +145,6 @@ __END__
 
 TODO:
 lots of error checking (return codes and such)
-option to make it read metadata from a file
 parse the cdparanoia output and print out something prettier
 
 requirements:
