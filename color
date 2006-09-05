@@ -59,3 +59,33 @@ while(my $line = <>) {
         $last_color = $cols[$i];
     }
 }
+
+__END__
+
+todo:
+
+make different "color schemes" in the config file so you can color diff files
+    with the same config
+
+
+
+example .colors file
+
+cat << EOF > .colors
+# some silly test colors
+# /[a-z]+/ RED
+# /\d+/ BLUE
+# /[aoeui]/ BOLD GREEN
+# /@/ bold yellow on_white
+
+# this stuff colors my system log file nicely
+/^.*\[/ blue
+/\[[^ ]*\]/ green
+/\](.*)$/ magenta
+/.*Last output repeated.*/ cyan
+/^tail:.*/ cyan
+/ to=<(.*?@.*?)>/ red
+/ from=<(.*?@.*?)>/ red
+/sudo.*COMMAND=(.*)/ red
+/[sshd].*Failed password for (?:invalid user )?(\w+) from/ red
+EOF
