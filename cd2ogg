@@ -8,7 +8,7 @@ use warnings;
 use Getopt::Std;
 
 # this comes from CDDB_get which is available in portage or on CPAN
-my $cddb_helper = "/usr/lib/perl5/vendor_perl/5.8.8/cddb.pl";
+my $cddb_helper = "/usr/bin/cddb.pl";
 
 my %opts;
 $Getopt::Std::STANDARD_HELP_VERSION = 1;
