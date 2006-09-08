@@ -25,6 +25,7 @@ $sth->execute();
 my $rs = $dbh->prepare("select data from settings where value = 'VideoArtworkDir'");
 $rs->execute();
 my $poster_cache = $rs->fetchall_arrayref()->[0]->[0];
+$rs->finish();
 die "cant write to poster directory!\n" unless -w $poster_cache;
 
 # prepare the query for updating info
@@ -62,4 +63,5 @@ while (my $ref = $sth->fetchrow_hashref()) {
 }
 
 # disconnect from the db
+$sth->finish();
 $dbh->disconnect();
