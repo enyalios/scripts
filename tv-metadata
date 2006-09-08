@@ -45,8 +45,8 @@ sub GetData {
 
   my @list;
 
-  # the first item in the list we return is the nice title of the show.
-  push @list, $title;
+  # the first item in the list we return is the nice title of the show and the second is the title we looked up.
+  push @list, $title, $old_title;
 
   my $page = get $show_url;
 
@@ -69,7 +69,7 @@ sub GetData {
 # things out, but handles duplicate episode titles correctly.
 sub UpdateShow {
 
-  my ($select_query, $update_query, $imagePath, $show, @shows) = @_;
+  my ($select_query, $update_query, $imagePath, $show, $old_title, @shows) = @_;
 
   my %duplicateEpisodeCount;
 
@@ -124,15 +124,13 @@ sub UpdateShow {
       }
       # on 3 try paul's filename format
       elsif( $modifyTitleCounter == 3 ){
-        $workingTitle = lc($workingTitle);
-        $workingTitle =~ s/ - /_/g;
-        $workingTitle =~ s/ /_/g;
-        $workingTitle =~ s/[^-\w]//g;
-
-        $workingShow = lc($workingShow);
-        $workingShow =~ s/ - /_/g;
-        $workingShow =~ s/ /_/g;
-        $workingShow =~ s/[^-\w]//g;
+        $workingShow = $old_title;
+        for($workingTitle, $workingShow) {
+          $_ = lc;
+          s/ - /_/g;
+          s/ /_/g;
+          s/[^-\w]//g;
+        }
       }
 
       # now get all the id's for episodes that match the current formatting
