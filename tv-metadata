@@ -158,6 +158,7 @@ sub UpdateShow {
     # count in the hash. -1 corrects for array position from the count.
 
     # This only works because everything is in chronological order!
+    next unless @{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1];
     my ($intid, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
     (my $nice_title = $filename) =~ s#.*/##;
 
@@ -288,6 +289,7 @@ for my $show (@ARGV) {
   UpdateShow($select_query, $update_query, $imagePath, @episodes);
 }
 
+$select_query->finish();
 $dbh->disconnect();
 
 # vim:sw=2:ts=8
