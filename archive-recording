@@ -1,7 +1,19 @@
 #!/bin/sh
 #
 # this is a basic script to run mythtv recordings through dvdrip.  it should be
-# added as a user job to mythtv to make it nice and easy to run.
+# added as a user job to mythtv to make it nice and easy to run.  try something
+# like this:
+#
+# mysql> select * from settings where value rlike 'userjob.*1';
+# +------------------+------------------------------------------------------------------------------------------------------+----------+
+# | value            | data                                                                                                 | hostname |
+# +------------------+------------------------------------------------------------------------------------------------------+----------+
+# | UserJobDesc1     | Archiving Video                                                                                      | NULL     |
+# | UserJob1         | /bin/nice -n 10 /home/enyalios/bin/archive-recording "%TITLE%" "%SUBTITLE%" "%CHANID%" "%STARTTIME%" | NULL     |
+# | JobAllowUserJob1 | 1                                                                                                    | alpha    |
+# +------------------+------------------------------------------------------------------------------------------------------+----------+
+# 3 rows in set (0.00 sec)
+
 
 logger -t archive-recording "\"$1\" \"$2\" \"$3\" \"$4\""
 
@@ -16,10 +28,8 @@ starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
 
 cd /mnt/media/archive
 
-[[ "$title" != "Alias" ]] && ep_args="-lu"
-
 # find a good filename
-outfile=$(/home/enyalios/bin/episodes $ep_args "$title" "$subtitle")
+outfile=$(/home/enyalios/bin/episodes -lu "$title" "$subtitle")
 
 # cut out the commercials and make a nice mpeg2 for passing to dvdrip
 /usr/bin/mythtranscode --chanid $chanid --starttime $starttime --outfile \
