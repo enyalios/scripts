@@ -1,26 +1,40 @@
 #!/usr/bin/perl
 #
 # this script both updates your list of all magic cards and searches thru it
-# for specific cards.  to update the info use 'cardgrep -u'.  to search, use
-# 'cardgrep <regex1> <regex2>...'.  there is also a '-n' switch to just print
-# out the card names without all their text.
+# for specific cards.  
+#
+# to search: 
+#   cardgrep [-n] <regex1> <regex2>...
+#
+# to update datafile: 
+#   cardgrep -u
+#
+# the -n switch just prints out the card names without all their text.  useful
+# for piping to cache-cards like this: 
+#   cardgrep -n 'regex' | perl -pe 's/\n/\0/' | xargs -0 cache-cards -d"
 
 use strict;
 use warnings;
 use Getopt::Std;
 
+# tweak this depending on where you want to store your data
 my $data_file = "$ENV{HOME}/magic/oracle";
 
+# make it read in 1 card at a time
 $/ = "\n\n";
-my $count = 0;
 my %opts;
 getopts('nu', \%opts);
 my %cards;
 
+# this part is when you want to update the datafile
 if($opts{u}) {
     require LWP::Simple;
     print "updating card data...\n";
+
+    # grab the full spoiler from wizards
     my $data = LWP::Simple::get("http://ww2.wizards.com/gatherer/Index.aspx?output=Text+Spoiler");
+
+    # and format it nicely
     for($data) {
         s/^.*?\n<table class="TextResultsTable" border="0">\n//s;
         s/\n<\/table>.*?$//s;
@@ -29,8 +43,9 @@ if($opts{u}) {
         s/oSi/S/g;
         s/^(CardName:|Cost:|Type:|Pow\/Tgh:|Rules Text:|Set\/Rarity:|(?!$))/sprintf "%-13.13s", $1/meg; 
     }
-    open OUTPUT, ">$data_file" or 
-        die "cant open output file '$data_file': $!\n";
+
+    # and then save it permanently to the data file
+    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
     print OUTPUT $data;
     exit;
 }
@@ -38,20 +53,25 @@ if($opts{u}) {
 open INPUT, "<$data_file" or die "cant find input file\n";
 
 CARD: while(<INPUT>) {
-    for my $regex (@ARGV) {
-        next CARD unless /$regex/im;
-    }
+    # skip to the next card unless it matches all regexs
+    for my $regex (@ARGV) { next CARD unless /$regex/im; }
     my ($card_name) = /^CardName: +(.*)$/m;
+    
+    # save the name to a hash so we dont print out dupes
     next CARD if $cards{$card_name}++;
     if($opts{n}) { 
-        print "$card_name\n" and next CARD;
+        # then either print out the card name
+        print "$card_name\n";
     } else {
+        # or print out the whole card, this craziness wraps the lines to 80 columns
         1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m;
         print;
-        $count++;
     }
 }
 
 close INPUT;
 
-print "$count card(s) returned\n\n" unless $opts{n};
+# print out a count at the end (use stderr if we are just listing the names of
+# the cards so that we play nice with cache-cards)
+print STDERR "\n" if $opts{n};
+print {$opts{n}?*STDERR:*STDOUT} scalar keys %cards, " card(s) returned\n\n";
