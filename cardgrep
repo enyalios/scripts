@@ -9,6 +9,8 @@ use strict;
 use warnings;
 use Getopt::Std;
 
+my $data_file = "$ENV{HOME}/magic/oracle";
+
 $/ = "\n\n";
 my $count = 0;
 my %opts;
@@ -27,13 +29,13 @@ if($opts{u}) {
         s/oSi/S/g;
         s/^(CardName:|Cost:|Type:|Pow\/Tgh:|Rules Text:|Set\/Rarity:|(?!$))/sprintf "%-13.13s", $1/meg; 
     }
-    open OUTPUT, ">$ENV{HOME}/magic/oracle" or 
-        die "cant open output file '$ENV{HOME}/magic/oracle': $!\n";
+    open OUTPUT, ">$data_file" or 
+        die "cant open output file '$data_file': $!\n";
     print OUTPUT $data;
     exit;
 }
 
-open INPUT, "<$ENV{HOME}/magic/oracle" or die "cant find input file\n";
+open INPUT, "<$data_file" or die "cant find input file\n";
 
 CARD: while(<INPUT>) {
     for my $regex (@ARGV) {
