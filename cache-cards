@@ -168,6 +168,7 @@ sub get_card {
 #     # download the card image
 #     my $url = "http://www.wizards.com/global/images/magic/" . $translate_sets{$set} . "/" . $simple_card . ".jpg";
     my ($url) = $html =~ /<img ID="_imgCardImage"  src="(.*?)"/;
+    unless($url) { print "=> Couldn't find card '$card'\n"; return; }
     print "   URL: $url\n" if $verbose;
     print "   Getting card '$card'\n" unless $verbose;
     if(system("wget", "-q", "-O", "$cache_dir/$simple_card.jpg", $url)) {
@@ -225,7 +226,7 @@ for(@arg_list) {
         close FILE;
         for(@lines) { 
             chomp;
-            next if /^\s*(\/\/|$)/;
+            next if /^\s*(\/\/|#|$)/;
             s/^\s*(sb:)?\s*\d+\s+(.+?)\s*$/$2/i;
             get_card($_) if $_;
         }
