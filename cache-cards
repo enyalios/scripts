@@ -1,145 +1,17 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
+
+use warnings;
 use strict;
+use Getopt::Std;
 
 # global vars
-my $cache_dir = "$ENV{HOME}/.mindlesscache";
 my @file_list;
-my $display = 0;
-my @arg_list;
-my $verbose = 0;
-
-# table to translate the set names returned to the url path portions
-# my %translate_sets = (
-#     Coldsnap             =>  "coldsnap",
-#     Dissension           =>  "dissension",
-#     Guildpact            =>  "guildpact",
-#     RavnicaCityofGuilds  =>  "ravnica",
-#     SaviorsofKamigawa    =>  "sok",
-#     BetrayersofKamigawa  =>  "bok",
-#     ChampionsofKamigawa  =>  "chk",
-#     Unhinged             =>  "unhinged",
-#     FifthDawn            =>  "fd",
-#     Darksteel            =>  "darksteel",
-#     Mirrodin             =>  "mirrodin",
-#     Scourge              =>  "scourge",
-#     Legions              =>  "legions",
-#     Onslaught            =>  "onslaught",
-#     Judgment             =>  "judgment",
-#     Torment              =>  "torment",
-#     Odyssey              =>  "odyssey",
-#     Apocalypse           =>  "apocalypse",
-#     Planeshift           =>  "planeshift",
-#     Invasion             =>  "invasion",
-#     Prophecy             =>  "prophecy",
-#     Nemesis              =>  "nemesis",
-#     MercadianMasques     =>  "mm",
-#     UrzasDestiny         =>  "ud",
-#     UrzasLegacy          =>  "ul",
-#     UrzasSaga            =>  "uz",
-#     Exodus               =>  "exodus",
-#     Stronghold           =>  "stronghold",
-#     Tempest              =>  "tempest",
-#     Weatherlight         =>  "weatherlight",
-#     Visions              =>  "visions",
-#     Mirage               =>  "mirage",
-#     Alliances            =>  "alliances",
-#     Homelands            =>  "homelands",
-#     IceAge               =>  "ia",
-#     FallenEmpires        =>  "fe",
-#     TheDark              =>  "dark",
-#     Legends              =>  "legends",
-#     Antiquities          =>  "antiquities",
-#     ArabianNights        =>  "an",
-#     Chronicles           =>  "chronicles",
-#     Portal               =>  "portal",
-#     PortalSecondAge      =>  "portal2",
-#     PortalThreeKingdoms  =>  "p3k",
-#     Starter1999          =>  "starter",
-#     Starter2000          =>  "starter",
-#     Unglued              =>  "unglued",
-#     BattleRoyaleBoxSet   =>  "br",
-#     BeatdownBoxSet       =>  "beatdown",
-#     NinthEdition         =>  "9e",
-#     EighthEdition        =>  "8e",
-#     SeventhEdition       =>  "7e",
-#     ClassicSixthEdition  =>  "6e",
-#     FifthEdition         =>  "5e",
-#     FourthEdition        =>  "4e",
-#     Revised              =>  "revised",
-#     Unlimited            =>  "unlimited",
-#     Beta                 =>  "beta",
-#     Alpha                =>  "alpha",
-#     Promotional          =>  "promo",
-# );
-
-# order you want to try sets in (so you get the card image you want)
-# my @set_order = (
-#     "Revised",
-#     "TheDark",
-#     "FallenEmpires",
-#     "IceAge",
-#     "Homelands",
-#     "Alliances",
-#     "Mirage",
-#     "Visions",
-#     "Weatherlight",
-#     "Tempest",
-#     "Stronghold",
-#     "Exodus",
-#     "UrzasSaga",
-#     "UrzasLegacy",
-#     "UrzasDestiny",
-#     "MercadianMasques",
-#     "Nemesis",
-#     "Prophecy",
-#     "ArabianNights",
-#     "Antiquities",
-#     "Legends",
-#     "Unlimited",
-#     "Beta",
-#     "Alpha",
-#     "Invasion",
-#     "Planeshift",
-#     "Apocalypse",
-#     "Odyssey",
-#     "Torment",
-#     "Judgment",
-#     "Onslaught",
-#     "Legions",
-#     "Scourge",
-#     "Mirrodin",
-#     "Darksteel",
-#     "FifthDawn",
-#     "Unhinged",
-#     "ChampionsofKamigawa",
-#     "BetrayersofKamigawa",
-#     "SaviorsofKamigawa",
-#     "RavnicaCityofGuilds",
-#     "Guildpact",
-#     "Dissension",
-#     "Coldsnap",
-#     "Chronicles",
-#     "FourthEdition",
-#     "FifthEdition",
-#     "ClassicSixthEdition",
-#     "SeventhEdition",
-#     "EighthEdition",
-#     "NinthEdition",
-#     "BeatdownBoxSet",
-#     "BattleRoyaleBoxSet",
-#     "Unglued",
-#     "Starter2000",
-#     "Starter1999",
-#     "PortalThreeKingdoms",
-#     "PortalSecondAge",
-#     "Portal",
-# );
+my %opts;
+$opts{c} = "$ENV{HOME}/.mindlesscache";
 
 # this fuction takes a card name as an arg and get the image for us
 sub get_card {
     # somebody set us up the variables
-    my $set;
-    my %sets;
     my $card = shift;
     $card =~ s/\x{C6}/ae/g;
     my $simple_card = $card;
@@ -147,79 +19,54 @@ sub get_card {
     $simple_card =~ y/a-z_//cd;
     $card =~ y/ /_/ if $card =~ /,/;
 
-    print "$card\n" if $verbose;
+    print "$card\n" if $opts{v};
     
     # we already have this cached
-    if(-e "$cache_dir/$simple_card.jpg") { 
+    if(-e "$opts{c}/$simple_card.jpg") { 
         print "   Skipping card '$card'\n";
-        print "\n" if $verbose;
-        push @file_list, "$cache_dir/$simple_card.jpg";
+        print "\n" if $opts{v};
+        push @file_list, "$opts{c}/$simple_card.jpg";
         return;
     }
 
-    # figure out what set the card is in
+    # figure out where the card image is and grab it
     my $html = `wget -qO - "http://gatherer.wizards.com/gathererlookup.asp?name=$card"`;
-#     while($html =~ s/\?set=(.*?)&//) { $sets{$1} = 1 }
-#     print "   Sets: ", join(" ", keys %sets), "\n" if $verbose;
-#     unless(%sets) { print "=> Couldn't find card '$card'\n"; print "\n" if $verbose; return; }
-#     for(reverse @set_order) { $set = $_ if $sets{$_}; }
-#     print "   Usage version from set '$set'\n" if $verbose;
-# 
-#     # download the card image
-#     my $url = "http://www.wizards.com/global/images/magic/" . $translate_sets{$set} . "/" . $simple_card . ".jpg";
     my ($url) = $html =~ /<img ID="_imgCardImage"  src="(.*?)"/;
     unless($url) { print "=> Couldn't find card '$card'\n"; return; }
-    print "   URL: $url\n" if $verbose;
-    print "   Getting card '$card'\n" unless $verbose;
-    if(system("wget", "-q", "-O", "$cache_dir/$simple_card.jpg", $url)) {
+    print "   URL: $url\n" if $opts{v};
+    print "   Getting card '$card'\n" unless $opts{v};
+    if(system("wget", "-q", "-O", "$opts{c}/$simple_card.jpg", $url)) {
         print "=> Problem getting card '$card'\n";
     } else {
-        push @file_list, "$cache_dir/$simple_card.jpg";
+        push @file_list, "$opts{c}/$simple_card.jpg";
     }
-    print "\n" if $verbose;
+    print "\n" if $opts{v};
 }
 
 # prints out our nice usage message
 sub usage_bail {
-    $0 =~ s/.*\///;
-    print "\nUsage:\n";
-    print "\t$0 [options] (card_name|deck_list.dec) ...\n";
-    print "\nOptions:\n";
-    print "\t-c cache_dir\tuse alternate cache directory\n";
-    print "\t-d\t\tdisplay all the cards when finished\n";
-    print "\t-h\t\tprint this help message\n";
-    print "\t-v\t\tbe more verbose\n";
-    print "\n";
+    print <<EOF;
+
+  Usage:
+    cache-cards [options] (card_name|deck_list.dec) ...
+
+  Options:
+    -c cache_dir    use alternate cache directory
+    -d              display all the cards when finished
+    -h              print this help message
+    -v              be more verbose
+
+EOF
     exit;
 }
 
-sub parse_args {
-    while(@ARGV) {
-        if($ARGV[0] eq "-d") { 
-            shift @ARGV; $display = 1; 
-        } 
-        elsif($ARGV[0] eq "-c") { 
-            shift @ARGV; $cache_dir = shift @ARGV;
-        }
-        elsif($ARGV[0] eq "-v") {
-            shift @ARGV; $verbose = 1;
-        }
-        elsif($ARGV[0] eq "-h") {
-            usage_bail();
-        }
-        else {
-            push @arg_list, shift @ARGV;
-        }
-    }
-}
-
 # initialization stuff
-parse_args();
-usage_bail() unless @arg_list;
-mkdir $cache_dir unless -d $cache_dir;
+getopts('dc:vh', \%opts);
+usage_bail() if(!@ARGV || $opts{h});
+mkdir $opts{c} unless -d $opts{c};
 
 # iterate over all the command line arguments
-for(@arg_list) {
+for(@ARGV) {
     if(/\.dec$/i) {
         open(FILE, "$_") or die "=> Couldn't open decklist '$_': $!\n";
         my @lines = <FILE>;
@@ -227,7 +74,7 @@ for(@arg_list) {
         for(@lines) { 
             chomp;
             next if /^\s*(\/\/|#|$)/;
-            s/^\s*(sb:)?\s*\d+\s+(.+?)\s*$/$2/i;
+            s/^\s*(?:sb:)?\s*(?:\d+\s+)?(.+?)\s*$/$1/i;
             get_card($_) if $_;
         }
     } else {
@@ -236,4 +83,4 @@ for(@arg_list) {
 }
 
 # do the displaying at the end if necessary
-system("xv", "-geometry", "+0+0", @file_list) if $display;
+system("xv", "-geometry", "+0+0", @file_list) if $opts{d};
