@@ -1,4 +1,12 @@
 #!/usr/bin/perl
+# 
+# this script is used to download card images from wizards.com's website.  you
+# can either specify the names of cards or the command line, or a file ending
+# in .dec with cardnames in it.
+#
+# use the '-d' switch to display all the card images after downloading them.
+# this works especially well with the cardgrep script like so:
+#   cardgrep -n 'regex' | perl -pe 's/\n/\0/' | xargs -0 cache-cards -d
 
 use warnings;
 use strict;

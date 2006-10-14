@@ -11,7 +11,7 @@
 #
 # the -n switch just prints out the card names without all their text.  useful
 # for piping to cache-cards like this: 
-#   cardgrep -n 'regex' | perl -pe 's/\n/\0/' | xargs -0 cache-cards -d"
+#   cardgrep -n 'regex' | perl -pe 's/\n/\0/' | xargs -0 cache-cards -d
 
 use strict;
 use warnings;
