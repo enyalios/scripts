@@ -2,9 +2,13 @@
 #
 # this script prints out which pages are currently open in firefox or mozilla.
 # by default it lists firefox pages unless you pass the '-m' option for
-# mozilla.  firefox 2.0 stores this information automatically, but for this
+# mozilla.  
+#
+# firefox 2.0 stores this information automatically, but for this
 # script to work with firefox 1.x or mozilla you'll need the sessionsaver
-# extension installed.  try the '-v' switch for more verbose information.
+# extension installed.  
+#
+# try the '-v' switch for more verbose information.
 
 use Getopt::Std;
 
@@ -27,7 +31,8 @@ if($file eq "$dir/sessionstore.js") {
         ($_, $index) = @tabs[$i, $i+1]; 
         last if /_closedTabs:/; 
         @urls = /url:"(.*?)"/g; 
-        print $urls[$index - 1], "\n"; $i += 2; 
+        print $urls[$index - 1], "\n";
+        $i += 2; 
     }
 } else {
     @lines = <INPUT>;
