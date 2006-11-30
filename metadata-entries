@@ -1,0 +1,41 @@
+#!/usr/bin/perl 
+
+use strict;
+use warnings;
+use DBI;
+use File::Find;
+
+# find all the files that should be in the database
+my @files;
+find( { wanted => sub { push @files, $File::Find::name if -f $_ }, follow => 1 }, '/mnt/videos' );
+
+# find all the files that are already in the database
+my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
+    "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
+my $sth = $dbh->prepare("SELECT filename FROM videometadata");
+$sth->execute();
+my @entries = map { $_ = $_->[0] } @{$sth->fetchall_arrayref()};
+
+# subtract them (this nifty trick puts all the things we need to work on as the
+# keys for %hash)
+my %hash;
+@hash{@files} = ();
+delete @hash{@entries};
+
+for(keys %hash) { 
+    # make a new entry for each file that isnt there
+    my $update_query = $dbh->prepare("INSERT INTO videometadata 
+        (title, director,  plot,   rating, inetref,    year,   showlevel, filename, coverfile)
+        VALUES
+        (?,    'Unknown', 'None', 'NR',   '00000000', '1895', '1',        ?,       'No Cover')");
+
+    # clean up the name a bit
+    (my $nice_title = $_) =~ s!^.*/(.*)\..{2,4}$!$1!;
+    $nice_title =~ y/_/ /;
+
+    # run the query
+    $update_query->execute($nice_title, $_);
+
+    # print out what we did
+    print "added '$nice_title'\n";
+}
