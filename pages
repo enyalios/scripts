@@ -27,11 +27,16 @@ die unless open(INPUT, "<$file");
 if($file eq "$dir/sessionstore.js") { 
     @tabs = split /index:(\d+)/, <INPUT>; 
     close INPUT;
-    while($tabs[$i]) { 
-        ($_, $index) = @tabs[$i, $i+1]; 
-        last if /_closedTabs:/; 
+    while($tabs[$i+1]) { 
+        ($_, $hist_num) = @tabs[$i, $i+1]; 
+        $hist_num--;
+        if(/_closedTabs:/) {
+            last unless $opt_v;
+            print "\nrecently closed tabs:\n";
+        }
         @urls = /url:"(.*?)"/g; 
-        print $urls[$index - 1], "\n";
+        if($opt_v) { print "hist_num: $hist_num\n"; print "  $_\n" for @urls; }
+        print $urls[$hist_num], "\n";
         $i += 2; 
     }
 } else {
