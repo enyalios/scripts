@@ -5,13 +5,15 @@ use warnings;
 use DBI;
 use File::Find;
 
+my $video_dir = "/mnt/videos";
+my @db = ("DBI:mysql:database=mythconverg;host=delta", "mythtv", "mythtv");
+
 # find all the files that should be in the database
 my @files;
-find( { wanted => sub { push @files, $File::Find::name if -f $_ }, follow => 1 }, '/mnt/videos' );
+find( { wanted => sub { push @files, $File::Find::name if -f $_ }, follow => 1 }, $video_dir );
 
 # find all the files that are already in the database
-my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
-    "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
+my $dbh = DBI->connect(@db, {'RaiseError' => 1}) or die "couldnt connect to db\n";
 my $sth = $dbh->prepare("SELECT filename FROM videometadata");
 $sth->execute();
 my @entries = map { $_ = $_->[0] } @{$sth->fetchall_arrayref()};
@@ -22,7 +24,7 @@ my %hash;
 @hash{@files} = ();
 delete @hash{@entries};
 
-for(keys %hash) { 
+for(sort keys %hash) { 
     # make a new entry for each file that isnt there
     my $update_query = $dbh->prepare("INSERT INTO videometadata 
         (title, director,  plot,   rating, inetref,    year,   showlevel, filename, coverfile)
