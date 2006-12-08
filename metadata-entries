@@ -1,4 +1,9 @@
 #!/usr/bin/perl 
+#
+# This script will insert entries for missing files into your videometadata
+# table so that it is not necessary to use the mythtv interface to do so.  This
+# script can be easily put into a cron job or something.  Tweak the variables
+# at the top and run this without arguments to generate metadata.
 
 use strict;
 use warnings;
@@ -10,7 +15,7 @@ my @db = ("DBI:mysql:database=mythconverg;host=delta", "mythtv", "mythtv");
 
 # find all the files that should be in the database
 my @files;
-find( { wanted => sub { push @files, $File::Find::name if -f $_ }, follow => 1 }, $video_dir );
+find( { wanted => sub { push @files, $File::Find::name if -f $_ }, follow_fast => 1 }, $video_dir );
 
 # find all the files that are already in the database
 my $dbh = DBI->connect(@db, {'RaiseError' => 1}) or die "couldnt connect to db\n";
@@ -24,18 +29,18 @@ my %hash;
 @hash{@files} = ();
 delete @hash{@entries};
 
-for(sort keys %hash) { 
-    # make a new entry for each file that isnt there
-    my $update_query = $dbh->prepare("INSERT INTO videometadata 
-        (title, director,  plot,   rating, inetref,    year,   showlevel, filename, coverfile)
-        VALUES
-        (?,    'Unknown', 'None', 'NR',   '00000000', '1895', '1',        ?,       'No Cover')");
+# this query is for making all the new entries for each file that isnt there
+my $update_query = $dbh->prepare("INSERT INTO videometadata 
+    (title, director,  plot,   rating, inetref,    year,   showlevel, filename, coverfile)
+    VALUES
+    (?,    'Unknown', 'None', 'NR',   '00000000', '1895', '1',        ?,       'No Cover')");
 
+for(sort keys %hash) { 
     # clean up the name a bit
     (my $nice_title = $_) =~ s!^.*/(.*)\..{2,4}$!$1!;
     $nice_title =~ y/_/ /;
 
-    # run the query
+    # run the query to make the entry
     $update_query->execute($nice_title, $_);
 
     # print out what we did
