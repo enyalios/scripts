@@ -74,6 +74,9 @@ sub find_match {
 }
 
 sub grab_eps {
+    # invalidate the cache for this show
+    delete $data{simple($title)};
+
     # find the url of the episode listing for the given show
     (my $show_url, $title ) = get("http://www.tv.com/search.php?stype=all&qs=$title") 
         =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
