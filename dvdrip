@@ -176,13 +176,18 @@ sub get_crop {
             $crop="\${crop_region},";
         } else {
             find_program("mplayer");
-            open CROP, '-|', "mplayer", @dvd_device, @infiles, 
-            qw(-vo null -ao null -vf cropdetect=50:4 -sstep 60 -frames 60 -v);
-            $_ = (grep { /Crop area:/ } <CROP>)[-1];
-            close CROP;
-            $crop = (/-vf (crop=[\d:]+)/)[0];
-            die "Could not auto-detect crop region\n" unless $crop;
-            $crop .= ","
+            my $crop_line;
+            for my $args ("-sstep 60 -frames 60", "-frames 3600") {
+                open CROP, '-|', "mplayer", @dvd_device, @infiles, 
+                qw(-vo null -ao null -vf cropdetect=50:4 $args -v);
+                $crop_line = (grep { /Crop area:/ } <CROP>)[-2];
+                close CROP;
+                last if $crop_line;
+            }
+            $crop = ($crop_line =~ /-vf (crop=[\d:]+)/);
+            print "# crop region: $crop\n"
+            print "# Could not auto-detect crop region!\n" unless $crop;
+            $crop .= "," if $crop;
         }
     } elsif($crop) {
         $crop = "crop=$crop,";
