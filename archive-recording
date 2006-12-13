@@ -14,6 +14,11 @@
 # +------------------+------------------------------------------------------------------------------------------------------+----------+
 # 3 rows in set (0.00 sec)
 
+# tweak these paths as appropriate (the first 2 can also be found on my svn
+# server http://svn.enyalios.net/svn/scripts/)
+EPISODES="/home/enyalios/bin/episodes"
+DVDRIP="/home/enyalios/bin/dvdrip"
+MYTHTRANSCODE="/usr/bin/mythtranscode"
 
 logger -t archive-recording "\"$1\" \"$2\" \"$3\" \"$4\""
 
@@ -29,14 +34,14 @@ starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
 cd /mnt/media/archive
 
 # find a good filename
-outfile=$(/home/enyalios/bin/episodes -lu "$title" "$subtitle")
+outfile=$($EPISODES -lu "$title" "$subtitle")
 
 # cut out the commercials and make a nice mpeg2 for passing to dvdrip
-/usr/bin/mythtranscode --chanid $chanid --starttime $starttime --outfile \
+$MYTHTRANSCODE --chanid $chanid --starttime $starttime --outfile \
     "${outfile}.mpg" --mpeg2 --honorcutlist
 
 # run dvdrip and strip out lots of stuff for the log files
-/home/enyalios/bin/dvdrip --bitrate 600 --crop --deinterlace --denoise --outfile \
+$DVDRIP --bitrate 600 --crop --deinterlace --denoise --outfile \
     "${outfile}.mkv" --width 480 "${outfile}.mpg" 2>&1 | perl -pe 's/^.*\r(?!$)//'
 
 rm "${outfile}.mpg" "${outfile}.mpg.map"
