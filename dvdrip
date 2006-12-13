@@ -161,10 +161,13 @@ sub my_system {
 
 # this part is sorta crazy.  we want to auto-detect the crop region so we spawn
 # mplayer telling it to cropdetect, but to step thru the video 60 seconds at a
-# time but only do a max of 60 frames.  we also tell it not to show audio or
-# video here since this is just a command line script.  finally we grab the
-# 'crop=...' part from the last line that starts with 'crop area:' since this
-# is the region that mplayer decided is best.
+# time but only do a max of 60 frames.  if this fails then we dont do the
+# skipping.  finally, if this doesnt work we just warn the user but dont do any
+# cropping.  we also tell it not to show audio or video here since this is just
+# a command line script.  finally we grab the 'crop=...' part from the last
+# line that starts with 'crop area:' since this is the region that mplayer
+# decided is best.
+
 sub get_crop {
     if($crop eq "autodetect") {
         print "### Calculating crop region...\n";
@@ -177,15 +180,17 @@ sub get_crop {
         } else {
             find_program("mplayer");
             my $crop_line;
-            for my $args ("-sstep 60 -frames 60", "-frames 3600") {
+            for my $args ([ qw"-sstep 60 -frames 60" ], [ qw"-frames 600" ]) {
                 open CROP, '-|', "mplayer", @dvd_device, @infiles, 
-                qw(-vo null -ao null -vf cropdetect=50:4 $args -v);
+                qw(-vo null -ao null -vf cropdetect=50:4 -v), @{$args};
+                # here we grab the second to last line to catch the case where
+                # only one 'Crop area:' line gets printed
                 $crop_line = (grep { /Crop area:/ } <CROP>)[-2];
                 close CROP;
                 last if $crop_line;
             }
-            $crop = ($crop_line =~ /-vf (crop=[\d:]+)/);
-            print "# crop region: $crop\n"
+            ($crop) = ($crop_line =~ /-vf (crop=[\d:]+)/);
+            print "# crop         = $crop\n";
             print "# Could not auto-detect crop region!\n" unless $crop;
             $crop .= "," if $crop;
         }
