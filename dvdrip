@@ -167,7 +167,6 @@ sub my_system {
 # a command line script.  finally we grab the 'crop=...' part from the last
 # line that starts with 'crop area:' since this is the region that mplayer
 # decided is best.
-
 sub get_crop {
     if($crop eq "autodetect") {
         print "### Calculating crop region...\n";
@@ -190,9 +189,13 @@ sub get_crop {
                 last if $crop_line;
             }
             ($crop) = ($crop_line =~ /-vf (crop=[\d:]+)/);
-            print "# crop         = $crop\n";
-            print "# Could not auto-detect crop region!\n" unless $crop;
-            $crop .= "," if $crop;
+            if($crop) {
+                print "# crop         = $crop\n";
+                $crop .= ",";
+            } else {
+                print "# Could not auto-detect crop region!\n";
+                $crop = "";
+            }
         }
     } elsif($crop) {
         $crop = "crop=$crop,";
