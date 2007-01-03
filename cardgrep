@@ -73,5 +73,6 @@ close INPUT;
 
 # print out a count at the end (use stderr if we are just listing the names of
 # the cards so that we play nice with cache-cards)
-print STDERR "\n" if $opts{n};
-print {$opts{n}?*STDERR:*STDOUT} scalar keys %cards, " card(s) returned\n\n";
+#print STDERR "\n" if $opts{n};
+#print {$opts{n}?*STDERR:*STDOUT} scalar keys %cards, " card(s) returned\n\n";
+print scalar keys %cards, " card(s) returned\n\n" unless $opts{n};

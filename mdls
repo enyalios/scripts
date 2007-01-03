@@ -35,6 +35,7 @@ for my $dir(@maildirs) {
 
         $from = (grep { /^from: /i } @fields)[0] || "???";
         $from =~ s/^from: +(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+        $from =~ s/\n//g;
 
         $to      = (grep { /^to: /i } @fields)[0];
 
