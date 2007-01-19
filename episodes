@@ -93,7 +93,7 @@ sub grab_eps {
         my ($season_num) = /(\d+)$/;
         my $ep_num = 1;
         my $page = get $_;
-        for($page =~ m!^\s+\d+\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">(.*)</a>!mg) 
+        for($page =~ m!^\s+(?:\d+|Special)\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">(.*)</a>!mg) 
         {
             print "    found episode: $_\n" if $opts{v};
             $data{simple($title)}{simple($_)} = 
