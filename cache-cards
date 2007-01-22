@@ -26,6 +26,7 @@ sub get_card {
     $simple_card =~ y/A-Z -/a-z__/;
     $simple_card =~ y/a-z_//cd;
     $card =~ y/ /_/ if $card =~ /,/;
+    $card =~ s! // .*$!!;
 
     print "$card\n" if $opts{v};
     
