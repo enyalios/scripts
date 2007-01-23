@@ -24,10 +24,14 @@ $sth->execute();
 my @entries = map { $_ = $_->[0] } @{$sth->fetchall_arrayref()};
 
 # subtract them (this nifty trick puts all the things we need to work on as the
-# keys for %hash)
-my %hash;
-@hash{@files} = ();
-delete @hash{@entries};
+# keys for %new)
+my (%new, %stale);
+@new{@files} = ();
+delete @new{@entries};
+
+# and all the stale entries as keys for %stale
+@stale{@entries} = ();
+delete @stale{@files};
 
 # this query is for making all the new entries for each file that isnt there
 my $update_query = $dbh->prepare("INSERT INTO videometadata 
@@ -35,7 +39,11 @@ my $update_query = $dbh->prepare("INSERT INTO videometadata
     VALUES
     (?,    'Unknown', 'None', 'NR',   '00000000', '1895', '1',        ?,       'No Cover')");
 
-for(sort keys %hash) { 
+# this is the query for removing stale data from the db
+my $delete_query = $dbh->prepare("DELETE FROM videometadata WHERE filename = ?");
+
+# add new entries
+for(sort keys %new) { 
     # clean up the name a bit
     (my $nice_title = $_) =~ s!^.*/(.*)\..{2,4}$!$1!;
     $nice_title =~ y/_/ /;
@@ -46,3 +54,15 @@ for(sort keys %hash) {
     # print out what we did
     print "added '$nice_title'\n";
 }
+
+# remove old ones (if we got '-r')
+for(sort keys %stale) {
+    if(defined $ARGV[0] && $ARGV[0] eq "-r") {
+        print "removing entry for '$_'\n";
+        $delete_query->execute($_);
+    } else {
+        print "found stale entry for '$_'\n";
+    }
+}
+
+print "\nstale entries found, use '-r' to remove them.\n" if(%stale && (!defined $ARGV[0] || $ARGV[0] ne "-r"));
