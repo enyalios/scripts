@@ -32,7 +32,7 @@ if($opts{u}) {
     print "updating card data...\n";
 
     # grab the full spoiler from wizards
-    my $data = LWP::Simple::get("http://ww2.wizards.com/gatherer/Index.aspx?output=Text+Spoiler");
+    my $data = LWP::Simple::get("http://ww2.wizards.com/gatherer/index.aspx?setfilter=Vintage&output=Text Spoiler");
 
     # and format it nicely
     for($data) {
