@@ -280,18 +280,20 @@ sub audio_pass {
             $bitrate = "\${video_bitrate}" unless $bitrate;
         } else {
             find_program("mplayer");
-			my $alength = 0;
-			my $asize = 0;
-			for (@aid) {
-				my $file = "$temp_dir/audio-$pid-$_->[1].ogg";
-				open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null), 
+            my $alength = 0;
+            my $asize = 0;
+            for (@aid) {
+                my $file = "$temp_dir/audio-$pid-$_->[1].ogg";
+                open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null), 
                 qw(-ao null),@opts, $file;
-				my $len = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
-				close INDENT;
-				$len =~ s/^ID_LENGTH=([\d.]+)$/$1/;
-				$asize += -s $file;
-				$alength += $len;
-			}
+                my $len = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
+                close INDENT;
+	            $len =~ s/^ID_LENGTH=([\d.]+)$/$1/;
+	            my $siz = -s $file; 
+
+    	        $asize += $siz;
+    	        $alength = $len;
+    	    }
             die "Improper audio length: $alength seconds\n" unless $alength > 0;
             die "Improper audio size: $asize bytes\n" unless $asize > 0;
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
