@@ -271,8 +271,8 @@ sub audio_pass {
             # some crazy commands to dynamically determine the video bitrate
             # if we are doing a 'pretend'
             print "\n### Determining video bitrate...\n";
-            print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(ls -l ", 
-            "$temp_dir/audio-$pid-$aid[0]->[1].ogg | awk '{print \$5}')) / ",
+            print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(du -cb ", 
+            "$temp_dir/audio-$pid-*.ogg | tail -n1 | awk '{print \$1}')) / ",
             "\$(mplayer -frames 0 -identify -vo null @opts -ao null ",
             "$temp_dir/audio-$pid-$aid[0]->[1].ogg 2>/dev/null ",
             "| sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e ", 
@@ -280,13 +280,18 @@ sub audio_pass {
             $bitrate = "\${video_bitrate}" unless $bitrate;
         } else {
             find_program("mplayer");
-            open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null -ao null), 
-                @opts, "$temp_dir/audio-$pid-$aid[0]->[1].ogg";
-            my $alength = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
-            close INDENT;
-            $alength =~ s/^ID_LENGTH=([\d.]+)$/$1/;
-            chomp $alength;
-            my $asize = -s "$temp_dir/audio-$pid-$aid[0]->[1].ogg";
+			my $alength = 0;
+			my $asize = 0;
+			for (@aid) {
+				my $file = "$temp_dir/audio-$pid-$_->[1].ogg";
+				open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null), 
+                qw(-ao null),@opts, $file;
+				my $len = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
+				close INDENT;
+				$len =~ s/^ID_LENGTH=([\d.]+)$/$1/;
+				$asize += -s $file;
+				$alength += $len;
+			}
             die "Improper audio length: $alength seconds\n" unless $alength > 0;
             die "Improper audio size: $asize bytes\n" unless $asize > 0;
             $bitrate = int(($size*1024*1024*.995 - $asize)/$alength/1000*8);
