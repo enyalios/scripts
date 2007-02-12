@@ -371,9 +371,12 @@ sub rm_tmp {
         }
     }
     unless($keep) {
-        unlink "$temp_dir/pipe-$pid", "$temp_dir/divx2pass-$pid.log",
-            "$temp_dir/video-$pid.avi", "$temp_dir/chapters-$pid";
-        unlink "$temp_dir/audio-$pid-$_->[1].ogg" for (@aid);
+        unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/video-$pid.avi",
+            "$temp_dir/chapters-$pid";
+        for (@aid) {
+            unlink "$temp_dir/audio-$pid-$_->[1].ogg",
+                "$temp_dir/pipe-$pid-$_->[1]";
+        }
     }
 }
 
