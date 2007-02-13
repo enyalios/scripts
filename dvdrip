@@ -16,7 +16,7 @@ $main::VERSION  = "0.38";
 $ENV{MPLAYER_VERBOSE} = "-2";
 
 my $pid         = $$;
-my @aid         = (["-aid","128"]);
+my @aid         = ();
 my $bitrate     = "";
 my $crop        = "";
 my $size        = "";
@@ -33,6 +33,7 @@ my $temp_dir    = ".";
 my @fps         = ();
 my @chapters    = ();
 my @opts        = ();
+my @oggs        = ();
 
 # this is a nice usage message that will get printed if anything goes wrong
 sub print_help {
@@ -101,13 +102,13 @@ sub parse_args {
     if(@chapters && !$chapters[1] && $infiles[0] !~ m#^dvd://\d+$#) 
     { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
     print_help() if $bail;
-    
+
     #get leftover options to pass to mplayer/mencoder
     if (@ARGV) {
         @opts = @ARGV;
         shift @opts;
     }
-	
+
     print "# infiles      = @infiles\n";
     print "# outfile      = $outfile\n";
     print "# bitrate      = $bitrate\n" if $bitrate;
@@ -115,7 +116,7 @@ sub parse_args {
     print "# width        = $width\n";
     print "# crop         = $crop\n" if $crop;
     print "# dvd-device   = $dvd_device[1]\n" if $dvd_device[1] ne "/dev/dvd";
-    print "# aid          = ",(join ",",map { $_->[1] } @aid),"\n" if @aid;
+    print "# aid          = ",(join ",",map { $_->[1] } @aid),"\n" if (@aid);
     print "# sid          = $sid[1]\n" if @sid;
     print "# chapter-file = ", $chapters[1] || "grab from dvd", "\n" if @chapters;
     if (@opts) {
@@ -127,7 +128,7 @@ sub parse_args {
     print "# pretend rip\n" if $pretend;
     print "\n";
 
-    @aid = ([]) unless (@aid);
+    if (@aid == 0) { @aid = ([]); }
 
     get_crop();
     get_chapters();
@@ -244,8 +245,15 @@ sub audio_pass {
     for my $aid (@aid)
     {
         # we pass the audio data thru a fifo since mplayer cant encode oggs nativly
-        my $ogg = "$temp_dir/audio-$pid-$aid->[1].ogg";
-        my $pipe = "$temp_dir/pipe-$pid-$aid->[1]";
+        my $ogg;
+        my $pipe;
+        if (@$aid) {
+            $ogg = "$temp_dir/audio-$pid-$aid->[1].ogg";
+            $pipe = "$temp_dir/pipe-$pid-$aid->[1]";
+        } else {
+            $ogg = "$temp_dir/audio-$pid.ogg";
+            $pipe = "$temp_dir/pipe-$pid";
+        }
         my_system("mkfifo", $pipe);
         my $child = fork;
         if(!$child) {
@@ -258,6 +266,7 @@ sub audio_pass {
         # wait for oggenc to finish encoding whats left in the pipe, since mplayer
         # will return before oggenc is done
         waitpid($child, 0);
+        push @oggs,$ogg;
     }
     
     # here we have to calculate the video bitrate if they just gave us a
@@ -272,9 +281,9 @@ sub audio_pass {
             # if we are doing a 'pretend'
             print "\n### Determining video bitrate...\n";
             print "video_bitrate=\$(echo \"($size*1024*1024*.995 - \$(du -cb ", 
-            "$temp_dir/audio-$pid-*.ogg | tail -n1 | awk '{print \$1}')) / ",
+            @oggs," | tail -n1 | awk '{print \$1}')) / ",
             "\$(mplayer -frames 0 -identify -vo null @opts -ao null ",
-            "$temp_dir/audio-$pid-$aid[0]->[1].ogg 2>/dev/null ",
+            "$oggs[0] 2>/dev/null ",
             "| sed -ne 's/^ID_LENGTH=//p') / 1000 * 8\" | bc -l | sed -e ", 
             "'s/\\..*//')\n";
             $bitrate = "\${video_bitrate}" unless $bitrate;
@@ -282,8 +291,7 @@ sub audio_pass {
             find_program("mplayer");
             my $alength = 0;
             my $asize = 0;
-            for (@aid) {
-                my $file = "$temp_dir/audio-$pid-$_->[1].ogg";
+            for my $file (@oggs) {
                 open INDENT, "-|", qw(mplayer -v -frames 0 -identify -vo null), 
                 qw(-ao null),@opts, $file;
                 my $len = (grep { /^ID_LENGTH=[\d.]+$/ } (<INDENT>))[0];
@@ -323,7 +331,7 @@ sub video1_pass {
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
-        @sid, @fps, @{$aid[0]}, @opts);
+        @opts, @sid, @fps, @{$aid[0]});
 }
 
 # this is all basically the exact same thing as the first video pass except we
@@ -335,7 +343,7 @@ sub video2_pass {
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
         "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
-        @sid, @fps, @{$aid[0]}, @opts);
+        @opts, @sid, @fps, @{$aid[0]});
 }
 
 # here we are mixing the audio stream from the ogg file with the video stream
@@ -344,12 +352,10 @@ sub video2_pass {
 # allow mplayer to keep the audio and video in sync).  the default-language
 # option is just so that it knows the audio is english.
 sub mux_pass {
-    my @audio = map { "audio-$pid-$_->[1].ogg" } @aid;
-
     print "\n### Muxing audio and video...\n";
     my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
         eng -o), "$outfile", "-A", "$temp_dir/video-$pid.avi", 
-        @audio, @chapters);
+        @oggs, @chapters);
 }
 
 # remove the temp files unless the user told us not to or unless the final 
@@ -373,9 +379,11 @@ sub rm_tmp {
     unless($keep) {
         unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/video-$pid.avi",
             "$temp_dir/chapters-$pid";
-        for (@aid) {
-            unlink "$temp_dir/audio-$pid-$_->[1].ogg",
-                "$temp_dir/pipe-$pid-$_->[1]";
+        for (@oggs) {
+            unlink $_;
+            s/audio/pipe/;
+            s/\.ogg//;
+            unlink $_;
         }
     }
 }
