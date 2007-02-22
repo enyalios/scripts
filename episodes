@@ -10,14 +10,20 @@ my $cache_file = "/tmp/episode_cache";
 my ($title, $subtitle, $ext, %data, %opts);
 
 sub parse_args {
-    getopts('luhvc', \%opts);
+    getopts('luhvcd', \%opts);
     HELP_MESSAGE() if $opts{h};
     if(@ARGV == 2) { 
         ($title, $subtitle) = @ARGV;
     }
-    elsif(@ARGV == 1) { 
+    elsif(@ARGV == 1) {
+      if( $opts{d} ){
+        ($title, $subtitle, $ext) = $ARGV[0] =~ 
+        /^(.+?) - (?:[-\dsex]* -_)?(.+?)(\.[a-z]{2,4})?$/i;
+      }
+      else{
         ($title, $subtitle, $ext) = $ARGV[0] =~ 
         /^(.+?)[- _]+[-\dsex]*[- _]+(.+?)(\.[a-z]{2,4})?$/i;
+      }
         $title ||= $ARGV[0] 
     }
     else { 
@@ -42,6 +48,7 @@ options:
     -l    lowercase filenames
     -u    convert spaces to underscores
     -v    verbose info
+    -d    segments of the title are delimited with the ' - ' squence
 
 EOF
     exit 1;
