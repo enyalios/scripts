@@ -18,13 +18,15 @@ sub parse_args {
     elsif(@ARGV == 1) {
       if( $opts{d} ){
         ($title, $subtitle, $ext) = $ARGV[0] =~ 
-        /^(.+?) - (?:[-\dsex]* -_)?(.+?)(\.[a-z]{2,4})?$/i;
+        /^(.+?) - (?:[-\dsex]* - )?(.+?)(\.[a-z]{2,4})?$/i;
       }
       else{
         ($title, $subtitle, $ext) = $ARGV[0] =~ 
         /^(.+?)[- _]+[-\dsex]*[- _]+(.+?)(\.[a-z]{2,4})?$/i;
       }
-        $title ||= $ARGV[0] 
+        $title ||= $ARGV[0];
+
+	  print "$title|$subtitle|$ext\n";
     }
     else { 
         print "bad arguments\n"; 
