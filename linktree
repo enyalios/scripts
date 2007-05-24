@@ -20,7 +20,7 @@ my $spacer = $underscore ? "_" : " ";
 # connect to the db and run the query
 my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
     "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
-my $sth = $dbh->prepare("SELECT title, subtitle, basename FROM recorded");
+my $sth = $dbh->prepare("SELECT title, subtitle, basename FROM recorded ORDER BY starttime");
 $sth->execute();
 
 # get rid of an old symlink tree if one exists
