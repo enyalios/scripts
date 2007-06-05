@@ -39,8 +39,8 @@ sub PrintEpisode {
 sub GetData {
   my ($old_title) = my ($title) = @_;
   $title =~ s/_/ /;
-  (my $show_url, $title ) = get("http://www.tv.com/search.php?stype=all&qs=$title") =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
-  print "Could not find show '$old_title'\n" and return unless $show_url;
+  (my $show_url, $title ) = get("http://www.tv.com/search.php?type=11&stype=program&qs=$title&tag=filter;tv_shows") =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
+  print "Could not find show '$old_title'\n" and die unless $show_url;
   $show_url =~ s/summary\.html$/episode_guide.html?printable=1/;
 
   my @list;
@@ -53,7 +53,8 @@ sub GetData {
   foreach( split(/<div class="pl-5 pr-5">/,$page)){
     my %episode;
 
-    ($episode{number}, $episode{title}) =  $_ =~ m|<h1><a.*>\s+(\d+)\.\s+(.*)\s+</a> </h1>|;
+    ($episode{number}, $episode{title}) =  $_ =~ 
+	m!<h1><a.*>\s+(\d+|Pilot|Special)\.\s+(.*)\s+</a> </h1>!;
     ($episode{year}) = $_ =~ m|First aired:</span>\s*\d+/\d+/(\d+)<br/>|;
     ($episode{director}) = $_ =~ m|Director:</span>\s+<a href=".*"> (.*)</a>|;
     ($episode{rating}) = $_ =~ m|Global rating:</span>\s+<a href.*>(\d+\.\d+)</a>|;
@@ -72,6 +73,9 @@ sub UpdateShow {
   my ($select_query, $update_query, $imagePath, $show, $old_title, @shows) = @_;
 
   my %duplicateEpisodeCount;
+
+  #always strip evil chars out of the show name
+  $show =~ s/[:\*\?"<>\\\/|]//g;
 
   foreach my $ref (@shows){
 
