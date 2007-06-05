@@ -52,7 +52,7 @@ sub GetData {
 
   foreach( split(/<div class="pl-5 pr-5">/,$page)){
     my %episode;
-
+   
     ($episode{number}, $episode{title}) =  $_ =~ 
 	m!<h1><a.*>\s+(\d+|Pilot|Special)\.\s+(.*)\s+</a> </h1>!;
     ($episode{year}) = $_ =~ m|First aired:</span>\s*\d+/\d+/(\d+)<br/>|;
@@ -88,7 +88,7 @@ sub UpdateShow {
     # these guys control the changes that are made to the title to try and
     # and find a file name match.
     my $modifyTitleCounter = 0;
-    my $modifyTitleCounterMax = 4;
+    my $modifyTitleCounterMax = 5;
 
     # this holds the return values from our sql queries.
     my $listRef;
@@ -99,11 +99,19 @@ sub UpdateShow {
       my $workingTitle = $ref->{title};
       my $workingShow = $show;
       # always remove these evil chars, they will never be in file names
-      $workingTitle =~ s/[:\*\?"<>\\\/|]//g;
+      $workingTitle =~ s/[:\*\?"<>\\\/|\x91\x92]//g;
       $workingTitle =~ s/&/and/g;
+      $workingTitle =~ s/À/A/g;
+      $workingTitle =~ s/à/a/g;
+      $workingTitle =~ s/é/e/g;
+      $workingTitle =~ s/'/'/g;
 
-      $workingShow =~ s/[:\*\?"<>\\\/|]//g;
+
+      $workingShow =~ s/[:\*\?"<>\\\/|\x91\x92]//g;
       $workingShow =~ s/&/and/g;
+      $workingShow =~ s/À/A/g;
+      $workingShow =~ s/à/a/g;
+      $workingShow =~ s/é/e/g;
 
       # The order of things is important here! Consider the example
       # Spin City - 425 - Goodbye 1.avi
@@ -118,16 +126,16 @@ sub UpdateShow {
       # before or after steps 1 and 2.
 
       # On 0 try the title as is, with evil chars ^above^ removed of course.
-      # On 1 try title without parens
-      if( $modifyTitleCounter == 1 ){
+      # On 2 try title without parens
+      if( $modifyTitleCounter == 2 ){
         $workingTitle =~ s/[\(\)]//g;
       }
-      # On 2 try title with parenthetical phrases removed
-      elsif( $modifyTitleCounter == 2 ){
+      # On 3 try title with parenthetical phrases removed
+      elsif( $modifyTitleCounter == 3 ){
         $workingTitle =~ s/\s*\(.*?\)\s*//g;
       }
-      # on 3 try paul's filename format
-      elsif( $modifyTitleCounter == 3 ){
+      # on 4 try paul's filename format
+      elsif( $modifyTitleCounter == 4 ){
         $workingShow = $old_title;
         for($workingTitle, $workingShow) {
           $_ = lc;
@@ -140,8 +148,14 @@ sub UpdateShow {
       # now get all the id's for episodes that match the current formatting
       # of the title
       # we depend of sorting by filename to return episodes in chronological order.
-
-      $select_query->execute("%$workingShow%$workingTitle%");
+	
+      #on try 0 check for the workingTitle exactly as it appears
+      if( $modifyTitleCounter == 0 ){
+         $select_query->execute("%$workingShow% - $workingTitle.%");
+      }
+      else{
+         $select_query->execute("%$workingShow%$workingTitle%");
+      }
       $listRef = $select_query->fetchall_arrayref();
 
       $modifyTitleCounter++;
@@ -163,6 +177,7 @@ sub UpdateShow {
     next unless @{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1];
     my ($intid, $inetref, $filename) = @{@{$listRef}[$duplicateEpisodeCount{$ref->{title}}-1]};
     (my $nice_title = $filename) =~ s#.*/##;
+	$inetref = -1 if $inetref !~ m/^\d+$/;
 
     print "Skipped '$nice_title'\n" and next if($inetref != 0 && !$opts{f});
 
@@ -178,7 +193,7 @@ sub UpdateShow {
     # some shows may not have a number for some reason, if they don't we'll
     # use -1 for the inetref because we need something non zero. This will
     # also fix it if the number is zero.
-    $ref->{number} = "-1" unless $ref->{number};
+    $ref->{number} = "-1" if $ref->{number} !~ /^\d+$/;
 
     # possibly optional, this function gets a screen capture
     # from the episode and places in the right place on the filesystem.
@@ -210,8 +225,16 @@ sub GrabImage {
   mkdir "$imagePath/$show" unless -e "$imagePath/$show";
   die "$imagePath/$show is not a directory\n" unless -d "$imagePath/$show";
 
+  if( $opts{f} && -e "$imagePath/$show/$seasonEpNumber.png"){
+     unlink "$imagePath/$show/$seasonEpNumber.png";  
+  }
+
+  if ( $opts{f} && -e "$imagePath/$show/$seasonEpNumber.jpg"){
+     unlink "$imagePath/$show/$seasonEpNumber.jpg"; 
+  }
+
   # if the image for this show does not exist, make it
-  unless( -e "$imagePath/$show/$seasonEpNumber.png" || -e "$imagePath/$show/$seasonEpNumber.jpg" ){
+  unless(  -e "$imagePath/$show/$seasonEpNumber.png" || -e "$imagePath/$show/$seasonEpNumber.jpg" ){
 
     # get the right aspect ratio regardless of the input aspect ratio
     if( $width > $height*0.68289 ){
@@ -225,6 +248,8 @@ sub GrabImage {
     # TODO: Right now it drops the images in the current directory, it would
     # be good to put them in /tmp or something.
     system("mplayer -vf crop=$width:$height -nosound -vo png:z=9 -ss $imageTime -frames 5 \"$filename\" &> /dev/null");
+
+	
 
     # Take the last frame and use it as the image for this show.
     rename "00000005.png", "$imagePath/$show/$seasonEpNumber.png";
@@ -256,8 +281,12 @@ Usage:
   tv-metadata [options] show1 [show2 ...]
 
 Options:
-  -h    this help screen
-  -f    force (override existing data)
+  -h  	    This help screen
+  -f        Force (override existing data)
+  -t <time> Grab the screen captures at this time
+  -m	    Display a list of all shows which are missing any info and exit.
+  -a 	    Display a list of all shows which are missing all info and exit.
+	        This is the default if no arguments are given.
 
 EOF
   exit 1;
@@ -265,19 +294,30 @@ EOF
 
 # MAIN --------------------------------------------------
 
-getopts('hf', \%opts);
+getopts('hfmat:', \%opts);
 print_help() if $opts{h};
+
+if( $opts{t} ){
+	$imageTime = $opts{t};
+	print "Image taken at time $opts{t}\n";
+}
 
 my ($dbh, $update_query, $select_query, $imagePath) = db_init();
 
-if(@ARGV == 0) {
+if(@ARGV == 0 || $opts{m} || $opts{a}) {
+
+  #empty out argv if its not empty (-m or -a specifed with a show)
+  while( @ARGV ){ pop @ARGV; }
+
   my %shows;
   my $rs = $dbh->prepare("SELECT filename FROM videometadata WHERE filename like '%/tv/%' and inetref = 0");
   $rs->execute();
   $shows{$_}++ for(map { scalar($_->[0] =~ s#^.*/(.*?)(_| - )[-\d]+\2.*$#$1#, $_->[0]) } @{$rs->fetchall_arrayref()});
   $rs = $dbh->prepare("SELECT filename FROM videometadata WHERE filename like '%/tv/%' and inetref != 0");
   $rs->execute();
-  $shows{$_} = 0 for(map { scalar($_->[0] =~ s#^.*/(.*?)(_| - )[-\d]+\2.*$#$1#, $_->[0]) } @{$rs->fetchall_arrayref()});
+  if( !$opts{m} ){
+  	$shows{$_} = 0 for(map { scalar($_->[0] =~ s#^.*/(.*?)(_| - )[-\d]+\2.*$#$1#, $_->[0]) } @{$rs->fetchall_arrayref()});
+  } 
   $shows{$_} > 1 and push @ARGV, $_ for(keys %shows);
   print "$_\n" for @ARGV;
   exit
