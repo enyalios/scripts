@@ -26,7 +26,7 @@ sub parse_args {
       }
         $title ||= $ARGV[0];
 
-	  print "$title|$subtitle|$ext\n";
+	  #print "$title|$subtitle|$ext\n";
     }
     else { 
         print "bad arguments\n"; 
@@ -67,7 +67,8 @@ sub load_cache {
 }
 
 sub find_match {
-    my $simp_sub = simple($subtitle);
+  my $simp_sub = simple($subtitle);
+
     my $result = $data{simple($title)}{$simp_sub} || "";
     unless($result) {
         for(keys %{$data{simple($title)}}) {
@@ -78,6 +79,16 @@ sub find_match {
         for(keys %{$data{simple($title)}}) {
             $result = $data{simple($title)}{$_} if /.*$simp_sub.*/;
         }
+    }
+  # This code fixes a problem where if you search for a show with & in the
+  # title it works and returns and where as if you search for title with the
+  # and the search fails. I'm sure there are other such times that can be
+  # added here.
+    unless($result) {
+      $simp_sub =~ s/and//g;
+      for(keys %{$data{simple($title)}}) {
+	$result = $data{simple($title)}{$_} if /.*$simp_sub.*/;
+      }
     }
     return format_match($result);
 }
@@ -102,11 +113,29 @@ sub grab_eps {
         my ($season_num) = /(\d+)$/;
         my $ep_num = 1;
         my $page = get $_;
-        for($page =~ m!^\s+(?:\d+|Special)\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">(.*)</a>!mg) 
-        {
-            print "    found episode: $_\n" if $opts{v};
-            $data{simple($title)}{simple($_)} = 
-            sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $_);
+        for ($page =~ m!(^\s+(?:\d+|Special)\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">.*</a>)!mg) {
+	
+	  $_ =~ m!^\s+(\d+|Special)\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">(.*)</a>!;
+	
+	  my $ep_title = $2;
+
+
+	  # this code starts us using the right number if a "Piolt" episode in
+	  # first season is listed as Pilot and the next episode starts at
+	  # number 2. This occurs to futurama, currently the pilot episode
+	  # is still skipped. a 2 pass aproach seems the only way to really
+	  # solve this, and not scew up shows like star trek where the pilot is
+	  # not counted in the first season
+	
+	  if( $1 ne $ep_num &&
+	 	$ep_num == 1 &&
+		 $season_num == 1){
+	    $ep_num = $1;
+	    print "    using data suplied starting ep number: $1\n" if $opts{v};
+	  }
+
+          print "   found episode: $ep_title\n" if $opts{v};
+	  $data{simple($title)}{simple($2)} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $ep_title);
         }
     }
     write_cache();
