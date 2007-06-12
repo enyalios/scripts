@@ -1,0 +1,40 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+
+my %opts;
+getopts('uf', \%opts);
+my $type = $opts{f}?"-foils":"";
+
+if($opts{u}) {
+    require LWP::Simple;
+    print "updating price data...\n" if -t STDOUT;
+
+    for("", "-foils") {
+        my $data = LWP::Simple::get("http://magictraders.com/cgi-bin/query.cgi?list=magic$_&target=.&field=0&operator=re");
+        $data =~ s/^.*<PRE>\n//s;
+        $data =~ s/\n *<\/PRE>\n.*$//s;
+        open(OUTPUT, ">$ENV{HOME}/magic/prices$_") or die "couldnt open output file\n";
+        print OUTPUT $data;
+        close OUTPUT;
+    }
+
+    exit;
+}
+
+open(FILE, "<$ENV{HOME}/magic/prices$type") or die "couldnt open prices file\n";
+my @prices = <FILE>;
+
+if(@ARGV) { # they gave us arguments to search for
+    LINE: for(@prices) {
+        for my $regex (@ARGV) { next LINE unless /$regex/i; }
+        print;
+    }
+} else { # no arguments, match cards on stdin
+    while(<>) {
+        chomp(my $card = $_);
+        print grep { /^$card(,| \(.{1,3}\))/i } @prices;
+    }
+}
