@@ -41,8 +41,10 @@ while (my $ref = $sth->fetchrow_hashref()) {
     $ref->{subtitle} = $ref->{title} unless $ref->{subtitle};
 
     # whine if the target is missing
-    die "missing target file '$media_root/$ref->{basename}\n"
-        unless -e "$media_root/$ref->{basename}";
+    unless(-e "$media_root/$ref->{basename}") {
+        print  "missing target file '$media_root/$ref->{basename}\n";
+        next;
+    }
     
     # make the show directory if necessary
     unless(-e "$link_root/$ref->{title}") {
