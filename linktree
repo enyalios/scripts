@@ -16,6 +16,8 @@ my $underscore = 1;
 my $lowercase = 1;
 # this will be set smartly
 my $spacer = $underscore ? "_" : " ";
+# if the link_root is a subdir of media_root then use relative links
+my $link_prefix = ($link_root =~ m!^$media_root/*[^/]+/*$!) ? "../.." : $media_root;
 
 # connect to the db and run the query
 my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
@@ -24,8 +26,11 @@ my $sth = $dbh->prepare("SELECT title, subtitle, basename FROM recorded ORDER BY
 $sth->execute();
 
 # get rid of an old symlink tree if one exists
-rmtree "$link_root" if -e "$link_root";
-mkdir "$link_root";
+if( -e "$link_root" ) {
+    rmtree [ <$link_root/*> ];
+} else {
+    mkdir "$link_root";
+}
 
 # iterate over all of the recorded tv shows
 while (my $ref = $sth->fetchrow_hashref()) {
@@ -59,7 +64,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
     }
     
     # make the actual symlink for the episode
-    symlink "$media_root/$ref->{basename}", 
+    symlink "$link_prefix/$ref->{basename}", 
         "$link_root/$ref->{title}/$ref->{subtitle}.$ext"
         or die "could not make symlink '$link_root/$ref->{title}/",
         "$ref->{subtitle}.$ext' -> '$media_root/$ref->{basename}'\n";
