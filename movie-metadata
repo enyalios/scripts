@@ -39,10 +39,19 @@ my $update_sql = $dbh->prepare("UPDATE videometadata SET
 while (my $ref = $sth->fetchrow_hashref()) {
     printf "%-30s ", $ref->{title};
 
-    # use the imdb script to find the imdb number
-    my $imdb_num = `$imdb_script -M "$ref->{title}"`;
-    $imdb_num =~ s/:.*//s;
-    print "$imdb_num\n";
+    my $imdb_num;
+
+    if( defined($opts{m}) ){
+      print "> ";
+      $imdb_num = <STDIN>;
+      chomp $imdb_num;
+    }
+    else{
+      # use the imdb script to find the imdb number
+      $imdb_num = `$imdb_script -M "$ref->{title}"`;
+      $imdb_num =~ s/:.*//s;
+      print "$imdb_num\n";
+    }
     next unless $imdb_num;
     
     # use the imdb script to find the metadata
