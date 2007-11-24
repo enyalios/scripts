@@ -15,7 +15,7 @@ use Getopt::Std;
 getopts('mv');
 
 $dir = $opt_m?
-    glob "$ENV{HOME}/.mozilla/default/*":
+    glob "$ENV{HOME}/.mozilla/default/*.slt":
     glob "$ENV{HOME}/.mozilla/firefox/*.default";
 
 $file = (-e "$dir/sessionstore.js")?
