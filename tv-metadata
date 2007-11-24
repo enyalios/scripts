@@ -152,9 +152,11 @@ sub UpdateShow {
       #on try 0 check for the workingTitle exactly as it appears
       if( $modifyTitleCounter == 0 ){
          $select_query->execute("%$workingShow% - $workingTitle.%");
+	 print "\tsearching for \"$workingShow% - $workingTitle.\"\n" if $opts{v};
       }
       else{
          $select_query->execute("%$workingShow%$workingTitle%");
+         print "\tsearching for \"%$workingShow%$workingTitle%\"\n" if $opts{v};
       }
       $listRef = $select_query->fetchall_arrayref();
 
@@ -294,7 +296,7 @@ EOF
 
 # MAIN --------------------------------------------------
 
-getopts('hfmat:', \%opts);
+getopts('vhfmat:', \%opts);
 print_help() if $opts{h};
 
 if( $opts{t} ){
