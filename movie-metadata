@@ -41,7 +41,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
 
     my $imdb_num;
 
-    if( defined($opts{m}) ){
+    if($ARGV[0] eq "-m"){
       print "> ";
       $imdb_num = <STDIN>;
       chomp $imdb_num;
