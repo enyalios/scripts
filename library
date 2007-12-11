@@ -1,0 +1,875 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use Digest::MD5;
+use File::Basename;
+use File::HomeDir;
+use File::Temp qw/ tempfile /;
+use Getopt::Long;
+use Config::General;
+use DBI;
+
+$main::VERSION = "0.02";
+
+my %modes = ( convert => 0, diff => 0, generate => 0, update => 0, print => 0 );
+my $mode       =  0;
+my $outputType = "tab";
+my $force      =  0;
+my $homeDir    = File::HomeDir->my_home;
+my $imdbMethod = "all";
+
+my @libraries = ();
+my @files     = ();
+
+
+my $conf = new Config::General("$homeDir/.libraryrc");
+my %config = $conf->getall;
+
+
+# this is a nice usage message that will get printed if anything goes wrong
+sub print_help {
+    print <<EOF;
+
+Usage:
+  library [mode] [options] ...
+Modes:
+  --convert   -c existList newList    convert list types.
+  --diff      -d list1 list2          compare two lists.
+  --generate  -g newList files...     generate a new list from a set of files.
+  --print     -p list                 print an existing list.
+  --update    -u list files...        update an existing list with any changes.
+
+Options:
+  --help      -h                     this message.
+  --type      -t (xml|csv|tab)       type to use when generating.
+  --force     -f                     force updates to occur without checking.
+  --imdb      -b (all|myth|man|net)  how to aquire IMDB numbers.
+
+  Short options may be bundled and long options abbreviated.
+EOF
+    exit 1;
+}
+
+sub ParseArgs {
+    my $bail = 0;
+    my $counter = 1;
+
+    Getopt::Long::Configure qw(bundling pass_through);
+    GetOptions(
+        'compare|c'      => sub { $modes{compare} = 1 },
+	'diff|d'         => sub { $modes{diff} = 1 },
+	'generate|g'     => sub { $modes{generate} = 1 },
+	'print|p'        => sub { $modes{print} = 1 },
+	'update|u'       => sub { $modes{update} = 1 },
+
+	'help|h'         => sub { print_help() },
+	'type|t=s'       => \$outputType,
+	'force|f'        => \$force,
+	'imdb|b=s'       => \$imdbMethod
+    );
+
+    # Figure out which mode we are in, and check for how many were specified
+    foreach my $key ( sort(keys(%modes))){
+      if( $mode == 0 && $modes{$key} == 1 ){
+	$mode = $counter;
+      }
+      elsif( $mode != 0 && $modes{$key} == 1){
+	print "You may only specify one mode\n"; print_help();
+      }
+
+      $counter++;
+    }
+
+    if( $mode == 0 ){
+      print "You must specify at least one mode\n"; print_help();
+    }
+
+    # sort out the output file type
+    if( $outputType !~ m/(xml|csv|tab)/i ){
+      print "File type $outputType not understood\n"; print_help();
+    }
+    else{
+      $outputType = lc($outputType);
+    }
+
+    # sort out which imdb method to use
+    if( $imdbMethod =~ m/myth(tv)?/i ){
+      $imdbMethod = "mythtv";
+    }
+    elsif( $imdbMethod =~ m/man(ual)?/i ){
+      $imdbMethod = "manual";
+    }
+    elsif( $imdbMethod =~ m/imdb|(inter)?net/i ){
+      $imdbMethod = "internet";
+    }
+    elsif( $imdbMethod =~ m/all/i ){
+      $imdbMethod = "all";
+    }
+    else{
+      print "Imdb Method $imdbMethod not understood\n"; print_help();
+    }
+
+
+    # generate and update mode use the same input format
+    if( $mode == 3 || $mode == 5 ){
+
+      if( @ARGV < 1 ){
+	print"Genereate and Update Modes require >= 1 arguments.\n";
+	print_help();
+      }
+
+      my $file = shift @ARGV;
+
+      if( ($mode == 3 && (-w $file || !(-e $file)) )
+	   || ($mode == 5 && -w $file && -r $file) ){
+	push @libraries, $file;
+      }
+      else {
+	print "Can not write or read from library file ($file)\n";
+	$bail++;
+      }
+
+      foreach $file (@ARGV){
+	if( -r $file ){
+	  push @files, $file;
+	}
+	else{
+	  print "Can not read input file ($file)\n";
+	  $bail++;
+	}
+      }
+    }
+    # convert mode needs to read from the first lib file and write to the
+    # second one. Non existant files are ok for second argument.
+    elsif( $mode == 1){
+
+      if( @ARGV != 2 ){
+	print "Convert Mode requires 2 libaray file arguments.\n";
+	print_help();
+      }
+
+      my $file = shift @ARGV;
+      if( -r $file ){
+	push @libraries, $file;
+      }
+      else {
+	print "Can not read from library file ($file)\n";
+	$bail++;
+      }
+
+      $file = shift @ARGV;
+      if( -w $file || !(-e $file) ){
+	push @libraries, $file;
+      }
+      else {
+	print "Can not write to new library file ($file)\n";
+	  $bail++;
+      }
+    }
+    # diff mode need to be able to read both libs, but write nothing
+    elsif( $mode == 2 ){
+
+      if( @ARGV != 2 ){
+	print "Diff Mode requires 2 libaray file arguments.\n"; print_help();
+      }
+
+      for( $counter = 0; $counter < 2; $counter++){
+	my $file = shift @ARGV;
+	if( -r $file ){
+	  push @libraries, $file;
+	}
+	else {
+	  print "Can not read from library file ($file)\n";
+	  $bail++;
+	}
+      }
+    }
+    # print mode in unique
+    elsif( $mode == 4 ){
+       if( @ARGV != 1 ){
+	print "Print Mode requires 1 libaray file argument.\n"; print_help();
+      }
+      if( -r $ARGV[0] ){
+	push @libraries, shift @ARGV;
+      }
+      else {
+	print "Can not write or read from library file ($ARGV[0])\n";
+	$bail++;
+      }
+    }
+
+    print_help() if $bail;
+}
+
+###############################################################################
+
+sub ReadLine{
+
+  my ($LIB, $version, $format) = @_;
+  my %data;
+
+  my $result = defined( $_ = <$LIB>);
+  if( $result ){
+    #print $_;
+
+    # the other if will be xml, we won't be able to trust that our pretty
+    # $1-$12's will not get whacked by those future changes, so just do it
+    # twice.
+
+    # this is a local format variable, not the global one, this one was
+    # autodetected from the input file. You never need to specify the format of
+    # the input file.
+    if( $format eq "csv" ){
+      #print "CSV Mode\n";
+      $_ =~ m/"(.*)",(\d*.?\d*),(\d+),(\d+),(\d+),"(.*)",(\d*.?\d*),(\d+),(\d*.?\d*),"([0-9a-fA-F]*)",(\d+),(\d+)(?:,(\d+))?/;
+
+      $data{file} = $1;
+      $data{aspect} = $2;
+      $data{audiotracks} = $3;
+      $data{bitrate} = $4;
+      $data{chapters} = $5;
+      $data{format} = $6;
+      $data{fps} = $7;
+      $data{height} = $8;
+      $data{length} = $9;
+      $data{md5} = $10;
+      $data{size} = $11;
+      $data{width} = $12;
+      $data{imdb} = $13 ;
+    }
+    elsif( $format eq "tab" ){
+      #print "TAB Mode\n";
+      $_ =~ m/(.*)[ \t]+(\d*.?\d*)[ \t]+(\d+)[ \t]+(\d+)[ \t]+(\d+)[ \t]+(.*)[ \t]+(\d*.?\d*)[ \t]+(\d+)[ \t]+(\d*.?\d*)[ \t]+([0-9a-fA-F]*)[ \t]+(\d+)[ \t]+(\d+)(?:[ \t]+(\d+))?/;
+
+      $data{file} = $1;
+      $data{aspect} = $2;
+      $data{audiotracks} = $3;
+      $data{bitrate} = $4;
+      $data{chapters} = $5;
+      $data{format} = $6;
+      $data{fps} = $7;
+      $data{height} = $8;
+      $data{length} = $9;
+      $data{md5} = $10;
+      $data{size} = $11;
+      $data{width} = $12;
+      $data{imdb} = $13 ;
+    }
+
+     #print "$data{file}\t$data{aspect}\t$data{audiotracks}\t",
+     # "$data{bitrate}\t$data{chapters}\t$data{format}\t$data{fps}\t",
+     # "$data{height}\t$data{length}\t$data{md5}\t$data{size}\t",
+     # "$data{width},$data{imdb}\n";
+
+  }
+
+  return ($result, %data);
+}
+
+sub WriteLine {
+
+  my ($LIB, $libFormat, $data) = @_;
+
+  # the quotes around text items in the csv format make this not a simple
+  # delimeter change.
+
+  if( $libFormat eq "tab" ){
+    print$ LIB "$data->{file}\t$data->{aspect}\t$data->{audiotracks}\t",
+      "$data->{bitrate}\t$data->{chapters}\t$data->{format}\t$data->{fps}\t",
+      "$data->{height}\t$data->{length}\t$data->{md5}\t$data->{size}\t",
+      "$data->{width}\t$data->{imdb}\n";
+  }
+  elsif ( $libFormat eq "csv" ){
+    print $LIB qq/"$data->{file}",$data->{aspect},$data->{audiotracks},/,
+      qq/$data->{bitrate},$data->{chapters},"$data->{format}",$data->{fps},/,
+      qq/$data->{height},$data->{length},"$data->{md5}",$data->{size},/,
+      qq/$data->{width},$data->{imdb}\n/;
+  }
+}
+
+sub ReadLibrary {
+  my $lib = shift @_;
+
+  my @libData = ();
+
+  my $LIB;
+  my $libFormat = "";
+  my $libVersion = 0;
+  my $readResult;
+
+  open $LIB, "<", $lib or die "Can't open $lib for reading\n";
+
+  defined( $_ = <$LIB>) or die "Failed reading first line of $lib\n";
+
+  if( $_ =~ m/^#Generated by library[ \t]*VERSION=(\d*.?\d*)[ \t]*FORMAT=(.*)/ ){
+    $libVersion = $1;
+    $libFormat = lc($2);
+  }
+  else{
+    die "Uknown file format or version. Malformated header ($_)\n";
+  }
+
+  do {
+    my %fileData;
+    ( $readResult, %fileData ) = ReadLine($LIB,$libVersion,$libFormat);
+
+    if( $readResult ){
+      push @libData, \%fileData;
+    }
+  } while ( $readResult);
+
+  close $LIB;
+
+  return ($libFormat, @libData);
+}
+
+sub WriteLibrary{
+    my $lib = shift @_;
+    my $libFormat = shift @_;
+    my $LIB;
+    open $LIB, ">", $lib or die "Can't open $lib for writing\n";
+
+    if( $outputType eq "tab" || $outputType eq "csv" ){
+      print $LIB "#Generated by library VERSION=${main::VERSION}\tFORMAT=$libFormat\n";
+    }
+
+    foreach my $file (@_){
+      WriteLine($LIB,$libFormat,$file);
+    }
+
+    close $LIB;
+}
+
+sub SearchLibByMd5 {
+  my $md5 = shift @_;
+
+  my $counter = 0;
+  foreach my $ file (@_){
+    if( defined($file) && $file->{md5} eq $md5 ){
+      return $counter;
+    }
+    $counter++;
+  }
+
+  return -1;
+}
+
+sub SearchLibByImdb {
+  my $imdb = shift @_;
+  my $counter = 0;
+  foreach my $ file (@_){
+    #print "$file->{name}: $file->{imdb} eq $imdb\n";
+    if(  defined($file) && $file->{imdb} == $imdb ){
+      return $counter;
+    }
+    $counter++;
+  }
+
+  return -1;
+}
+
+#################################################################################
+sub GetMetadata {
+
+  my $data = shift @_;
+
+  defined($data->{file}) or die "Undefined file name\n";
+
+  if( !defined($data->{name}) || !defined($data->{container}) ){
+    basename($data->{file}) =~ m/^(.*)\.(.{3,4})$/;
+    $data->{name} = $1 if defined($1);
+    $data->{container} = $2 if defined($2);
+  }
+
+  if( !defined($data->{size}) ){
+    $data->{size} = -s $data->{file};
+  }
+
+  if( !defined($data->{md5}) ){
+    $data->{md5} = GetMd5($data->{file});
+  }
+
+  if( !defined($data->{bitrate}) || !defined($data->{format}) || !defined($data->{width}) || !defined($data->{height}) || !defined($data->{fps}) || !defined($data->{aspect}) || !defined($data->{length}) ){
+    GetMidentifyData($data);
+  }
+
+  if( !defined($data->{chapters}) || !defined($data->{audiotracks}) ){
+     GetAudioAndChapterInfo($data);
+   }
+
+
+
+  if( !defined($data->{imdb}) ){
+    $data->{imdb} = GetImdbNumber($data->{file});
+  }
+
+  if( !defined($data->{simple}) ){
+    # the goal here is to arrive at the same file name regardless of which
+    # format the name came in as (paul's underscores or john's spaces)
+    ($data->{simple} = lc($data->{name})) =~ s/[^a-z0-9]//g;
+  }
+
+  if( !defined($data->{bpp}) ){
+    $data->{bpp} = $data->{bitrate}/($data->{width}*$data->{height}*$data->{fps});
+  }
+
+  # how many bits per pixel does a given format need in order to have
+  # roughly the same quality. We need a format equalizer:
+  #
+  # http://www.mplayerhq.hu/DOCS/HTML/en/menc-feat-dvd-mpeg4.html
+  #
+  # It is therefore wise to take a CQ ranging from 0.20 to 0.22 for a 1 CD rip,
+  # and 0.26-0.28 for 2 CDs rip with standard encoding options. More advanced
+  # encoding options such as those listed here for libavcodec and Xvid should
+  # make it possible to get the same quality with CQ ranging from 0.18 to 0.20
+  # for a 1 CD rip, and 0.24 to 0.26 for a 2 CD rip. With MPEG-4 AVC codecs such
+  # as x264, you can use a CQ ranging from 0.14 to 0.16 with standard encoding
+  # options, and should be able to go as low as 0.10 to 0.12 with x264's
+  # advanced encoding settings.
+  #
+  # Assume we use advanced settings regardless, cause well if we could get more
+  # quality at this same file size just by chaning settings, well then the movie
+  # in question without those should not score well.
+  #
+  #
+  # h264 will use 0.100 bpp as its min
+  # Xvid will use 0.180 bpp as its min
+  # Divx will use be treated as Xvid until unique info for it can be found
+
+
+  if( !defined($data->{quality}) ){
+    if( $data->{format} =~ m/h264/i ){
+      $data->{quality} = ($data->{bpp}/0.100)*225;
+    }
+    elsif( $data->{format} =~ m/(dx50|div[x3]|xvid)/i ){
+      $data->{quality} = ($data->{bpp}/0.180)*225;
+    }
+    else {
+      die "unknown format $data->{format}\n";
+    }
+
+    $data->{quality} += $data->{width}*$data->{height}/1100;
+
+    $data->{quality} += $data->{audiotracks}*10;
+    $data->{quality} += $data->{chapters}*1.5;
+
+    if( $data->{aspect} < 1){
+      # this would be smaller than the smallest full screen this is hopefully 
+      # an error @ 1 impose ~260 penalty
+      $data->{quality} += $data->{aspect}*100-360;
+      $data->{prettyaspect} = "Tall";
+    }
+    elsif( $data->{aspect} < 1.46){
+      # full screen imposes a hefty penalty
+      $data->{quality} -= 125;
+      $data->{prettyaspect} = "4:3";
+    }
+    elsif( $data->{aspect} < 1.81){
+      # this is 16:10 or 16:9, which offers a small advantage
+      $data->{quality} += 75;
+      $data->{prettyaspect} = "16:9";
+    }
+    elsif( $data->{aspect} < 2.1){
+      # this is common cinema which offers a big advantage
+      $data->{quality} += 87.5;
+      $data->{prettyaspect} = "1.85:1";
+    }
+    elsif( $data->{aspect} < 2.6){
+      # this is super wide which offers a signfigant advantage
+      $data->{quality} += 100;
+      $data->{prettyaspect} = "2.35:1";
+    }
+    else{
+      # this would be wider than any seasonable super wide his is hopefully an
+      # error. @ 2.6 impose a ~260 penalty and just scale up from there
+      $data->{quality} -= $data->{aspect}*100;
+      $data->{prettyaspect} = "Wide";
+    }
+  } # end if !defined(data->{quality})
+}
+
+sub GetMidentifyData {
+  my $metadata = shift @_;
+
+  open FILEINFO, '-|', "midentify", $metadata->{file};
+  my @output = (grep { /ID_VIDEO_BITRATE|ID_VIDEO_FORMAT|ID_VIDEO_WIDTH|ID_VIDEO_HEIGHT|ID_VIDEO_FPS|ID_VIDEO_ASPECT|ID_LENGTH/ } <FILEINFO>);
+  close FILEINFO;
+
+  foreach my $line ( @output ){
+    if( $line =~ m/^ID_(VIDEO_)?([A-Z]*)=(.*)$/ ){
+      my $feild = lc($2);
+      my $data = $3;
+
+      $metadata->{$feild} = $data;
+    }
+  }
+
+  if( $metadata->{aspect} == 0 && $metadata->{height} > 0){
+    $metadata->{aspect} = $metadata->{width}/$metadata->{height};
+  }
+
+  # ok, now if its an mkv file, and the bitrate is zero, then we need to call
+  # the special function to get that for us
+  if( $metadata->{container} eq "mkv" ){
+    if( $metadata->{bitrate} == 0 ){
+      $metadata->{bitrate} = GetMkvBitrate($metadata->{file});
+    }
+  }
+
+}
+
+sub GetMd5 {
+  my ($file) = @_;
+
+  my $md5 = Digest::MD5->new;
+  my $fd;
+
+  open($fd, "< $file") or die "GetMd5: can't open $file";
+  binmode $fd;
+  $md5->addfile($fd);
+  return $md5->hexdigest;
+}
+
+sub GetMkvBitrate {
+  my ($file) = @_;
+  my ($output,$tempname) =  tempfile();
+
+  my_system("mkvextract","tracks",$file,"1:$tempname");
+
+  open FILEINFO, '-|', "midentify", $tempname;
+  $output = (grep { /ID_VIDEO_BITRATE/ } <FILEINFO>)[0];
+  chomp $output; # num num num
+  $output =~ s/.*=//;
+  close FILEINFO;
+
+  unlink $tempname;
+
+  return $output;
+}
+
+sub GetAudioAndChapterInfo {
+  my ($data) = @_;
+
+  $data->{chapters} = 0;
+  $data->{audiotracks} = 0;
+
+  if( $data->{container} eq "mkv" ){
+
+    open FILEINFO, '-|', "mkvinfo", $data->{file};
+    my @output = (grep { /ChapterAtom|Track type: audio/ } <FILEINFO>);
+    close FILEINFO;
+
+    foreach my $line ( @output ){
+      $data->{chapters}++ if $line =~ m/ChapterAtom/ ;
+      $data->{audiotracks}++ if $line =~ m/Track type: audio/ ;
+    }
+  }
+  else{ #non mkv files just assume
+     $data->{chapters} = 0;
+     $data->{audiotracks} = 1;
+  }
+
+}
+
+sub GetImdbNumber {
+  my ($file) = @_;
+  my $imdbnum = -1;
+
+  if( $imdbMethod eq "mythtv" || ($imdbMethod eq "all" && $imdbnum == -1) ){
+
+    my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=$config{hostname}", "$config{username}", "$config{password}", {'RaiseError' => 1}) or die "couldn't connect to db on $config{hostname}.\n";
+
+    (my $dbfile = "$config{moviepath}/".basename($file)) =~ s/\/\//\//g ;
+
+
+    my $sth = $dbh->prepare(qq/SELECT inetref, title FROM videometadata WHERE filename = "$dbfile"/);
+    $sth->execute();
+
+    if(my $ref = $sth->fetchrow_hashref()) {
+      $imdbnum = $ref->{inetref};
+    }
+
+    $sth->finish();
+    $dbh->disconnect();
+  }
+
+  if( $imdbMethod eq "internet" || ($imdbMethod eq "all" && $imdbnum == -1) ){
+    print "Internet mode currently unimplemented\n";
+    $imdbMethod = "manual";
+  }
+
+  if( $imdbMethod eq "manual" || ($imdbMethod eq "all" && $imdbnum == -1) ){
+    print qq/IMDB# for "/,basename($file),qq/" >/;
+    $imdbnum = <STDIN>;
+    chomp $imdbnum; # num num num
+  }
+
+  return $imdbnum;
+}
+
+# a nice function to either run or simply print system calls.  here we print
+# for pretends or if we are supposed to actually run the command, we fork,
+# exec, and then wait for the child to finish.  this gives us more flexibility
+# than just running 'system' but serves essentially the same purpose.  in this
+# case, it allows us to close stderr on mplayer and mencoder commands while
+# avoiding using the shell so we arent susceptible to weird chars in filenames.
+sub my_system {
+  find_program($_[0]);
+  my $child;
+  unless($child = fork) {
+    # we are the child, run the command
+    close STDERR if $_[0] =~ /mplayer|mencoder|mkvextract/;
+    close STDOUT if $_[0] =~ /mkvextract/;
+    exec @_;
+  } else {
+    # we are the parent, just sit and wait for our kid to return
+    waitpid($child, 0);
+    # check to make sure that everything went according to plan
+    if($? == -1) {
+      die "Failed to execute command: @_\n";
+    } elsif($? >> 8 != 0) {
+      die "Command returned with error code: ", $? >> 8, ": @_\n";
+    }
+  }
+}
+
+sub find_program {
+    my ($program) = @_;
+
+    system("which $program &> /dev/null") == 0
+        or die "Cannot find program '$program' in your path.\n";
+}
+
+
+sub ModeGenerate(){
+  my $LIB;
+  open $LIB, ">", $libraries[0] or die "Can't open $libraries[0] for writing\n";
+
+  if( $outputType eq "tab" || $outputType eq "csv" ){
+    print $LIB "#Generated by library VERSION=${main::VERSION}\tFORMAT=$outputType\n";
+  }
+  else {
+    die "Type (xml) not impelmented\n";
+  }
+
+  foreach my $file (@files){
+    print "Working on $file\n";
+    my %data;
+
+      $data{file} = $file;
+
+    GetMetadata(\%data);
+
+    WriteLine($LIB,$outputType,\%data);
+  }
+
+  close $LIB;
+}
+
+sub ModeConvert() {
+
+  die "Type (xml) not impelmented\n" if $outputType eq "xml";
+
+  # get the input file type and the data
+  my ( $libFormat, @libData) = ReadLibrary($libraries[0]);
+
+  foreach my $file ( @libData ){
+    GetMetadata($file);
+  }
+
+  # as this is the convert mode disacrd the input file type
+  # and use the specified type.
+  WriteLibrary($libraries[1],$outputType,@libData);
+}
+
+sub ModeDiff() {
+  #print "Diff Mode not implemented\n";
+
+  my $libFormat;
+  my @lhs;
+  my @rhs;
+
+  ($libFormat, @lhs) = ReadLibrary($libraries[0]);
+  ($libFormat, @rhs) = ReadLibrary($libraries[1]);
+
+  foreach my $file ( @lhs, @rhs ){
+    GetMetadata($file);
+  }
+
+  @rhs = sort { $a->{simple} cmp $b->{simple} } @rhs;
+  @lhs = sort { $a->{simple} cmp $b->{simple} } @lhs;
+
+  foreach my $file ( @lhs  ){
+    my $position = SearchLibByMd5($file->{md5},@rhs);
+
+    my $displayName = $file->{name};
+    $displayName =~ s/^(.{28})....*/$1\.\.\./;
+
+    printf "%-30s\t",$displayName;
+
+    if( $position >= 0 ){
+      print "Identical file in both libraries.\n";
+      delete $rhs[$position];
+    }
+    else{
+      $position = SearchLibByImdb($file->{imdb},@rhs);
+
+      if( $position >= 0 ){
+	printf "%.2f\t%6s\t%-4s\t%.2f\t%6s\t%-4s\n",$file->{quality},$file->{prettyaspect},$file->{format},$rhs[$position]->{quality},$rhs[$position]->{prettyaspect},$rhs[$position]->{format};
+	delete $rhs[$position];
+      }
+      else{
+	print "Appears only in $libraries[0].\n"
+      }
+    }
+
+  }
+
+  foreach my $file ( @rhs  ){
+
+    if( defined($file) ){
+      my $displayName = $file->{name};
+      $displayName =~ s/^(.{28})....*/$1\.\.\./;
+
+      printf "%-30s\t",$displayName;
+      print "Appears only in $libraries[1].\n";
+    }
+  }
+
+}
+
+sub ModePrint(){
+  #print "Print Mode not implemented\n";
+
+  my ($libFormat, @libData) = ReadLibrary($libraries[0]);
+
+  foreach my $file ( @libData ){
+    GetMetadata($file);
+  }
+
+  print "Name\t\t\t\tQuality\tAspect\t  IMDB#\tCodec\n";
+  foreach my $file ( sort { $a->{quality} <=> $b->{quality} } @libData  ){
+    my $displayName = $file->{name};
+    $displayName =~ s/^(.{28})....*/$1\.\.\./;
+
+    printf "%-30s\t%.2f\t%6s\t%7d\t%-4s\n",$displayName,$file->{quality},$file->{prettyaspect},$file->{imdb},$file->{format};
+  }
+
+}
+
+sub ModeUpdate(){
+  #print "Update Mode not implemented\n";
+
+  my ( $libFormat, @libData) = ReadLibrary($libraries[0]);
+
+  $| = 1;
+  foreach my $file (@files){
+
+    print "$file...";
+
+    my $md5 = GetMd5($file);
+    my $position = SearchLibByMd5($md5,@libData);
+
+    if( $position < 0 ){
+      my $data;
+
+      my $imdb = GetImdbNumber($file);
+      $position = SearchLibByImdb($imdb,@libData);
+
+      if( $position < 0 ){
+	print "is not in the library.\nAdding...";
+	my %newHash;
+	$data = \%newHash;
+	push @libData, $data;
+      }
+      else{
+	print "is in the library.\nThis is a new version, updating...";
+	$data = $libData[$position];
+      }
+
+      %$data = ();
+      $data->{file} = $file;
+      $data->{md5} = $md5;
+      $data->{imdb} = $imdb;
+
+      GetMetadata($data);
+
+      print "done\n";
+      #print "$data{file}\t$data{aspect}\t$data{audiotracks}\t",
+      #"$data{bitrate}\t$data{chapters}\t$data{format}\t$data{fps}\t",
+      #"$data{height}\t$data{length}\t$data{md5}\t$data{size}\t",
+      #"$data{width}\n";
+    }
+    elsif( $force ){
+      print "is in the library.\nForce the update...";
+      %{$libData[$position]} = GetMetadata($file,0);
+      $libData[$position]->{md5} = $md5;
+      print "done\n";
+    }
+    else{
+      print "is in the library.\n";
+    }
+
+  }
+  $| = 0;
+
+  WriteLibrary($libraries[0],$libFormat,@libData);
+
+}
+
+###############################################################################
+
+ParseArgs();
+
+print "mode = $mode force = $force\n";
+
+ModeConvert() if $mode == 1;
+ModeDiff() if $mode == 2;
+ModeGenerate() if $mode == 3;
+ModePrint() if $mode == 4;
+ModeUpdate if $mode == 5;
+
+
+exit 0;
+
+# TODO:
+#
+# We need to always resolve a full path to the file regardless of how the name
+# gets input to the program. Or we can just store basenames, but full paths
+# seem better, they possibly allow us to do tv shows better or something in
+# the future.
+#
+# Warn before overwriting a library file in convert mode.
+#
+# Diff mode should present alternate ouput views, should interlace files.
+#
+# Print mode should use options to determine what to print and how to sort,
+# ala SQL.
+#
+# Alternate config file specifiable on comand line
+#
+# More default options should be able to be read from libraryrc
+#
+# Update mode should write out file piecemeal as it goes like generate does
+#
+# Allow specifying of a directory in addition to a list of files.
+#
+# Update mode should be combined with generate mode if possible.
+#
+# Auto detect library or movie input files. Possibly eliminate header on
+# library file. Autodetect library files vs input files would allow us to
+# write a merge library ablity without a new mode, it could be part of the
+# future update/genreate hybird. Eliminating headers on library files makes
+# them easier to manipulate with other programs. I would still want a way to
+# provide backwards compatablity with old library files to new versions of the
+# program. It's easy to detect format, but it seems much harder to detect
+# version without the header.
+#
+# Errors in the library file such as two movies with the same non-error imdb
+# number, or same md5, or same full path should be caught and reported.
+#
+# internet imdb mode should be implemented.
+#
+# XML type should be implemented
+#
