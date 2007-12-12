@@ -432,18 +432,43 @@ sub GetMetadata {
   # quality at this same file size just by chaning settings, well then the movie
   # in question without those should not score well.
   #
+  # Advanced Video Coding (MPEG-4 part 10) Family
+  # h264 0.100
   #
-  # h264 will use 0.100 bpp as its min
-  # Xvid will use 0.180 bpp as its min
-  # Divx will use be treated as Xvid until unique info for it can be found
-
+  # ISO MPEG-4 Family
+  # Xvid 0.180
+  # dx50 0.180
+  # fmp4 0.180
+  # divx 0.190 plain old divx files are not as advanced as the rest
+  #
+  # Microsoft MPEG-4 Family
+  # mp43 0.190 microsoft mpeg 4 version 3 is the most advanced of these
+  # div3 0.200 these are really not too advanced from what I read.
+  # mp42 0.200
+  #
+  # Pre MPEG 4 Family
+  # mpg1 .25 http://www.mplayerhq.hu/DOCS/tech/encoding-tips.txt
+  # mpg2 .23 this is a guess based on the above mpeg 4 and mpeg 1 numbers
+  #
 
   if( !defined($data->{quality}) ){
     if( $data->{format} =~ m/h264/i ){
       $data->{quality} = ($data->{bpp}/0.100)*225;
     }
-    elsif( $data->{format} =~ m/(dx50|div[x3]|xvid)/i ){
+    elsif( $data->{format} =~ m/(dx50|fmp4|xvid)/i ){
       $data->{quality} = ($data->{bpp}/0.180)*225;
+    }
+    elsif( $data->{format} =~ m/(divx|mp43)/i ){
+      $data->{quality} = ($data->{bpp}/0.190)*225;
+    }
+    elsif( $data->{format} =~ m/(div3|mp42)/i ){
+      $data->{quality} = ($data->{bpp}/0.200)*225;
+    }
+    elsif( $data->{format} =~ m/mpg2/i ){
+      $data->{quality} = ($data->{bpp}/0.225)*225;
+    }
+    elsif( $data->{format} =~ m/mpg1/i ){
+      $data->{quality} = ($data->{bpp}/0.250)*225;
     }
     else {
       die "unknown format $data->{format}\n";
@@ -517,6 +542,8 @@ sub GetMidentifyData {
     }
   }
 
+  $metadata->{format} =~ s/0x1000000(\d)/mpg$1/;
+
 }
 
 sub GetMd5 {
@@ -581,9 +608,10 @@ sub GetImdbNumber {
     my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=$config{hostname}", "$config{username}", "$config{password}", {'RaiseError' => 1}) or die "couldn't connect to db on $config{hostname}.\n";
 
     (my $dbfile = "$config{moviepath}/".basename($file)) =~ s/\/\//\//g ;
+    $dbfile =~ s/\..{3,4}$//;
 
 
-    my $sth = $dbh->prepare(qq/SELECT inetref, title FROM videometadata WHERE filename = "$dbfile"/);
+    my $sth = $dbh->prepare(qq/SELECT inetref, title FROM videometadata WHERE filename like "%${dbfile}%"/);
     $sth->execute();
 
     if(my $ref = $sth->fetchrow_hashref()) {
