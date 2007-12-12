@@ -455,7 +455,7 @@ sub GetMetadata {
     if( $data->{format} =~ m/h264/i ){
       $data->{quality} = ($data->{bpp}/0.100)*225;
     }
-    elsif( $data->{format} =~ m/(dx50|fmp4|xvid)/i ){
+    elsif( $data->{format} =~ m/(dx50|fmp4|mp4v|xvid)/i ){
       $data->{quality} = ($data->{bpp}/0.180)*225;
     }
     elsif( $data->{format} =~ m/(divx|mp43)/i ){
