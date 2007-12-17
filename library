@@ -224,7 +224,7 @@ sub ReadLine{
     # the input file.
     if( $format eq "csv" ){
       #print "CSV Mode\n";
-      $_ =~ m/"(.*)",(\d*.?\d*),(\d+),(\d+),(\d+),"(.*)",(\d*.?\d*),(\d+),(\d*.?\d*),"([0-9a-fA-F]*)",(\d+),(\d+)(?:,(\d+))?/;
+      $_ =~ m/"(.*)",(\d*.?\d*),(\d+),(\d+),(\d+),"(.*)",(\d*.?\d*),(\d+),(\d*.?\d*),"([0-9a-fA-F]*)",(\d+),(\d+)(?:,(-?\d+))?/;
 
       $data{file} = $1;
       $data{aspect} = $2;
@@ -242,7 +242,7 @@ sub ReadLine{
     }
     elsif( $format eq "tab" ){
       #print "TAB Mode\n";
-      $_ =~ m/(.*)[ \t]+(\d*.?\d*)[ \t]+(\d+)[ \t]+(\d+)[ \t]+(\d+)[ \t]+(.*)[ \t]+(\d*.?\d*)[ \t]+(\d+)[ \t]+(\d*.?\d*)[ \t]+([0-9a-fA-F]*)[ \t]+(\d+)[ \t]+(\d+)(?:[ \t]+(\d+))?/;
+      $_ =~ m/(.*)[ \t]+(\d*.?\d*)[ \t]+(\d+)[ \t]+(\d+)[ \t]+(\d+)[ \t]+(.*)[ \t]+(\d*.?\d*)[ \t]+(\d+)[ \t]+(\d*.?\d*)[ \t]+([0-9a-fA-F]*)[ \t]+(\d+)[ \t]+(\d+)(?:[ \t]+(-?\d+))?/;
 
       $data{file} = $1;
       $data{aspect} = $2;
@@ -259,10 +259,10 @@ sub ReadLine{
       $data{imdb} = $13 ;
     }
 
-     #print "$data{file}\t$data{aspect}\t$data{audiotracks}\t",
-     # "$data{bitrate}\t$data{chapters}\t$data{format}\t$data{fps}\t",
-     # "$data{height}\t$data{length}\t$data{md5}\t$data{size}\t",
-     # "$data{width},$data{imdb}\n";
+     print "$data{file}\t$data{aspect}\t$data{audiotracks}\t",
+      "$data{bitrate}\t$data{chapters}\t$data{format}\t$data{fps}\t",
+      "$data{height}\t$data{length}\t$data{md5}\t$data{size}\t",
+      "$data{width},$data{imdb}\n" if $verbosity
 
   }
 
@@ -277,7 +277,7 @@ sub WriteLine {
   # delimeter change.
 
   if( $libFormat eq "tab" ){
-    print$ LIB "$data->{file}\t$data->{aspect}\t$data->{audiotracks}\t",
+    print $LIB "$data->{file}\t$data->{aspect}\t$data->{audiotracks}\t",
       "$data->{bitrate}\t$data->{chapters}\t$data->{format}\t$data->{fps}\t",
       "$data->{height}\t$data->{length}\t$data->{md5}\t$data->{size}\t",
       "$data->{width}\t$data->{imdb}\n";
@@ -362,7 +362,7 @@ sub SearchLibByImdb {
   my $counter = 0;
   foreach my $ file (@_){
     #print "$file->{name}: $file->{imdb} eq $imdb\n";
-    if(  defined($file) && $file->{imdb} == $imdb ){
+    if(  defined($file) && defined($file->{imdb}) && $file->{imdb} == $imdb ){
       return $counter;
     }
     $counter++;
@@ -403,6 +403,7 @@ sub GetMetadata {
 
 
   if( !defined($data->{imdb}) ){
+    print "Getting imdb number for $data->{file}\n" if $verbosity;
     $data->{imdb} = GetImdbNumber($data->{file});
   }
 
@@ -603,17 +604,16 @@ sub GetAudioAndChapterInfo {
 
 sub GetImdbNumber {
   my ($file) = @_;
-  my $imdbnum = -1;
+  my $imdbnum = 0;
 
-  if( $imdbMethod eq "mythtv" || ($imdbMethod eq "all" && $imdbnum == -1) ){
+  if( $imdbMethod eq "mythtv" || ($imdbMethod eq "all" && $imdbnum == 0) ){
 
     my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=$config{hostname}", "$config{username}", "$config{password}", {'RaiseError' => 1}) or die "couldn't connect to db on $config{hostname}.\n";
 
-    (my $dbfile = "$config{moviepath}/".basename($file)) =~ s/\/\//\//g ;
+    (my $dbfile = "$config{moviepath}/%".basename($file)) =~ s/\/\//\//g ;
     $dbfile =~ s/\..{3,4}$/./;
 
-
-    my $sth = $dbh->prepare(qq/SELECT inetref, title FROM videometadata WHERE filename like "%${dbfile}%"/);
+    my $sth = $dbh->prepare(qq/SELECT inetref, title FROM videometadata WHERE filename like "${dbfile}%"/);
     $sth->execute();
 
     if(my $ref = $sth->fetchrow_hashref()) {
@@ -624,12 +624,12 @@ sub GetImdbNumber {
     $dbh->disconnect();
   }
 
-  if( $imdbMethod eq "internet" || ($imdbMethod eq "all" && $imdbnum == -1) ){
+  if( $imdbMethod eq "internet" || ($imdbMethod eq "all" && $imdbnum == 0) ){
     print "Internet mode currently unimplemented\n";
     $imdbMethod = "manual";
   }
 
-  if( $imdbMethod eq "manual" || ($imdbMethod eq "all" && $imdbnum == -1) ){
+  if( $imdbMethod eq "manual" || ($imdbMethod eq "all" && $imdbnum == 0) ){
     print qq/IMDB# for "/,basename($file),qq/" >/;
     $imdbnum = <STDIN>;
     chomp $imdbnum; # num num num
