@@ -20,6 +20,7 @@ my $force      = 0;
 my $homeDir    = File::HomeDir->my_home;
 my $imdbMethod = "all";
 my $verbosity  = 0;
+my $diffPrintMode = 0;
 
 my @libraries = ();
 my @files     = ();
@@ -47,6 +48,7 @@ Options:
   --type      -t (xml|csv|tab)       type to use when generating.
   --force     -f                     force updates to occur without checking.
   --imdb      -b (all|myth|man|net)  how to aquire IMDB numbers.
+  --unified   -u                     diff mode outputs like diff -u
 
   Short options may be bundled and long options abbreviated.
 EOF
@@ -69,7 +71,8 @@ sub ParseArgs {
 	'type|t=s'       => \$outputType,
 	'force|f'        => \$force,
 	'imdb|b=s'       => \$imdbMethod,
-	'verbose|v'      => \$verbosity
+	'verbose|v'      => \$verbosity,
+	'unified|u'      => \$diffPrintMode
     );
 
     # Figure out which mode we are in, and check for how many were specified
@@ -349,7 +352,7 @@ sub SearchLibByMd5 {
 
   my $counter = 0;
   foreach my $ file (@_){
-    if( defined($file) && $file->{md5} eq $md5 ){
+    if( defined($file->{file}) && $file->{md5} eq $md5 ){
       return $counter;
     }
     $counter++;
@@ -363,7 +366,7 @@ sub SearchLibByImdb {
   my $counter = 0;
   foreach my $ file (@_){
     #print "$file->{name}: $file->{imdb} eq $imdb\n";
-    if(  defined($file) && defined($file->{imdb}) && $file->{imdb} == $imdb ){
+    if(  defined($file->{file}) && defined($file->{imdb}) && $file->{imdb} == $imdb ){
       return $counter;
     }
     $counter++;
@@ -676,6 +679,50 @@ sub find_program {
         or die "Cannot find program '$program' in your path.\n";
 }
 
+sub PrintForDiff {
+
+  my ( $diffchar, $name, $quality, $aspect, $format, $size ) = @_;
+
+  my $displayName = $name;
+  $displayName =~ s/^(.{27})....*/$1\.\.\./;
+
+  if( $diffPrintMode == 1 ){
+
+    $diffchar =~ s/([ +-]).*/$1/;
+
+    printf "%-1s%-30s\t%.2f\t%6s\t%-4s %4.0d Mb\n",$diffchar,$displayName,$quality,$aspect,$format,$size/1024**2;
+  }
+  else{
+    if( $diffchar eq " " ){
+      printf "%-30s\t%10s\t%.2f\t%6s\t%-4s %4.0d Mb\n",$displayName,"Identical",$quality,$aspect,$format,$size/1024**2;
+    }
+    elsif( $diffchar eq "+1"){
+      my $dispLibName = $libraries[0];
+      $dispLibName =~ s/^(.{10})....*/$1\.\.\./;
+
+      printf "%-30s\t%10s\t%.2f\t%6s\t%-4s %4.0d Mb\n",$displayName, $dispLibName,$quality,$aspect,$format,$size/1024**2;
+    }
+    elsif( $diffchar eq "-1"){
+      my $dispLibName = $libraries[1];
+      $dispLibName =~ s/^(.{10})....*/$1\.\.\./;
+
+      printf "%-30s\t%10s\t%.2f\t%6s\t%-4s %4.0d Mb\n",$displayName, $dispLibName,$quality,$aspect,$format,$size/1024**2;
+    }
+    elsif( $diffchar eq "+2"){
+      my $dispLibName = $libraries[0];
+      $dispLibName =~ s/^(.{10})....*/$1\.\.\./;
+
+      printf "%-30s\t%10s\t%.2f\t%6s\t%-4s %4.0d Mb\t",$displayName, $dispLibName,$quality,$aspect,$format,$size/1024**2;
+    }
+    elsif( $diffchar eq "-2"){
+      my $dispLibName = $libraries[1];
+      $dispLibName =~ s/^(.{10})....*/$1\.\.\./;
+
+      printf "%10s\t%.2f\t%6s\t%-4s %4.0d Mb\n",$dispLibName,$quality,$aspect,$format,$size/1024**2;
+    }
+  }
+
+}
 
 sub ModeGenerate(){
   my $LIB;
@@ -725,53 +772,84 @@ sub ModeDiff() {
   my @lhs;
   my @rhs;
 
+  if( $diffPrintMode == 1 ){
+    print "+++ $libraries[0]\n--- $libraries[1]\n";
+  }
+
   ($libFormat, @lhs) = ReadLibrary($libraries[0]);
   ($libFormat, @rhs) = ReadLibrary($libraries[1]);
 
-  foreach my $file ( @lhs, @rhs ){
+  foreach my $file ( @lhs ){
     GetMetadata($file);
+    $file->{lib} = $libraries[0];
   }
 
-  @rhs = sort { $a->{simple} cmp $b->{simple} } @rhs;
-  @lhs = sort { $a->{simple} cmp $b->{simple} } @lhs;
+  foreach my $file ( @rhs ){
+    GetMetadata($file);
+    $file->{lib} = $libraries[1];
+  }
 
-  foreach my $file ( @lhs  ){
-    my $position = SearchLibByMd5($file->{md5},@rhs);
+  foreach my $file ( sort { $a->{simple} cmp $b->{simple} } (@lhs,@rhs)  ){
 
-    my $displayName = $file->{name};
-    $displayName =~ s/^(.{28})....*/$1\.\.\./;
+    next if !defined($file->{file});
 
-    printf "%-30s\t",$displayName;
+    my $otherLibRef;
 
-    if( $position >= 0 ){
-      print "Identical file in both libraries.\n";
-      delete $rhs[$position];
+    if( $file->{lib} eq $libraries[0] ){
+      $otherLibRef = \@rhs;
     }
     else{
-      $position = SearchLibByImdb($file->{imdb},@rhs);
+      $otherLibRef = \@lhs;
+    }
 
-      if( $position >= 0 ){
-	printf "%.2f\t%6s\t%-4s\t%.2f\t%6s\t%-4s\n",$file->{quality},$file->{prettyaspect},$file->{format},$rhs[$position]->{quality},$rhs[$position]->{prettyaspect},$rhs[$position]->{format};
-	delete $rhs[$position];
+    my $position = SearchLibByMd5($file->{md5},@{$otherLibRef});
+
+    #if there is a exact file match in the other library
+    if( $position >= 0 ){
+
+      if( $otherLibRef == \@lhs ){
+	# space indicates that the file appears in both libraries
+	PrintForDiff(" ",$otherLibRef->[$position]->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
       }
       else{
-	print "Appears only in $libraries[0].\n"
+	PrintForDiff(" ",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
       }
+      undef $otherLibRef->[$position];
     }
+    # there was not a match
+    else{
+      $position = SearchLibByImdb($file->{imdb},@{$otherLibRef});
 
-  }
+      if( $position >= 0 ){
 
-  foreach my $file ( @rhs  ){
+	my $otherDisplayName = $otherLibRef->[$position]->{name};
+	$otherDisplayName =~ s/^(.{27})....*/$1\.\.\./;
 
-    if( defined($file) ){
-      my $displayName = $file->{name};
-      $displayName =~ s/^(.{28})....*/$1\.\.\./;
-
-      printf "%-30s\t",$displayName;
-      print "Appears only in $libraries[1].\n";
-    }
-  }
-
+	# we want the + to always refer to the file in the left hand library, and we want the + to always come
+	# before the -. Also, some diff print modes need to the know the differeance between a +- pair and a
+	# simple + or - so we use the 2 to indicate this.
+	if( $otherLibRef == \@lhs ){
+	  PrintForDiff("+2",$otherDisplayName,$otherLibRef->[$position]->{quality},$otherLibRef->[$position]->{prettyaspect},$otherLibRef->[$position]->{format},$otherLibRef->[$position]->{size});
+	
+	  PrintForDiff("-2",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+	}
+	else{
+	  PrintForDiff("+2",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+	  PrintForDiff("-2",$otherDisplayName,$otherLibRef->[$position]->{quality},$otherLibRef->[$position]->{prettyaspect},$otherLibRef->[$position]->{format},$otherLibRef->[$position]->{size});
+	}
+	
+	undef $otherLibRef->[$position];
+      }
+      # the file is missing from the left hand side. The 1 is a redudent but serves as indication that this is not pair.
+      elsif($otherLibRef == \@lhs){
+	PrintForDiff("-1",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+      }
+      # the file only appears in the left hand side. The 1 is a redudent but serves as indication that this is not pair.
+      else{
+	PrintForDiff("+1",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+      }
+    } #end no md5 match
+  } #end for loop
 }
 
 sub ModePrint(){
@@ -891,8 +969,6 @@ sub ModeUpdate(){
 ###############################################################################
 
 ParseArgs();
-
-print "mode = $mode force = $force\n";
 
 ModeConvert() if $mode == 1;
 ModeDiff() if $mode == 2;
