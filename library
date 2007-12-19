@@ -9,6 +9,7 @@ use File::Temp qw/ tempfile /;
 use Getopt::Long;
 use Config::General;
 use DBI;
+use LWP::Simple;
 
 $main::VERSION = "0.02";
 
@@ -625,8 +626,12 @@ sub GetImdbNumber {
   }
 
   if( $imdbMethod eq "internet" || ($imdbMethod eq "all" && $imdbnum == 0) ){
-    print "Internet mode currently unimplemented\n";
-    $imdbMethod = "manual";
+      my $sname = basename($file);
+      $sname =~ s/_/ /g;
+      $sname =~ s/\..{2,4}$//;
+      my $html = get("http://imdb.com/find?q=$sname");
+      $html =~ s/.*Images from.*//;
+      ($imdbnum) = $html =~ m!/title/tt(\d{7})/!;
   }
 
   if( $imdbMethod eq "manual" || ($imdbMethod eq "all" && $imdbnum == 0) ){
