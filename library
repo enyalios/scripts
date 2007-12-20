@@ -417,7 +417,7 @@ sub SearchLibByName {
   $name =~ s/\.\.\.//;
 
   foreach my $ file (@_){
-    if(  defined($file->{file}) && $file->{file} =~ m/$name/i ){
+    if(  defined($file->{file}) && $file->{file} =~ m/\/$name/i ){
       return $counter;
     }
     $counter++;
