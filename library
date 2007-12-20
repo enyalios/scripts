@@ -414,10 +414,17 @@ sub SearchLibByName {
   my $counter = 0;
 
   # splice off any episies that may be in the name
-  $name =~ s/\.\.\.//;
+  $name =~ s/\.\.\.$//;
+
+  # we force a leading / so if there is one get rid of it
+  $name =~ s|^/||;
+
+  # white space at the end is not helpful!
+  $name =~ s/\s*$//;
 
   foreach my $ file (@_){
-    if(  defined($file->{file}) && $file->{file} =~ m/\/$name/i ){
+#    print "searching: '$file->{name}' cmp '$name'\n";
+    if(  defined($file->{file}) && $file->{file} =~ m|/$name|i ){
       return $counter;
     }
     $counter++;
@@ -950,7 +957,9 @@ sub ModeSelect() {
   my ( $libFormat, @libData) = ReadLibrary($libraries[1]);
   my $LIB;
 
-
+  foreach my $file (@libData){
+    GetMetadata($file);
+  }
 
   # ok, open the library in append more so we can add new entries to it in
   # real time. Updates will not be added until the end. This is the best
