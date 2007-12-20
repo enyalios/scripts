@@ -917,7 +917,7 @@ sub ModePrint(){
     GetMetadata($file);
   }
 
-  print "Name\t\t\t\tQuality\tAspect\t  IMDB#\tCodec\n";
+  print "Name\t\t\t\tQuality\tAspect\tCodec\tSize\tIMDB#\n";
   foreach my $file ( sort { $a->{quality} <=> $b->{quality} } @libData  ){
     my $displayName = $file->{name};
     $displayName =~ s/^(.{28})....*/$1\.\.\./;
