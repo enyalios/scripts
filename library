@@ -20,7 +20,7 @@ my $force      = 0;
 my $homeDir    = File::HomeDir->my_home;
 my $imdbMethod = "all";
 my $verbosity  = 0;
-my $diffPrintMode = 0;
+my $diffPrintMode = "flat";
 
 my @libraries = ();
 my @files     = ();
@@ -37,18 +37,19 @@ sub print_help {
 Usage:
   library [mode] [options] ...
 Modes:
-  --convert   -c existList newList    convert list types.
-  --diff      -d list1 list2          compare two lists.
-  --generate  -g newList files...     generate a new list from a set of files.
-  --print     -p list                 print an existing list.
-  --update    -u list files...        update an existing list with any changes.
+  --convert  -c oldlib newlib        convert list types.
+  --diff     -d yourlib hislib       compare two lists.
+  --generate -g newlib files...      generate a new list from a set of files.
+  --print    -p lib                  print an existing list.
+  --update   -u lib files...         update an existing list with any changes.
+  --select   -s newlib oldlib names  copy some files from old lib to new lib.
 
 Options:
-  --help      -h                     this message.
-  --type      -t (xml|csv|tab)       type to use when generating.
-  --force     -f                     force updates to occur without checking.
-  --imdb      -b (all|myth|man|net)  how to aquire IMDB numbers.
-  --unified   -u                     diff mode outputs like diff -u
+  --help     -h                     this message.
+  --type     -t (xml|csv|tab)       type to use when generating.
+  --force    -f                     force updates to occur without checking.
+  --imdb     -b (all|myth|man|net)  how to aquire IMDB numbers.
+  --display-mode -m (flat|unified)   change how diff mode displays output.
 
   Short options may be bundled and long options abbreviated.
 EOF
@@ -65,14 +66,16 @@ sub ParseArgs {
 	'diff|d'         => sub { $modes{diff} = 1 },
 	'generate|g'     => sub { $modes{generate} = 1 },
 	'print|p'        => sub { $modes{print} = 1 },
+	'select|s'       => sub { $modes{select} = 1 },
 	'update|u'       => sub { $modes{update} = 1 },
+
 
 	'help|h'         => sub { print_help() },
 	'type|t=s'       => \$outputType,
 	'force|f'        => \$force,
 	'imdb|b=s'       => \$imdbMethod,
 	'verbose|v'      => \$verbosity,
-	'unified|u'      => \$diffPrintMode
+	'displayMode|m=s'      => \$diffPrintMode
     );
 
     # Figure out which mode we are in, and check for how many were specified
@@ -99,6 +102,13 @@ sub ParseArgs {
       $outputType = lc($outputType);
     }
 
+    if( $diffPrintMode !~ m/(flat|unified)/i){
+       print "Diplay Mode $diffPrintMode not understood\n"; print_help();
+    }
+    else{
+      $diffPrintMode = lc($diffPrintMode);
+    }
+
     # sort out which imdb method to use
     if( $imdbMethod =~ m/myth(tv)?/i ){
       $imdbMethod = "mythtv";
@@ -118,17 +128,17 @@ sub ParseArgs {
 
 
     # generate and update mode use the same input format
-    if( $mode == 3 || $mode == 5 ){
+    if( $mode == 3 || $mode == 6){
 
       if( @ARGV < 1 ){
-	print"Genereate and Update Modes require >= 1 arguments.\n";
+	print"Genereate, Select, and Update Modes require >= 1 arguments.\n";
 	print_help();
       }
 
       my $file = shift @ARGV;
 
-      if( ($mode == 3 && (-w $file || !(-e $file)) )
-	   || ($mode == 5 && -w $file && -r $file) ){
+      if( ( $mode == 3 && (-w $file || !(-e $file) )  )
+	   || ($mode == 6 && -w $file && -r $file) ){
 	push @libraries, $file;
       }
       else {
@@ -201,6 +211,30 @@ sub ParseArgs {
       }
       else {
 	print "Can not write or read from library file ($ARGV[0])\n";
+	$bail++;
+      }
+    }
+    elsif( $mode == 5 ){
+      if( @ARGV < 2 ){
+	print "Select Mode requires 2 libaray file arguments.\n";
+	print_help();
+      }
+
+      my $file = shift @ARGV;
+      if( -w $file || !(-e $file) ){
+	push @libraries, $file;
+      }
+      else {
+	print "Can not write to new library file ($file)\n";
+	  $bail++;
+      }
+
+      $file = shift @ARGV;
+      if( -r $file ){
+	push @libraries, $file;
+      }
+      else {
+	print "Can not read from library file ($file)\n";
 	$bail++;
       }
     }
@@ -367,6 +401,23 @@ sub SearchLibByImdb {
   foreach my $ file (@_){
     #print "$file->{name}: $file->{imdb} eq $imdb\n";
     if(  defined($file->{file}) && defined($file->{imdb}) && $file->{imdb} == $imdb ){
+      return $counter;
+    }
+    $counter++;
+  }
+
+  return -1;
+}
+
+sub SearchLibByName {
+  my $name = shift @_;
+  my $counter = 0;
+
+  # splice off any episies that may be in the name
+  $name =~ s/\.\.\.//;
+
+  foreach my $ file (@_){
+    if(  defined($file->{file}) && $file->{file} =~ m/$name/i ){
       return $counter;
     }
     $counter++;
@@ -686,7 +737,7 @@ sub PrintForDiff {
   my $displayName = $name;
   $displayName =~ s/^(.{27})....*/$1\.\.\./;
 
-  if( $diffPrintMode == 1 ){
+  if( $diffPrintMode eq "unified" ){
 
     $diffchar =~ s/([ +-]).*/$1/;
 
@@ -772,7 +823,7 @@ sub ModeDiff() {
   my @lhs;
   my @rhs;
 
-  if( $diffPrintMode == 1 ){
+  if( $diffPrintMode eq "unified" ){
     print "+++ $libraries[0]\n--- $libraries[1]\n";
   }
 
@@ -857,6 +908,11 @@ sub ModePrint(){
 
   my ($libFormat, @libData) = ReadLibrary($libraries[0]);
 
+  my $qualitySum = 0;
+  my %aspectMode;
+  my %formatMode;
+  my $totalSize = 0;
+
   foreach my $file ( @libData ){
     GetMetadata($file);
   }
@@ -866,7 +922,56 @@ sub ModePrint(){
     my $displayName = $file->{name};
     $displayName =~ s/^(.{28})....*/$1\.\.\./;
 
-    printf "%-30s\t%.2f\t%6s\t%7d\t%-4s\n",$displayName,$file->{quality},$file->{prettyaspect},$file->{imdb},$file->{format};
+    printf "%-30s\t%.2f\t%6s\t%-4s %5d Mb %7d\n",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size}/1024**2,$file->{imdb};
+
+    $aspectMode{$file->{prettyaspect}}++;
+    $formatMode{$file->{format}}++;
+    $qualitySum += $file->{quality};
+    $totalSize += $file->{size};
+  }
+
+  printf "Total: % 8.2f Gbytes Average: %.2f\t",($totalSize/1024**3),$qualitySum/@libData;
+
+  foreach my $key ( sort { $aspectMode{$b} <=> $aspectMode{$a} } keys %aspectMode ){
+    print "$key\t"; last;
+  }
+
+
+  foreach my $key ( sort { $formatMode{$b} <=> $formatMode{$a} } keys %formatMode ){
+    printf "$key "; last;
+  }
+
+  printf "%5d Mbytes\n",($totalSize/1024**2)/@libData;
+}
+
+sub ModeSelect() {
+
+  # read in the library
+  my ( $libFormat, @libData) = ReadLibrary($libraries[1]);
+  my $LIB;
+
+
+
+  # ok, open the library in append more so we can add new entries to it in
+  # real time. Updates will not be added until the end. This is the best
+  # we can do, to ensure we never have a file that is in a bad state, and that
+  # we keep as much data as possible in a crash.
+  open $LIB, ">", $libraries[0] or die "Can't open $libraries[0] for appending\n";
+
+  if( $outputType eq "tab" || $outputType eq "csv" ){
+    print $LIB "#Generated by library VERSION=${main::VERSION}\tFORMAT=$libFormat\n";
+  }
+
+  while( defined($_ = <>) ){
+
+    chomp $_; #num num num
+
+    my $position = SearchLibByName($_,@libData);
+
+    if( $position >= 0 ){
+      WriteLine($LIB,$libFormat,$libData[$position]);
+    }
+
   }
 
 }
@@ -974,7 +1079,8 @@ ModeConvert() if $mode == 1;
 ModeDiff() if $mode == 2;
 ModeGenerate() if $mode == 3;
 ModePrint() if $mode == 4;
-ModeUpdate if $mode == 5;
+ModeSelect() if $mode == 5;
+ModeUpdate if $mode == 6;
 
 
 exit 0;
