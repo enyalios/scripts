@@ -2,7 +2,9 @@
 
 use strict;
 
-my $output = `/sbin/iwlist eth1 scan`;
+my $dev = $ARGV[0] || "eth0";
+
+my $output = `/sbin/iwlist $dev scan`;
 my @data;
 
 sub by_essid   { $a->{essid} cmp $b->{essid} || $b->{quality} <=> $a->{quality} }
@@ -10,7 +12,10 @@ sub by_quality { $b->{quality} <=> $a->{quality} || $a->{essid} cmp $b->{essid} 
 
 my @access_points = split /\s*Cell \d+ - /, $output;
 for(@access_points) {
-    my ($address, $essid, $enc, $quality) = /Address: ([0-9A-F:]+).*?ESSID:"(.*?)".*?Encryption key:(\w*).*?Quality=(\d+)\/100/sm;
+    my ($address) = /^\s*Address: ([0-9A-F:]+)$/m;
+    my ($essid)   = /^\s*ESSID:"(.*?)"$/m;
+    my ($enc)     = /^\s*Encryption key:(\w*)$/m;
+    my ($quality) = /^\s*Quality=(\d+)\/100/m;
     next unless $address && $essid && $enc && $quality;
     push @data, { address => $address, quality => $quality, essid => $essid, enc => $enc };
 }
