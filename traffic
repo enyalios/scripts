@@ -6,6 +6,7 @@ use warnings;
 my @exponents = split //, "bkmgtpezy";
 my %old;
 my $num_ifs = 0;
+my $interval = 2;
 
 # format the numbers all pretty
 sub fnum {
@@ -31,7 +32,7 @@ while(1) { # keep doing this until they ^C
         
         # only print something if we have historical data
         printf "%-8s %7s/sec down, %7s/sec up", $iface, 
-            fnum($rx - $old{$iface}{rx}), fnum($tx - $old{$iface}{tx})
+            fnum(($rx - $old{$iface}{rx}) / $interval), fnum(($tx - $old{$iface}{tx}) / $interval)
             if defined $old{$iface}{tx};
         print "\n";
 
@@ -40,7 +41,7 @@ while(1) { # keep doing this until they ^C
         $num_ifs++;
     }
 
-    sleep 1;
+    sleep $interval;
 }
 
 __END__
