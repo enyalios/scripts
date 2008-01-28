@@ -50,6 +50,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
       # use the imdb script to find the imdb number
       $imdb_num = `$imdb_script -M "$ref->{title}"`;
       $imdb_num =~ s/:.*//s;
+      $imdb_num =~ s/^(\d+).*/$1/;
       print "$imdb_num\n";
     }
     next unless $imdb_num;
