@@ -61,7 +61,7 @@ my %get = (
         return '#00C000' if -x _;
         return 'red' if $n =~ /\.(tar|t?gz|bz2?|tbz2?|zip)$/i;
         return 'dark green' if $n =~ /\.(log|txt|pdf|ps)$/i;
-        return 'magenta' if $n =~ /\.(wmv|asf|avi|mpe?g|mov)$/i;
+        return 'magenta' if $n =~ /\.(wmv|asf|avi|mpe?g|mov|mkv)$/i;
         return 'magenta' if $n =~ /\.(jpe?g|png|bmp|gif|tiff?)$/i;
         return 'dark cyan' if $n =~ /\.(mp3|ogg|wav|wma)$/i;
         return 'black';
@@ -200,13 +200,13 @@ sub view_directory ($) {
                     my (@files, $file);
                     while($iter) {
                         $file = $list->get($iter, 10);
-                        push @files, "$dirname/$file" if $file =~ /\.(wmv|avi|asf|mpe?g|mov)$/i;
+                        push @files, "$dirname/$file" if $file =~ /\.(wmv|avi|asf|mpe?g|mov|mkv)$/i;
                         push @files, "$dirname/$file" if $file =~ /\.(mp3|ogg|wav|wma)$/i;
                         $iter = $list->iter_next($iter);
                     }
                     if(@files) {
                         $file = $files[int(rand(@files))];
-                        if($file =~ /\.(wmv|avi|asf|mpe?g|mov)$/i)
+                        if($file =~ /\.(wmv|avi|asf|mpe?g|mov|mkv)$/i)
                             { silent_exec( "mplayer", $file); }
                         elsif($file =~ /\.(mp3|ogg|wav|wma)$/i)
                             { silent_exec( "xterm", "-e", "mplayer", $file ); }
@@ -251,7 +251,7 @@ sub view_directory ($) {
             $dirname = abs_path($fullpath);
             view_directory($dirname);
         } else {
-            if($values[10] =~ /\.(wmv|avi|asf|mpe?g|mov)$/i)
+            if($values[10] =~ /\.(wmv|avi|asf|mpe?g|mov|mkv)$/i)
             { silent_exec("mplayer",  $fullpath) }
             elsif($values[10] =~ /\.(mp3|ogg|wav|wma)$/i)
             { silent_exec("xterm", "-e", "mplayer '$fullpath'") }
