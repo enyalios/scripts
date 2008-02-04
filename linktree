@@ -47,7 +47,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
 
     # whine if the target is missing
     unless(-e "$media_root/$ref->{basename}") {
-        print  "missing target file '$media_root/$ref->{basename}\n";
+        print  "missing target file '$media_root/$ref->{basename}' ($ref->{title} - $ref->{subtitle})\n";
         next;
     }
     
