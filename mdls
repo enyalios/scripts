@@ -5,6 +5,7 @@ use warnings;
 use Date::Parse;
 use POSIX qw(strftime);
 use Term::ReadKey;
+use MIME::Words qw(decode_mimewords); # needs MIME-tools
 
 my @maildirs = @ARGV;
 my ($width) = GetTerminalSize();
@@ -43,6 +44,7 @@ for my $dir(@maildirs) {
         $subject = (grep { /^subject: /i } @fields)[0] || "";
         $subject =~ s/^subject: +//i;
         $subject =~ s/\n//g;
+        $subject = decode_mimewords($subject) if($subject =~ /^=\?ISO-8859-1\?/);
         substr($subject, $width - 43) = "..." if length $subject > $width - 40;
 
         push @emails, { date => $date, epoch => $epoch, 
