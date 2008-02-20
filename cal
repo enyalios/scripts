@@ -20,7 +20,7 @@ my $work_color = color('GREEN');
 my $stop_color = color('RESET');
 my @month;
 my $spacer = " ";
-my @sched = qw(3 6 9 12);
+my @sched = qw(1 5 8 12);
 
 sub calendar {
     my ($mon, $year, $start_day) = @_;
