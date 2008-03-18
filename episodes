@@ -134,8 +134,13 @@ sub grab_eps {
 	    print "    using data suplied starting ep number: $1\n" if $opts{v};
 	  }
 
+	  $ep_title =~ s/\xC0/A/g;
+	  $ep_title =~ s/\xE0/a/g;
+	  $ep_title =~ s/\xE9/e/g;
+
           print "   found episode: $ep_title\n" if $opts{v};
-	  $data{simple($title)}{simple($2)} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $ep_title);
+	  
+	  $data{simple($title)}{simple($ep_title)} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $ep_title);
         }
     }
     write_cache();
