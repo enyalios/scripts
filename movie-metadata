@@ -13,10 +13,10 @@ use LWP::Simple;
 
 # variables for tweaking
 my $imdb_script = "/usr/share/mythtv/mythvideo/scripts/imdb.pl";
-my $movie_path = "/mnt/videos/movies/";
+my $movie_path = "/home/mythtv/videos/movies/";
 
 # connect to the db and run the query
-my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
+my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=rory",
     "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
 my $sth = $dbh->prepare("SELECT intid, title FROM videometadata WHERE 
                          filename like '$movie_path%' and inetref = 0");
@@ -41,7 +41,7 @@ while (my $ref = $sth->fetchrow_hashref()) {
 
     my $imdb_num;
 
-    if($ARGV[0] eq "-m"){
+    if( defined($ARGV[0]) &&  $ARGV[0] eq "-m"){
       print "> ";
       $imdb_num = <STDIN>;
       chomp $imdb_num;
