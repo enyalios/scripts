@@ -34,7 +34,10 @@ starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
 cd /mnt/media/archive
 
 # find a good filename
-outfile=$($EPISODES -lu "$title" "$subtitle")
+outfile="$($EPISODES -lu "$title" "$subtitle")"
+
+#if it is a movie episodes will not work
+[[ "$outfile" == "" ]] && outfile=$( echo $title | tr ' ' '_' )
 
 # cut out the commercials and make a nice mpeg2 for passing to dvdrip
 $MYTHTRANSCODE --chanid $chanid --starttime $starttime --outfile \
