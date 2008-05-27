@@ -38,13 +38,15 @@ for my $dir(@maildirs) {
         $from = (grep { /^from: /i } @fields)[0] || "???";
         $from =~ s/^from: +(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
         $from =~ s/\n//g;
+        $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r)\?/);
 
         $to      = (grep { /^to: /i } @fields)[0];
 
         $subject = (grep { /^subject: /i } @fields)[0] || "";
         $subject =~ s/^subject: +//i;
         $subject =~ s/\n//g;
-        $subject = decode_mimewords($subject) if($subject =~ /^=\?ISO-8859-1\?/);
+        $subject =~ s/\t+/ /g;
+        $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r)\?/);
         substr($subject, $width - 43) = "..." if length $subject > $width - 40;
 
         push @emails, { date => $date, epoch => $epoch, 
