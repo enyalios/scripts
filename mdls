@@ -7,6 +7,8 @@ use POSIX qw(strftime);
 use Term::ReadKey;
 use MIME::Words qw(decode_mimewords); # needs MIME-tools
 
+my $now = strftime "%s", localtime;
+
 my @maildirs = @ARGV;
 my ($width) = GetTerminalSize();
 unless(@maildirs) {
@@ -33,7 +35,18 @@ for my $dir(@maildirs) {
         $date =~ s/^date: +//i;
         $epoch = str2time $date; 
         $epoch ||= 0;
-        $date = strftime "%b %d %Y", localtime $epoch;
+        if(($now - $epoch) < 60*60) {
+            my $amount = ($now - $epoch) / 60;
+            $date = sprintf "%2d min%s ago", $amount, $amount>=2?"s":" ";
+        } elsif(($now - $epoch) < 60*60*24) {
+            my $amount = ($now - $epoch) / 60 / 60;
+            $date = sprintf "%2d hr%s  ago", $amount, $amount>=2?"s":" ";
+        } elsif(($now - $epoch) < 60*60*24*7) {
+            my $amount = ($now - $epoch) / 60 / 60 / 24;
+            $date = sprintf "%2d day%s ago", $amount, $amount>=2?"s":" ";
+        } else {
+            $date = strftime "%b %d %Y", localtime $epoch;
+        }
 
         $from = (grep { /^from: /i } @fields)[0] || "???";
         $from =~ s/^from: +(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
