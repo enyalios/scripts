@@ -13,7 +13,7 @@ use LWP::Simple;
 
 $main::VERSION = "0.02";
 
-my %modes = ( convert => 0, diff => 0, generate => 0, update => 0, print => 0 );
+my %modes = ( convert => 0, diff => 0, generate => 0, select => 0, update => 0, print => 0 );
 my $mode       = 0;
 my $outputType = "tab";
 my $force      = 0;
@@ -499,6 +499,7 @@ sub GetMetadata {
   #
   # Advanced Video Coding (MPEG-4 part 10) Family
   # h264 0.100
+  # avc1 0.100 (this is an alias for h264 according to wikipeida)
   #
   # ISO MPEG-4 Family
   # Xvid 0.180
@@ -517,7 +518,7 @@ sub GetMetadata {
   #
 
   if( !defined($data->{quality}) ){
-    if( $data->{format} =~ m/h264/i ){
+    if( $data->{format} =~ m/h264/i ||$data->{format} =~ m/avc1/i ){
       $data->{quality} = ($data->{bpp}/0.100)*225;
     }
     elsif( $data->{format} =~ m/(dx50|fmp4|mp4v|xvid)/i ){
@@ -603,7 +604,7 @@ sub GetMidentifyData {
   # the special function to get that for us
   if( $metadata->{container} eq "mkv" ){
     if( $metadata->{bitrate} == 0 ){
-      $metadata->{bitrate} = GetMkvBitrate($metadata->{file});
+      $metadata->{bitrate} = GetMkvBitrate($metadata);
     }
   }
 
@@ -614,26 +615,44 @@ sub GetMidentifyData {
 sub GetMd5 {
   my ($file) = @_;
 
-  my $md5 = Digest::MD5->new;
-  my $fd;
+  #for files > 2gb just use the size as the m5sum will take too long to do
+  if( -s $file > 2*(1024**3) ){
+    return -s $file;
+  }
+  else{
+    my $md5 = Digest::MD5->new;
+    my $fd;
 
-  open($fd, "< $file") or die "GetMd5: can't open $file";
-  binmode $fd;
-  $md5->addfile($fd);
-  return $md5->hexdigest;
+    open($fd, "< $file") or die "GetMd5: can't open $file";
+    binmode $fd;
+    $md5->addfile($fd);
+    return $md5->hexdigest;
+  }
 }
 
+# requires metadata have the file and length values set. does not modify metadata, returns bitrate
+# in bits per second
 sub GetMkvBitrate {
-  my ($file) = @_;
+  my $metadata = shift @_;
   my ($output,$tempname) =  tempfile();
 
-  my_system("mkvextract","tracks",$file,"1:$tempname");
+  my_system("mkvextract","tracks",$metadata->{file},"1:$tempname");
 
   open FILEINFO, '-|', "midentify", $tempname;
   $output = (grep { /ID_VIDEO_BITRATE/ } <FILEINFO>)[0];
-  chomp $output; # num num num
-  $output =~ s/.*=//;
   close FILEINFO;
+
+  # usually when we do this we'll get a bitrate, but sometimes (My Neighbor 
+  # Totoro) we don't get any data back.
+  if( defined($output)){
+    #if we got data use it
+    chomp $output; # num num num
+    $output =~ s/.*=//;
+  }
+  else{
+    # if we didn't get the data then fudge it
+    $output = int(8*( -s $tempname )/$metadata->{length});
+  }
 
   unlink $tempname;
 
@@ -1089,7 +1108,7 @@ ModeDiff() if $mode == 2;
 ModeGenerate() if $mode == 3;
 ModePrint() if $mode == 4;
 ModeSelect() if $mode == 5;
-ModeUpdate if $mode == 6;
+ModeUpdate() if $mode == 6;
 
 
 exit 0;
