@@ -21,6 +21,7 @@ my $homeDir    = File::HomeDir->my_home;
 my $imdbMethod = "all";
 my $verbosity  = 0;
 my $diffPrintMode = "flat";
+my $allowRemove = 0;
 
 my @libraries = ();
 my @files     = ();
@@ -49,7 +50,8 @@ Options:
   --type     -t (xml|csv|tab)       type to use when generating.
   --force    -f                     force updates to occur without checking.
   --imdb     -b (all|myth|man|net)  how to aquire IMDB numbers.
-  --display-mode -m (flat|unified)   change how diff mode displays output.
+  --allowRemove  -r                 allow records to be removed automatically
+  --display-mode -m (flat|unified)  change how diff mode displays output.
 
   Short options may be bundled and long options abbreviated.
 EOF
@@ -75,7 +77,8 @@ sub ParseArgs {
 	'force|f'        => \$force,
 	'imdb|b=s'       => \$imdbMethod,
 	'verbose|v'      => \$verbosity,
-	'displayMode|m=s'      => \$diffPrintMode
+	'displayMode|m=s'      => \$diffPrintMode,
+	'allowRemove|r'  => \$allowRemove
     );
 
     # Figure out which mode we are in, and check for how many were specified
@@ -1011,6 +1014,29 @@ sub ModeUpdate(){
   # read in the library
   my ( $libFormat, @libData) = ReadLibrary($libraries[0]);
   my $LIB;
+
+  # check that every file in the libarary still exists
+  my $index = 0;
+  foreach my $record (@libData){
+    if( !( -e $record->{file} ) ){
+      if( $allowRemove ){
+	print "Removing $record->{file}, it does not exist.\n";
+	splice(@libData,$index,1);
+      }
+      else{
+	my $responce;
+	do{
+	  print "$record->{file} does not exist, remove <y|n>:";
+	  $responce = <STDIN>;
+	}while( $responce !~ m/^(y|n)/i );
+
+	if( $responce =~ m/^y/i ){
+	  splice(@libData,$index,1);
+	}
+      }
+    }
+    $index++;
+  }
 
   # ok, open the library in append more so we can add new entries to it in
   # real time. Updates will not be added until the end. This is the best
