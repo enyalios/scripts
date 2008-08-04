@@ -36,7 +36,7 @@ cd /mnt/media/archive
 # find a good filename
 outfile="$($EPISODES -lu "$title" "$subtitle")"
 
-#if it is a movie episodes will not work
+# if it is a movie episodes will not work
 [[ "$outfile" == "" ]] && outfile=$( echo $title | tr ' ' '_' )
 
 # cut out the commercials and make a nice mpeg2 for passing to dvdrip
