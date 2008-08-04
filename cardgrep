@@ -36,7 +36,7 @@ if($opts{u}) {
 
     # and format it nicely
     for($data) {
-        s/^.*?\n<table class="TextResultsTable" border="0">\n//s;
+        s/^.*?\n<table class="TextResultsTable".*?border="0">\n//s;
         s/\n<\/table>.*?$//s;
         s/\r|<.*?>|&nbsp;//g;
         s/\xC3\x86/AE/g;
