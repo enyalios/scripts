@@ -21,7 +21,8 @@ my $homeDir    = File::HomeDir->my_home;
 my $imdbMethod = "all";
 my $verbosity  = 0;
 my $diffPrintMode = "flat";
-my $allowRemove = 0;
+my $allowRemove= 0;
+my $fullPaths  = 0;
 
 my @libraries = ();
 my @files     = ();
@@ -50,8 +51,9 @@ Options:
   --type     -t (xml|csv|tab)       type to use when generating.
   --force    -f                     force updates to occur without checking.
   --imdb     -b (all|myth|man|net)  how to aquire IMDB numbers.
-  --allowRemove  -r                 allow records to be removed automatically
-  --display-mode -m (flat|unified)  change how diff mode displays output.
+  --allowRemove -r                  allow records to be removed automatically
+  --displayMode -m (flat|unified)   change how diff mode displays output.
+  --fullPaths   -l                  output full paths instead of nice names
 
   Short options may be bundled and long options abbreviated.
 EOF
@@ -78,7 +80,8 @@ sub ParseArgs {
 	'imdb|b=s'       => \$imdbMethod,
 	'verbose|v'      => \$verbosity,
 	'displayMode|m=s'      => \$diffPrintMode,
-	'allowRemove|r'  => \$allowRemove
+	'allowRemove|r'  => \$allowRemove,
+	'fullPaths|l'    => \$fullPaths
     );
 
     # Figure out which mode we are in, and check for how many were specified
@@ -764,7 +767,9 @@ sub PrintForDiff {
   my ( $diffchar, $name, $quality, $aspect, $format, $size ) = @_;
 
   my $displayName = $name;
-  $displayName =~ s/^(.{27})....*/$1\.\.\./;
+  if( !$fullPaths ){
+    $displayName =~ s/^(.{27})....*/$1\.\.\./;
+  }
 
   if( $diffPrintMode eq "unified" ){
 
@@ -889,10 +894,27 @@ sub ModeDiff() {
 
       if( $otherLibRef == \@lhs ){
 	# space indicates that the file appears in both libraries
-	PrintForDiff(" ",$otherLibRef->[$position]->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+	my $displayName;
+	if($fullPaths ){
+	  $displayName =  $otherLibRef->[$position]->{file};
+	}
+	else{
+	  $displayName = $otherLibRef->[$position]->{name};
+	}
+
+	PrintForDiff(" ",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
       }
       else{
-	PrintForDiff(" ",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+
+	my $displayName;
+	if($fullPaths ){
+	  $displayName =  $file->{file};
+	}
+	else{
+	  $displayName = $file->{name};
+	}
+
+	PrintForDiff(" ",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
       }
       undef $otherLibRef->[$position];
     }
@@ -902,8 +924,17 @@ sub ModeDiff() {
 
       if( $position >= 0 ){
 
-	my $otherDisplayName = $otherLibRef->[$position]->{name};
-	$otherDisplayName =~ s/^(.{27})....*/$1\.\.\./;
+	my $otherDisplayName;
+	my $displayName;
+	if( $fullPaths ){
+	  $otherDisplayName = $otherLibRef->[$position]->{file};
+	  $displayName = $file->{file};
+	}
+	else{
+	  $otherDisplayName = $otherLibRef->[$position]->{name};
+	  $displayName = $file->{name};
+	}
+
 
 	# we want the + to always refer to the file in the left hand library, and we want the + to always come
 	# before the -. Also, some diff print modes need to the know the differeance between a +- pair and a
@@ -911,10 +942,10 @@ sub ModeDiff() {
 	if( $otherLibRef == \@lhs ){
 	  PrintForDiff("+2",$otherDisplayName,$otherLibRef->[$position]->{quality},$otherLibRef->[$position]->{prettyaspect},$otherLibRef->[$position]->{format},$otherLibRef->[$position]->{size});
 	
-	  PrintForDiff("-2",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+	  PrintForDiff("-2",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
 	}
 	else{
-	  PrintForDiff("+2",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+	  PrintForDiff("+2",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
 	  PrintForDiff("-2",$otherDisplayName,$otherLibRef->[$position]->{quality},$otherLibRef->[$position]->{prettyaspect},$otherLibRef->[$position]->{format},$otherLibRef->[$position]->{size});
 	}
 	
@@ -922,11 +953,29 @@ sub ModeDiff() {
       }
       # the file is missing from the left hand side. The 1 is a redudent but serves as indication that this is not pair.
       elsif($otherLibRef == \@lhs){
-	PrintForDiff("-1",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+
+	my $displayName;
+	if($fullPaths ){
+	  $displayName =  $file->{file};
+	}
+	else{
+	  $displayName = $file->{name};
+	}
+
+	PrintForDiff("-1",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
       }
       # the file only appears in the left hand side. The 1 is a redudent but serves as indication that this is not pair.
       else{
-	PrintForDiff("+1",$file->{name},$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
+
+	my $displayName;
+	if($fullPaths ){
+	  $displayName =  $file->{file};
+	}
+	else{
+	  $displayName = $file->{name};
+	}
+
+	PrintForDiff("+1",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size});
       }
     } #end no md5 match
   } #end for loop
@@ -948,8 +997,15 @@ sub ModePrint(){
 
   print "Name\t\t\t\tQuality\tAspect\tCodec\tSize\tIMDB#\n";
   foreach my $file ( sort { $a->{quality} <=> $b->{quality} } @libData  ){
-    my $displayName = $file->{name};
-    $displayName =~ s/^(.{28})....*/$1\.\.\./;
+
+    my $displayName;
+    if($fullPaths ){
+      $displayName = $file->{file};
+    }
+    else{
+      $displayName = $file->{name};
+      $displayName =~ s/^(.{28})....*/$1\.\.\./;
+    }
 
     printf "%-30s\t%.2f\t%6s\t%-4s %5d Mb %7d\n",$displayName,$file->{quality},$file->{prettyaspect},$file->{format},$file->{size}/1024**2,$file->{imdb};
 
