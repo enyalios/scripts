@@ -1015,28 +1015,6 @@ sub ModeUpdate(){
   my ( $libFormat, @libData) = ReadLibrary($libraries[0]);
   my $LIB;
 
-  # check that every file in the libarary still exists
-  my $index = 0;
-  foreach my $record (@libData){
-    if( !( -e $record->{file} ) ){
-      if( $allowRemove ){
-	print "Removing $record->{file}, it does not exist.\n";
-	splice(@libData,$index,1);
-      }
-      else{
-	my $responce;
-	do{
-	  print "$record->{file} does not exist, remove <y|n>:";
-	  $responce = <STDIN>;
-	}while( $responce !~ m/^(y|n)/i );
-
-	if( $responce =~ m/^y/i ){
-	  splice(@libData,$index,1);
-	}
-      }
-    }
-    $index++;
-  }
 
   # ok, open the library in append more so we can add new entries to it in
   # real time. Updates will not be added until the end. This is the best
@@ -1116,6 +1094,29 @@ sub ModeUpdate(){
 
   # ok so we're done appending the data as we go in case of a crash.
   close $LIB;
+
+  # check that every file in the libarary still exists
+  my $index = 0;
+  foreach my $record (@libData){
+    if( !( -e $record->{file} ) ){
+      if( $allowRemove ){
+	print "Removing $record->{file}, it does not exist.\n";
+	splice(@libData,$index,1);
+      }
+      else{
+	my $responce;
+	do{
+	  print "$record->{file} does not exist, remove <y|n>:";
+	  $responce = <STDIN>;
+	}while( $responce !~ m/^(y|n)/i );
+
+	if( $responce =~ m/^y/i ){
+	  splice(@libData,$index,1);
+	}
+      }
+    }
+    $index++;
+  }
 
   # now we need to take care of the updates which were kept only in
   # memory until now, replace the existing library with what we've got.
