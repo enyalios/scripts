@@ -60,11 +60,9 @@ if ps -e | grep "firefox-bin" > /dev/null; then
     else
         wmctrl -c 'Mozilla Firefox'
     fi
-    sleep 1
+    while wmctrl -l | grep -qi firefox; do
+        sleep .5
+    done
+    sleep .5
     firefox > /dev/null &
-#     while ! wmctrl -l | grep -qi firefox; do
-#         sleep .5
-#     done
-#     sleep .5
-#     wmctrl -r firefox -t $DESKTOP
 fi
