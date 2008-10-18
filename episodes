@@ -2,12 +2,20 @@
 
 use strict;
 use warnings;
-use LWP::Simple;
+use LWP::UserAgent;
 use Data::Dumper;
 use Getopt::Std;
 
 my $cache_file = "/tmp/episode_cache";
 my ($title, $subtitle, $ext, %data, %opts);
+
+sub get {
+    my $url = $_[0];
+    my $ua = LWP::UserAgent->new;
+    # act like mozilla since google hates LWP
+    $ua->agent('Mozilla/5.0'); 
+    $ua->get($url)->content;
+}
 
 sub parse_args {
     getopts('luhvcd', \%opts);
@@ -98,49 +106,53 @@ sub grab_eps {
     delete $data{simple($title)};
 
     # find the url of the episode listing for the given show
-    (my $show_url, $title ) = get("http://www.tv.com/search.php?stype=all&qs=$title") 
-        =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
+    (my $show_url) = get("http://www.google.com/search?hl=en&q=allintitle%3A+site%3Atv.com+$title&btnG=Search")
+        =~ m!href="(http://www.tv.com/.*?/summary.html)!;
+    ($title) = get("$show_url") =~ m!<title>(.*?) - TV\.com </title>!;
     die "could not find any show by that name!\n" unless $show_url;
     $show_url =~ s/summary\.html$/episode_listings.html/;
     print "\$show_url: $show_url\n" if $opts{v};
 
     # loop over the episode pages and print out the episodes
     # using this page first, follow by any other season pages
-    my @seasons = ("$show_url?season=1", get("$show_url") =~ /<option value="(.*season=(?:[2-9]|[1-9]\d+))(?!\d)/g);
-    my $season_length = length(($seasons[-1] =~ /(\d+)$/)[0]);
+    (my $season_url = $show_url) =~ s/summary\.html$/episode_listings.html/;
+    #my @seasons = ("$show_url?season=1", get("$show_url") =~ /<option value="(.*season=(?:[2-9]|[1-9]\d+))(?!\d)/g);
+    my @seasons = get("$season_url?season=1&tag=season_dropdown%3Bdropdown") =~ /option value="([1-9]|\d\d+)"/g;
+    $seasons[0] = 1 unless @seasons;
+    my $season_length = length $seasons[-1];
     for(@seasons) {
         print "  getting season page: $_\n" if $opts{v};
-        my ($season_num) = /(\d+)$/;
+        my ($season_num) = $_;
         my $ep_num = 1;
-        my $page = get $_;
-        for ($page =~ m!(^\s+(?:\d+|Special)\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">.*</a>)!mg) {
-	
-	  $_ =~ m!^\s+(\d+|Special)\s+</td>\s+<td class="f-bold">\s+<a href="[^"]+episode/\d+/summary.html.*?">(.*)</a>!;
-	
-	  my $ep_title = $2;
+        my $page = get( $season_url . "?season=" . $_ . "&tag=season_dropdown%3Bdropdown" );
+        for ($page =~ m!(<tr class=.*?<td class="ep_title">.*?<td class="ep_air_date">)!g) {
 
+            m!^<tr class=".*?"><td class="num"><div>(\d+|Special)\s*</div></td>\s*<td class="ep_title"><div><a href="http://www\.tv\.com.*?">(.*)</a>!;
 
-	  # this code starts us using the right number if a "Piolt" episode in
-	  # first season is listed as Pilot and the next episode starts at
-	  # number 2. This occurs to futurama, currently the pilot episode
-	  # is still skipped. a 2 pass aproach seems the only way to really
-	  # solve this, and not scew up shows like star trek where the pilot is
-	  # not counted in the first season
-	
-	  if( $1 ne $ep_num &&
-	 	$ep_num == 1 &&
-		 $season_num == 1){
-	    $ep_num = $1;
-	    print "    using data suplied starting ep number: $1\n" if $opts{v};
-	  }
+            my $ep_title = $2;
+            next unless $ep_title;
 
-	  $ep_title =~ s/\xC0/A/g;
-	  $ep_title =~ s/\xE0/a/g;
-	  $ep_title =~ s/\xE9/e/g;
+            # this code starts us using the right number if a "Piolt" episode in
+            # first season is listed as Pilot and the next episode starts at
+            # number 2. This occurs to futurama, currently the pilot episode
+            # is still skipped. a 2 pass aproach seems the only way to really
+            # solve this, and not scew up shows like star trek where the pilot is
+            # not counted in the first season
 
-          print "   found episode: $ep_title\n" if $opts{v};
-	  
-	  $data{simple($title)}{simple($ep_title)} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $ep_title);
+            if( $1 ne $ep_num &&
+                $ep_num == 1 &&
+                $season_num == 1){
+                $ep_num = $1;
+                print "    using data suplied starting ep number: $1\n" if $opts{v};
+            }
+
+            $ep_title =~ s/\xC0/A/g;
+            $ep_title =~ s/\xE0/a/g;
+            $ep_title =~ s/\xE9/e/g;
+
+            print "   found episode: $ep_title\n" if $opts{v};
+
+            $data{simple($title)}{simple($ep_title)} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $ep_title);
         }
     }
     write_cache();
