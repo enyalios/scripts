@@ -3,44 +3,47 @@
 # these times are in minutes past midnight
 RISE_DEFAULT=360  # 6:00 am
 SET_DEFAULT=1080  # 6:00 pm
-ZIPCODE=61801     # sets your zipcode for sun rise/set times
+ZIPCODE=61820     # sets your zipcode for sun rise/set times
 
 TRUE_STRING='user_pref("browser.display.use_document_colors", true);'
 FALSE_STRING='user_pref("browser.display.use_document_colors", false);'
 PREF_FILE=$(ls /home/enyalios/.mozilla/firefox/*.default/user.js)
 WEATHER_URL="http://www.wunderground.com/cgi-bin/findweather/getForecast?query=$ZIPCODE"
-
-#echo -e "\n====" >> .firefox-colors
-#date >> .firefox-colors
+CACHE_FILE=$HOME/.firefox-colors
 
 if [[ "$1" = "" ]]; then
-    TIMES=$(wget -qO - $WEATHER_URL | sed -ne '/<h4>Rise<\/h4>/,+6p')
-    RISE_TIME=$(echo $TIMES | sed -ne 6p | perl -pe 's/.*?>(\d+):(\d+) .*/$1*60 + $2/e')
-    SET_TIME=$(echo $TIMES | sed -ne 7p | perl -pe 's/.*?>(\d+):(\d+) .*/($1 + 12)*60 + $2/e')
-    CUR_TIME=$(echo "$(date +%H)*60 + $(date +%M)" | bc)
-    [[ "$RISE_TIME" = "" ]] && RISE_TIME=$RISE_DEFAULT
-    [[ "$SET_TIME" = "" ]] && SET_TIME=$SET_DEFAULT
+    EPOCH=$(date +%s)
+    LAST_UPDATE=$(sed -ne 1p $CACHE_FILE)
+    if [[ "`echo ${EPOCH}-${LAST_UPDATE} | bc`" -ge 86400 ]]; then # more than 24 hours old
+        TIMES=$(wget -qO - $WEATHER_URL | sed -ne '/<td>Actual Time<\/td>/,+2p')
+        RISE_TIME=$(echo $TIMES | sed -ne 2p | perl -pe 's/.*?>(\d+):(\d+) AM.*/$1*60 + $2/e')
+        SET_TIME=$(echo $TIMES | sed -ne 3p | perl -pe 's/.*?>(\d+):(\d+) PM.*/($1 + 12)*60 + $2/e')
+        CUR_TIME=$(echo "$(date +%H)*60 + $(date +%M)" | bc)
+        if [[ ( -n $RISE_TIME && -n $SET_TIME ) ]]; then
+            echo -e "$EPOCH\n$RISE_TIME\n$SET_TIME" > $CACHE_FILE
+        fi
+        [[ "$RISE_TIME" = "" ]] && RISE_TIME=$RISE_DEFAULT
+        [[ "$SET_TIME" = "" ]] && SET_TIME=$SET_DEFAULT
+    else
+        RISE_TIME=$(sed -ne 2p $CACHE_FILE)
+        SET_TIME=$(sed -ne 3p $CACHE_FILE)
+    fi
     [[ "$CUR_TIME" -ge "$SET_TIME" || "$CUR_TIME" -lt "$RISE_TIME" ]] \
         && SCHEME=custom || SCHEME=default
-    # next line is for debugging
-#    echo -e "$TIMES\nrise: $RISE_TIME\nset:  $SET_TIME\ncur:  $CUR_TIME\nscheme: $SCHEME" >> .firefox-colors
+    # echo -e "$TIMES\nrise: $RISE_TIME\nset:  $SET_TIME\ncur:  $CUR_TIME\nscheme: $SCHEME"
 else 
     SCHEME=$1
 fi
 
 if [ "$SCHEME" = "custom" ]; then
     if grep "$FALSE_STRING" $PREF_FILE > /dev/null ; then
-#        echo "set to custom, we are custom -> dont restart" >> .firefox-colors
         exit 0;
     fi
-#    echo "switching to custom -> restart" >> .firefox-colors
     sed -i "s/$TRUE_STRING/$FALSE_STRING/" $PREF_FILE
 elif [ "$SCHEME" = "default" ]; then
     if grep "$TRUE_STRING" $PREF_FILE > /dev/null ; then
-#        echo "set to default, we are default -> dont restart" >> .firefox-colors
         exit 0;
     fi
-#    echo "switching to default -> restart" >> .firefox-colors
     sed -i "s/$FALSE_STRING/$TRUE_STRING/" $PREF_FILE
 else
     echo "Invalid scheme: $SCHEME"
@@ -49,12 +52,10 @@ else
 fi
 
 if ps -e | grep "firefox-bin" > /dev/null; then
-#    echo "firefox is running, restarting" >> .firefox-colors
     [[ -x $HOME/bin/pages ]] && $HOME/bin/pages > $HOME/.pages
     export DISPLAY=:0
-#     DESKTOP=`wmctrl -l | grep -i firefox | awk '{print $2}'`
-# close mult windows with killall so they close at the same time.  if only 1
-# window, then use wmctrl as it closes it more cleanly
+    # close mult windows with killall so they close at the same time.  if only 1
+    # window, then use wmctrl as it closes it more cleanly
     if [[ "$(wmctrl -l | grep -c 'Mozilla Firefox')" -gt "1" ]]; then
         killall firefox-bin
     else
