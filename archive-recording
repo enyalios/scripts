@@ -35,6 +35,7 @@ cd /mnt/media/archive
 
 # find a good filename
 outfile="$($EPISODES -lu "$title" "$subtitle")"
+[ -e "${outfile}.mkv" ] && outfile="${outfile}.$$"
 
 # if it is a movie episodes will not work
 [[ "$outfile" == "" ]] && outfile=$( echo $title | tr ' ' '_' )
