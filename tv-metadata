@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use LWP::Simple;
+use LWP::UserAgent;
 use DBI;
 use POSIX "ceil";
 use Getopt::Std;
@@ -19,6 +19,14 @@ my $password = "mythtv";
 
 # we don't handle arguments yet so for now use this
 my %opts;
+
+sub get {
+    my $url = $_[0];
+    my $ua = LWP::UserAgent->new;
+    # act like mozilla since google hates LWP
+    $ua->agent('Mozilla/5.0'); 
+    $ua->get($url)->content;
+}
 
 # mostly here for debuggin, not really used.
 sub PrintEpisode {
@@ -39,8 +47,12 @@ sub PrintEpisode {
 sub GetData {
   my ($old_title) = my ($title) = @_;
   $title =~ s/_/ /;
-  (my $show_url, $title ) = get("http://www.tv.com/search.php?type=11&stype=program&qs=$title&tag=filter;tv_shows") =~ /<a class="f-bold f-C30" href="(.*summary\.html).*?">(.*?)<\/a>/;
-  print "Could not find show '$old_title'\n" and die unless $show_url;
+ # find the url of the episode listing for the given show
+    (my $show_url) = get("http://www.google.com/search?hl=en&q=allintitle%3A+site%3Atv.com+$old_title&btnG=Search")
+        =~ m!href="(http://www.tv.com/.*?/summary.html)!;
+    ($title) = get("$show_url") =~ m!<title>(.*?) - TV\.com </title>!;
+    die "could not find show '$old_title'!\n" unless $show_url;
+
   $show_url =~ s/summary\.html$/episode_guide.html?printable=1/;
 
   my @list;
