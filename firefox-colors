@@ -1,8 +1,5 @@
 #!/bin/zsh
 
-# these times are in minutes past midnight
-RISE_DEFAULT=360  # 6:00 am
-SET_DEFAULT=1080  # 6:00 pm
 ZIPCODE=61820     # sets your zipcode for sun rise/set times
 
 TRUE_STRING='user_pref("browser.display.use_document_colors", true);'
@@ -10,6 +7,11 @@ FALSE_STRING='user_pref("browser.display.use_document_colors", false);'
 PREF_FILE=$(ls /home/enyalios/.mozilla/firefox/*.default/user.js)
 WEATHER_URL="http://www.wunderground.com/cgi-bin/findweather/getForecast?query=$ZIPCODE"
 CACHE_FILE=$HOME/.firefox-colors
+
+# make a cache file if it doesnt exist with default times of 6am and 6pm
+if [[ ! -e $CACHE_FILE ]]; then
+    echo -e '0\n360\n1080' > $CACHE_FILE
+fi
 
 if [[ "$1" = "" ]]; then
     EPOCH=$(date +%s)
@@ -22,8 +24,8 @@ if [[ "$1" = "" ]]; then
         if [[ ( -n $RISE_TIME && -n $SET_TIME ) ]]; then
             echo -e "$EPOCH\n$RISE_TIME\n$SET_TIME" > $CACHE_FILE
         fi
-        [[ "$RISE_TIME" = "" ]] && RISE_TIME=$RISE_DEFAULT
-        [[ "$SET_TIME" = "" ]] && SET_TIME=$SET_DEFAULT
+        [[ "$RISE_TIME" = "" ]] && RISE_TIME=$(sed -ne 2p $CACHE_FILE)
+        [[ "$SET_TIME" = "" ]] && SET_TIME=$(sed -ne 3p $CACHE_FILE)
     else
         RISE_TIME=$(sed -ne 2p $CACHE_FILE)
         SET_TIME=$(sed -ne 3p $CACHE_FILE)
