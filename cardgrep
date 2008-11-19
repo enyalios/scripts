@@ -53,10 +53,17 @@ if($opts{u}) {
 open INPUT, "<$data_file" or die "cant find input file\n";
 
 CARD: while(<INPUT>) {
-    # skip to the next card unless it matches all regexs
-    for my $regex (@ARGV) { next CARD unless /$regex/im; }
+    # skip to the next card unless it agrees with all regexs
+    # regexs that start with '!' are negated
+    for my $arg (@ARGV) { 
+        if ((my $regex = $arg) =~ s/^!//) {
+            next CARD if /$regex/im;
+        } else {
+            next CARD unless /$regex/im; 
+        }
+    }
     my ($card_name) = /^CardName: +(.*)$/m;
-    
+
     # save the name to a hash so we dont print out dupes
     next CARD if $cards{$card_name}++;
     if($opts{n}) { 
