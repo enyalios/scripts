@@ -116,16 +116,15 @@ sub grab_eps {
     # loop over the episode pages and print out the episodes
     # using this page first, follow by any other season pages
     (my $season_url = $show_url) =~ s/summary\.html$/episode_listings.html/;
-    #my @seasons = ("$show_url?season=1", get("$show_url") =~ /<option value="(.*season=(?:[2-9]|[1-9]\d+))(?!\d)/g);
-    my @seasons = get("$season_url?season=1&tag=season_dropdown%3Bdropdown") =~ /option value="([1-9]|\d\d+)"/g;
+    my @seasons = 1.. (get("$season_url?season=1") =~ /episode_listings.html\?season=(\d+)"/g)[0]; 
     $seasons[0] = 1 unless @seasons;
     my $season_length = length $seasons[-1];
     for(@seasons) {
         print "  getting season page: $_\n" if $opts{v};
         my ($season_num) = $_;
         my $ep_num = 1;
-        my $page = get( $season_url . "?season=" . $_ . "&tag=season_dropdown%3Bdropdown" );
-        for ($page =~ m!(<tr class=.*?<td class="ep_title">.*?<td class="ep_air_date">)!g) {
+        my $page = get( $season_url . "?season=" . $_ );
+        for (reverse $page =~ m!(<tr class=.*?<td class="ep_title">.*?<td class="ep_air_date">)!g) {
 
             m!^<tr class=".*?"><td class="num"><div>(\d+|Special)\s*</div></td>\s*<td class="ep_title"><div><a href="http://www\.tv\.com.*?">(.*)</a>!;
 
