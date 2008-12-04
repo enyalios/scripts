@@ -34,6 +34,15 @@ for my $dir(@maildirs) {
         $date = (grep { /^date: /i } @fields)[0] || "jan 1 1970";
         $date =~ s/^date: +//i;
         $epoch = str2time $date; 
+        
+        # oof, we cant find a real date in the date field.
+        # fall back to the time we received the email.
+        if(!$epoch || $now - $epoch < 0) {
+            $date = (grep { /^Received: / } @fields)[0];
+            $date =~ s/^Received:.*?^\t.*?; (\w{3}, \d{1,2} \w{3} \d{4} \d{2}:\d{2}:\d{2}.*$)/$1/sm;
+            $epoch = str2time $date;
+        }
+
         $epoch ||= 0;
         if(($now - $epoch) < 60*60) {
             my $amount = ($now - $epoch) / 60;
