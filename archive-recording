@@ -35,10 +35,12 @@ cd /mnt/media/archive
 
 # find a good filename
 outfile="$($EPISODES -lu "$title" "$subtitle")"
-[ -e "${outfile}.mkv" ] && outfile="${outfile}.$$"
 
 # if it is a movie episodes will not work
 [[ "$outfile" == "" ]] && outfile=$( echo $title | tr ' ' '_' )
+
+# rename the file if it would overwrite something
+[ -e "${outfile}.mkv" ] && outfile="${outfile}.$$"
 
 # cut out the commercials and make a nice mpeg2 for passing to dvdrip
 $MYTHTRANSCODE --chanid $chanid --starttime $starttime --outfile \
