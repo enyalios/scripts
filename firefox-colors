@@ -7,6 +7,7 @@ FALSE_STRING='user_pref("browser.display.use_document_colors", false);'
 PREF_FILE=$(ls /home/enyalios/.mozilla/firefox/*.default/user.js)
 WEATHER_URL="http://www.wunderground.com/cgi-bin/findweather/getForecast?query=$ZIPCODE"
 CACHE_FILE=$HOME/.firefox-colors
+LOG_FILE="$HOME/.firefox-colors.log"
 
 # make a cache file if it doesnt exist with default times of 6am and 6pm
 if [[ ! -e $CACHE_FILE ]]; then
@@ -16,11 +17,11 @@ fi
 if [[ "$1" = "" ]]; then
     EPOCH=$(date +%s)
     LAST_UPDATE=$(sed -ne 1p $CACHE_FILE)
+    CUR_TIME=$(echo "$(date +%H)*60 + $(date +%M)" | bc)
     if [[ "`echo ${EPOCH}-${LAST_UPDATE} | bc`" -ge 86400 ]]; then # more than 24 hours old
         TIMES=$(wget -qO - $WEATHER_URL | sed -ne '/<td>Actual Time<\/td>/,+2p')
         RISE_TIME=$(echo $TIMES | sed -ne 2p | perl -pe 's/.*?>(\d+):(\d+) AM.*/$1*60 + $2/e')
         SET_TIME=$(echo $TIMES | sed -ne 3p | perl -pe 's/.*?>(\d+):(\d+) PM.*/($1 + 12)*60 + $2/e')
-        CUR_TIME=$(echo "$(date +%H)*60 + $(date +%M)" | bc)
         if [[ ( -n $RISE_TIME && -n $SET_TIME ) ]]; then
             echo -e "$EPOCH\n$RISE_TIME\n$SET_TIME" > $CACHE_FILE
         fi
@@ -32,7 +33,7 @@ if [[ "$1" = "" ]]; then
     fi
     [[ "$CUR_TIME" -ge "$SET_TIME" || "$CUR_TIME" -lt "$RISE_TIME" ]] \
         && SCHEME=custom || SCHEME=default
-    # echo -e "$TIMES\nrise: $RISE_TIME\nset:  $SET_TIME\ncur:  $CUR_TIME\nscheme: $SCHEME"
+    #echo -e "$TIMES\nrise: $RISE_TIME\nset:  $SET_TIME\ncur:  $CUR_TIME\nscheme: $SCHEME" >> $LOG_FILE
 else 
     SCHEME=$1
 fi
@@ -63,9 +64,16 @@ if ps -e | grep "firefox-bin" > /dev/null; then
     else
         wmctrl -c 'Mozilla Firefox'
     fi
-    while wmctrl -l | grep -qi firefox; do
-        sleep .5
+    # wait up to 5 seconds for firefox to shutdown before restarting it
+    for i in {1..10}; do
+        if ps -e | grep -qi firefox; then
+            sleep .5
+        else
+            firefox > /dev/null &
+            exit
+        fi
     done
-    sleep .5
+    # if it doesnt finish in time, just kill it hard and restart it
+    killall -9 firefox-bin
     firefox > /dev/null &
 fi
