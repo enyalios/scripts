@@ -66,7 +66,7 @@ EOF
         
 sub simple {
     my $word = $_[0] || "";
-    for($word) { y/A-Z /a-z_/; y/-a-z_0-9//cd; }
+    for($word) { s/&#\d+?;/'/g; y/A-Z /a-z_/; y/-a-z_0-9//cd; }
     return $word;
 }
 
@@ -165,6 +165,7 @@ sub write_cache {
 }
 
 sub format_match {
+    $_[0] =~ s/&#039/'/g;
     $_[0] =~ s/&/and/g;
     $_[0] =~ y/-_A-Za-z0-9 .,'()%?!//cd;
     $_[0] = lc $_[0] if $opts{l};
