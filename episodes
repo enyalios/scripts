@@ -18,7 +18,7 @@ sub get {
 }
 
 sub parse_args {
-    getopts('luhvcd', \%opts);
+    getopts('luhvcdi', \%opts);
     HELP_MESSAGE() if $opts{h};
     if(@ARGV == 2) { 
         ($title, $subtitle) = @ARGV;
@@ -54,6 +54,7 @@ usage:
 
 options:
     -c    cache-only (skip internet lookups)
+    -i    internet-only (skip cache lookup)
     -h    print help message
     -l    lowercase filenames
     -u    convert spaces to underscores
@@ -124,7 +125,7 @@ sub grab_eps {
         my ($season_num) = $_;
         my $ep_num = 1;
         my $page = get( $season_url . "?season=" . $_ );
-        for (reverse $page =~ m!(<tr class=.*?<td class="ep_title">.*?<td class="ep_air_date">)!g) {
+        for ($page =~ m!(<tr class=.*?<td class="ep_title">.*?<td class="ep_air_date">)!g) {
 
             m!^<tr class=".*?"><td class="num"><div>(\d+|Special)\s*</div></td>\s*<td class="ep_title"><div><a href="http://www\.tv\.com.*?">(.*)</a>!;
 
@@ -177,13 +178,13 @@ sub format_match {
 parse_args();
 %data = load_cache();
 if($subtitle) {
-    my $match = find_match();
+    my $match = find_match() unless $opts{i};
     if(!$match && !$opts{c}) {
         grab_eps();
         $match = find_match();
     }
     print $match ? "$match" : format_match("$title  $subtitle"), "$ext\n"; 
 } else {
-    grab_eps() unless $data{simple($title)};
+    grab_eps() if ($opts{i} || !$data{simple($title)});
     print format_match($_), "\n" for sort values %{$data{simple($title)}};
 }
