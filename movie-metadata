@@ -53,25 +53,32 @@ while (my $ref = $sth->fetchrow_hashref()) {
     my $imdb_num;
 
     if( defined($ARGV[0]) &&  $ARGV[0] eq "-m"){
-      print "> ";
-      $imdb_num = <STDIN>;
-      chomp $imdb_num;
+        print "> ";
+        $imdb_num = <STDIN>;
+        chomp $imdb_num;
     }
     else{
-      # use the imdb script to find the imdb number
-      $imdb_num = `$imdb_script -M "$ref->{title}"`;
-      $imdb_num =~ s/:.*//s;
-      $imdb_num =~ s/^(\d+).*/$1/;
-      print "$imdb_num\n";
+        # here we have to find the imdb number
+        # first do a stupid lookup since imdb.pl fails if there is only 1 hit
+        my $content = get("http://www.imdb.com/find?q=" . $ref->{title});
+        $content =~ m!http://pro\.imdb\.com/title/tt(\d+)/!;
+        $imdb_num = $1;
+        # if there is more than 1 hit the above doesnt work so use imdb.pl
+        unless($imdb_num) {
+            $imdb_num = `$imdb_script -M "$ref->{title}"`;
+            $imdb_num =~ s/:.*//s;
+            $imdb_num =~ s/^(\d+).*/$1/;
+        }
+        print "$imdb_num\n";
     }
     next unless $imdb_num;
-    
+
     # use the imdb script to find the metadata
     $_ = `$imdb_script -D $imdb_num`;
     my %data;
     /^(.*?):(.*)/, $data{$1} = $2 for(split "\n");
     $data{Cover} = "No Cover";
-    
+
     # use the imdb script to lookup the image and then grab it
     my $img_url = `$imdb_script -P $imdb_num`;
     $img_url =~ s/\n.*//s;
