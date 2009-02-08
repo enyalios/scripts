@@ -13,7 +13,7 @@ while(1) {
     my $rate = ($data =~ /^present rate.*?(\d+) mW$/m)[0];
     if($remaining && $rate) {
         my $time = $remaining/$rate*60;
-        if($time < 5 && $discharging) { 
+        if($time < 3 && $discharging) { 
             system("logger -t acpi battery running low, hibernating");
             system("/usr/sbin/hibernate");
         }
