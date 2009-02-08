@@ -6,8 +6,20 @@ TRUE_STRING='user_pref("browser.display.use_document_colors", true);'
 FALSE_STRING='user_pref("browser.display.use_document_colors", false);'
 PREF_FILE=$(ls /home/enyalios/.mozilla/firefox/*.default/user.js)
 WEATHER_URL="http://www.wunderground.com/cgi-bin/findweather/getForecast?query=$ZIPCODE"
-CACHE_FILE=$HOME/.firefox-colors
+CACHE_FILE="$HOME/.firefox-colors"
 LOG_FILE="$HOME/.firefox-colors.log"
+LOCK_FILE="$HOME/.firefox-colors.lock"
+
+if [[ "$1" = "-cron" ]]; then
+    shift
+    if [[ -e $LOCK_FILE ]]; then
+        exit 1
+    fi
+fi
+
+if [[ "$1" = "default" || "$1" = "custom" ]]; then
+    touch $LOCK_FILE
+fi
 
 # make a cache file if it doesnt exist with default times of 6am and 6pm
 if [[ ! -e $CACHE_FILE ]]; then
@@ -15,6 +27,7 @@ if [[ ! -e $CACHE_FILE ]]; then
 fi
 
 if [[ "$1" = "" ]]; then
+    [[ -e $LOCK_FILE ]] && rm $LOCK_FILE
     EPOCH=$(date +%s)
     LAST_UPDATE=$(sed -ne 1p $CACHE_FILE)
     CUR_TIME=$(echo "$(date +%H)*60 + $(date +%M)" | bc)
