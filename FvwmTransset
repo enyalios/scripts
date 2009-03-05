@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+#
+# this module adds support for default window transparencies to fvwm.  it reads
+# config information from ~/.fvwm/trans.defaults .  youll need to place this
+# script in your modulepath.
+#
+# you may want to add this stuff to your .fvwm/config:
+# AddToFunc   StartFunction
+# + I Module FvwmTransset
+#
+# DestroyFunc TransChange
+# AddToFunc   TransChange
+# + I Exec exec transset-df $0 .1 -i $1 --min .1
+#
+# Mouse 4 W M TransChange --inc $[w.id]
+# Mouse 5 W M TransChange --dec $[w.id]
+# 
+# the config should look something like this:
+# WM_NAME:xclock:0.6
+# WM_CLASS:XTerm:0.75
+# #WM_CLASS:Firefox:0.6
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+
+my $module = new FVWM::Module;
+
+my $defaultsFile = "$ENV{HOME}/.fvwm/trans.defaults";
+
+# set correct transparencies on startup
+sub startup
+{
+    onWindowCreate($_) for($module->track("WindowList")->windows);
+}
+
+# Called by FVWM for every created window
+sub onWindowCreate
+{
+    # find the win_id this way if called from startup()
+    my $win_id = $_[0]->{win_id};
+    # otherwise find it this way if called from create handler
+    $win_id = $_[1]->_win_id unless $win_id;
+    my $trans = 1; # Default transparency of 1.0 on all windows
+    open(DEFAULTS, "<", $defaultsFile) or die "No config file";
+
+    my @xprop = `xprop -id $win_id`;
+    while(my $line = <DEFAULTS>)
+    {
+        # skip blank lines and comments
+        next if $line =~ /^\s*(#|$)/;
+        # Token 0 is the window property to match against
+        # Token 1 is the value to match
+        # Token 2 is the default transparency level
+        chomp($line);
+        my @tokens = split(/:/, $line);
+
+        # each iteration checks to see if we match the criterion
+        if(grep /$tokens[0].*$tokens[1]/, @xprop)
+        {
+            # set the transparency
+            $trans = $tokens[2];
+            # and don't bother with the other lines
+            last;
+        }
+    }
+
+    close(DEFAULTS);
+
+    if($trans < 1.0)
+    {
+        # this part is a little weird.  i set the transparency, then sleep 150
+        # ms, then set it again.  i do this as i want to get the transparency
+        # set as quickly as possible, but the setting doesnt work if the window
+        # is still fading in due to having 'compmgr -f' set.  this is why we
+        # sleep to make sure the window is done fading in and then reset it.
+        system("transset-df","-i",$win_id,$trans);
+        select(undef, undef, undef, 0.15);
+        system("transset-df","-i",$win_id,$trans);
+    }
+}
+
+startup();
+
+$module->addHandler(M_ADD_WINDOW, \&onWindowCreate);
+$module->eventLoop; 
