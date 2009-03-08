@@ -50,7 +50,7 @@ sub GetData {
  # find the url of the episode listing for the given show
     (my $show_url) = get("http://www.google.com/search?hl=en&q=allintitle%3A+site%3Atv.com+$old_title&btnG=Search")
         =~ m!href="(http://www.tv.com/.*?/summary.html)!;
-    ($title) = get("$show_url") =~ m!<title>(.*?) - TV\.com </title>!;
+    ($title) = get("$show_url") =~ m!<title>(.*?)( - TV\.com | on TV\.com - .*)</title>!;
     die "could not find show '$old_title'!\n" unless $show_url;
 
   $show_url =~ s/summary\.html$/episode_guide.html?printable=1/;
