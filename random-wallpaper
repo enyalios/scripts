@@ -4,13 +4,14 @@ RESOLUTION=$(DISPLAY=:0 xrandr -q | perl -ne 'print "$1\n" if /^\s.*?(\d+x\d+).*
 RANDOM_URL="http://interfacelift.com/wallpaper_beta/downloads/random/any/$RESOLUTION/"
 
 URL=$(wget -qO - $RANDOM_URL |
-    perl -ne 'if(m!<a href="(/dl/wallpaper/.*?.jpg)">!) { print "http://interfacelift.com$1\n"; exit }')
+    perl -ne 'if(m!<a href="(/wallpaper(_beta)?/.*?.jpg)">!) { print "http://interfacelift.com$1\n"; exit }')
 [[ -t 1 ]] && echo $URL
 NAME=`basename $URL`
 wget -qO /tmp/$NAME --referer $RANDOM_URL --user-agent "Mozilla" $URL
-rm $(readlink $HOME/.wallpaper)
+rm $(readlink $HOME/.wallpaper) $HOME/.wallpaper
 ln -sf /tmp/$NAME $HOME/.wallpaper
-DISPLAY=:0 xsetbg $HOME/.wallpaper
+#DISPLAY=:0 xsetbg $HOME/.wallpaper
+DISPLAY=:0 feh --bg-center $HOME/.wallpaper
 
 # the next line is for setting the wallpaper in compiz, but it seems broken
 #perl -i -pe "s|^(s0_bg_image = ).*$|\$1/tmp/$NAME|" $HOME/.config/compiz/compizconfig/Ultimate.ini
