@@ -3,36 +3,40 @@
 # this script is a much prettier replacement for df.  it has little bars to
 # show you the fullness and colors things when they are getting full.
 
+use strict;
+use warnings;
+
 # use a helpful module
 use Term::ANSIColor qw(:constants);
 
 # declare some vars for easy tweaking
-$bar_width  = 18;
-$dev_width  = 15;
-$warn_perc  = 90;
-$emerg_perc = 98;
-$header_color = GREEN;
-$df_args = "";
+my $bar_width  = 18;
+my $dev_width  = 15;
+my $warn_perc  = 90;
+my $emerg_perc = 98;
+my $header_color = GREEN;
+my @df_args = ();
 
 # declare some vars not for tweaking
-@exponents = split //, "KMGTPEZY";
-$format = "%s%s %6s %6s %6s %5s%% %s %-s%s\n";
-$stop_color = RESET;
+my @exponents = split //, "KMGTPEZY";
+my $format = "%s%s %6s %6s %6s %5s%% %s %-s%s\n";
+my $stop_color = RESET;
 
 # helpful function for formatting our numbers
 sub trunc($) {
-    $number = shift;
-    for $power (reverse 0..@exponents) {
+    my $number = shift;
+    for my $power (reverse 0..@exponents) {
         if ($number/(1024**$power) > .97 || $power == 0) {
             return sprintf("%.1f", $number/1024**$power).$exponents[$power];
 } } }
 
+my $no_color;
 $no_color = "1" unless -t STDOUT;
 while(@ARGV) {
     $_ = shift @ARGV;
     $no_color = "1" if /^-b$/;
     $no_color = "0" if /^-c$/;
-    $df_args .= " $_" unless /^-/;
+    push @df_args, $_ unless /^-/;
 }
 
 if($no_color) { $header_color = ""; $stop_color = "" }
@@ -41,12 +45,17 @@ printf $format, $header_color, "Filesystem" . " " x ($dev_width - 10), "Size", "
     "Avail", "Use", "[" . "-" x $bar_width . "]", "Mounted", $stop_color;
 
 # do our magic
-for $line (`/bin/df -P $df_args`) {
+my $afp = 1;
+open PIPE, '-|', qw[/bin/df -P], @df_args
+or die "couldn't open `df -P @df_args`";
+while ( my $line = <PIPE> ) {
     # preliminary administrivia
     chomp $line;
     next if $line =~ /^Filesystem.*Mounted on$/;
-    ($device,  $total, $used, $avail, undef, $mount) = split / +/, $line;
+    my ($device,  $total, $used, $avail, undef, $mount)
+	= split /(?<!^map) +/, $line;
     next if $device eq "none";
+	$device =~ s/^afp.*$/"afp".$afp++/ge;
 
     # format the device name correctly
     if(length($device) > $dev_width)
@@ -54,21 +63,22 @@ for $line (`/bin/df -P $df_args`) {
     $device .= " " x ($dev_width - length($device));
 
     # pretty print all our numbers
-    $perc    = sprintf "%.1f", $used/$total*100;
+    my $perc = sprintf "%.1f", ($total>0?$used/$total*100:100);
     $_ = trunc $_ for $avail, $total, $used;
 
     # now a nice usage bar
-    $bar     = "[" . "#" x int($perc/100*$bar_width);
+    my $bar  = "[" . "#" x int($perc/100*$bar_width);
     $bar    .= "-" x ($bar_width - int($perc/100*$bar_width)) . "]";
 
     # warn with some wacky colors
-    $color   = RESET;
-    $color   = YELLOW if $perc > $warn_perc;
-    $color   = RED if $perc > $emerg_perc;
+    my $color = RESET;
+    $color    = YELLOW if $perc > $warn_perc;
+    $color    = RED if $perc > $emerg_perc;
 
     $color = "" if $no_color;
-    
+
     # and finally print it all out
     printf $format, $color, $device, $total, $used, $avail,
         $perc, $bar, $mount, $stop_color;
 }
+close PIPE;
