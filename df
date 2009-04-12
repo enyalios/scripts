@@ -63,7 +63,7 @@ while ( my $line = <PIPE> ) {
     $device .= " " x ($dev_width - length($device));
 
     # pretty print all our numbers
-    my $perc = sprintf "%.1f", ($total>0?$used/$total*100:100);
+    my $perc = sprintf "%.1f", ($total>0?$used/$total*100:0);
     $_ = trunc $_ for $avail, $total, $used;
 
     # now a nice usage bar
