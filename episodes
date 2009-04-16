@@ -6,7 +6,14 @@ use LWP::UserAgent;
 use Data::Dumper;
 use Getopt::Std;
 
-my $cache_file = "/tmp/episode_cache";
+my $cache_file;
+if(-d "$ENV{HOME}" && -w "$ENV{HOME}") {
+    $cache_file = "$ENV{HOME}/.episode_cache";
+} else {
+    $cache_file = "/tmp/episode_cache";
+}
+print "$cache_file\n";
+exit;
 my ($title, $subtitle, $ext, %data, %opts);
 
 sub get {
