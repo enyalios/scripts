@@ -12,8 +12,7 @@ if(-d "$ENV{HOME}" && -w "$ENV{HOME}") {
 } else {
     $cache_file = "/tmp/episode_cache";
 }
-print "$cache_file\n";
-exit;
+
 my ($title, $subtitle, $ext, %data, %opts);
 
 sub get {
