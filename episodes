@@ -130,7 +130,7 @@ sub grab_eps {
         my $page = get( $season_url . "?season=" . $_ );
         for ($page =~ m!(<tr class="episode">.*?</tr>)!sg) {
 
-            m!<td class="number">\s*(\d+|Special)\s*</td>\s*<td class="title">\s*<a href="http://www\.tv\.com.*?">(.*?)</a>!;
+            m!<td class="number".*?>\s*(\d+|Special|)\s*</td>\s*<td class="title">\s*<a href="http://www\.tv\.com.*?">(.*?)</a>!;
 
             my $ep_title = $2;
             next unless $ep_title;
