@@ -10,8 +10,11 @@ NAME=`basename $URL`
 wget -qO /tmp/$NAME --referer $RANDOM_URL --user-agent "Mozilla" $URL
 rm $(readlink $HOME/.wallpaper) $HOME/.wallpaper
 ln -sf /tmp/$NAME $HOME/.wallpaper
-#DISPLAY=:0 xsetbg $HOME/.wallpaper
-DISPLAY=:0 feh --bg-center $HOME/.wallpaper
+if `which feh &> /dev/null`; then
+    DISPLAY=:0 feh --bg-center $HOME/.wallpaper
+else
+    DISPLAY=:0 xsetbg $HOME/.wallpaper
+fi
 
 # the next line is for setting the wallpaper in compiz, but it seems broken
 #perl -i -pe "s|^(s0_bg_image = ).*$|\$1/tmp/$NAME|" $HOME/.config/compiz/compizconfig/Ultimate.ini
