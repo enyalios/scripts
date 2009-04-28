@@ -24,7 +24,7 @@ my $data_file = "$ENV{HOME}/magic/oracle";
 $/ = "\n\n";
 my %opts;
 getopts('nu', \%opts);
-my %cards;
+my $num_cards;
 
 # this part is when you want to update the datafile
 if($opts{u}) {
@@ -32,16 +32,21 @@ if($opts{u}) {
     print "updating card data...\n";
 
     # grab the full spoiler from wizards
-    my $data = LWP::Simple::get("http://ww2.wizards.com/gatherer/index.aspx?setfilter=Vintage&output=Text Spoiler");
+    my $data = LWP::Simple::get("http://gatherer.wizards.com/Pages/Search/Default.aspx?output=spoiler&method=text&action=advanced&name=+![idspispopd]");
 
     # and format it nicely
     for($data) {
-        s/^.*?\n<table class="TextResultsTable".*?border="0">\n//s;
-        s/\n<\/table>.*?$//s;
-        s/\r|<.*?>|&nbsp;//g;
-        s/\xC3\x86/AE/g;
-        s/oSi/S/g;
-        s/^(CardName:|Cost:|Type:|Pow\/Tgh:|Rules Text:|Set\/Rarity:|(?!$))/sprintf "%-13.13s", $1/meg; 
+        s/^.*?<div class="textspoiler">\s*<table>//s; # strip off the junk at the top
+        s/<\/table>.*?$//s; # strip off the junk at the bottom
+        s/^\s+//mg; # moosh everything together
+        s/\r\n//g; # more mooshing
+        s/<\/tr>/<\/tr>\n/g; # add line breaks in the right places
+        s/<.*?>//g; # remove all the markup crap
+        s/^ *(Name:|Cost:|Type:|Pow\/Tgh:|Rules Text:|Set\/Rarity:|(?!$)) */sprintf "%-13.13s", $1/meg;
+        # do some voodoo to have everything indented correctly
+        s/\xC3\x86/AE/g; # change junk to AE
+        s/ *\xE2\x80\x94 */ - /g; # change junk to ' - '
+        s/{S}i}?/{S}/g; # tweak snow mana
     }
 
     # and then save it permanently to the data file
@@ -62,13 +67,12 @@ CARD: while(<INPUT>) {
             next CARD unless /$regex/im; 
         }
     }
-    my ($card_name) = /^CardName: +(.*)$/m;
 
-    # save the name to a hash so we dont print out dupes
-    next CARD if $cards{$card_name}++;
+    $num_cards++;
+
     if($opts{n}) { 
         # then either print out the card name
-        print "$card_name\n";
+        print "$1\n" if /^Name: +(.*)$/m;
     } else {
         # or print out the whole card, this craziness wraps the lines to 80 columns
         1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m;
@@ -82,4 +86,4 @@ close INPUT;
 # the cards so that we play nice with cache-cards)
 #print STDERR "\n" if $opts{n};
 #print {$opts{n}?*STDERR:*STDOUT} scalar keys %cards, " card(s) returned\n\n";
-print scalar keys %cards, " card(s) returned\n\n" unless $opts{n};
+print $num_cards, " card(s) returned\n\n" unless $opts{n};
