@@ -24,7 +24,7 @@ my $data_file = "$ENV{HOME}/magic/oracle";
 $/ = "\n\n";
 my %opts;
 getopts('nu', \%opts);
-my $num_cards;
+my $num_cards = "0";
 
 # this part is when you want to update the datafile
 if($opts{u}) {
