@@ -124,7 +124,7 @@ sub grab_eps {
     # loop over the episode pages and print out the episodes
     # using this page first, follow by any other season pages
     (my $season_url = $show_url) =~ s/summary\.html$/episode_listings.html/;
-    my ($last_season) = (get("$season_url?season=1") =~ /<a .*?href=".*?episode(?:_listings)?.html\?season=(\d+)"/);
+    my ($last_season) = (get("$season_url?season=1") =~ /<a .*?href=".*?episode(?:_listings)?.html\?season=(\d+)/);
     print "\$last_season = $last_season\n" if $opts{v};
     my @seasons = 1..($last_season || 1); 
     $seasons[0] = 1 unless @seasons;
@@ -158,6 +158,7 @@ sub grab_eps {
             $ep_title =~ s/\xC0/A/g;
             $ep_title =~ s/\xE0/a/g;
             $ep_title =~ s/\xE9/e/g;
+            $ep_title =~ s/&#039;/'/g;
 
             print "    found episode: $ep_title\n" if $opts{v};
 
