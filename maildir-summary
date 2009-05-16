@@ -1,0 +1,28 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my $total = 0;
+
+sub recurse {
+    my ($dir, %num, @files);
+    $dir = $_[0];
+
+    for(qw"new cur") {
+        opendir DIR, "$dir/$_" or die "could not open dir '$dir/$_': $!\n";
+        $num{$_} = scalar grep { !/^\./ } readdir DIR;
+        closedir DIR;
+        $total += $num{$_};
+    }
+
+    printf "%-24s  %3d  %6d\n", $dir, $num{"new"}, $num{"cur"};
+
+    opendir DIR, $dir or die "could not open dir '$dir': $!\n";
+    @files = sort grep { !/^\.\.?$/ && -d "$dir/$_" } readdir DIR;
+    closedir DIR;
+    for(@files) { recurse("$dir/$_") unless /^(new|tmp|cur)$/ }
+}
+
+recurse($ARGV[0] || ".maildir");
+print "total  $total\n";
