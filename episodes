@@ -133,8 +133,8 @@ sub grab_eps {
         my ($season_num) = $_;
         my $ep_num = 1;
         print "  getting season page: $season_url?season=$_\n" if $opts{v};
-        my $page = get( $season_url . "?season=" . $_ );
-        for ($page =~ m!(<tr class="episode">.*?</tr>)!sg) {
+        my $page = get( $season_url . "?shv=list&season=" . $_ );
+        for (reverse $page =~ m!(<tr class="episode">.*?</tr>)!sg) {
 
             m!<td class="number".*?>\s*(\d+|Special|)\s*</td>\s*<td class="title">\s*<a href="http://www\.tv\.com.*?">(.*?)</a>!;
 
