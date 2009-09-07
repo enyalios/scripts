@@ -9,6 +9,18 @@
 # MFPlayer_styles.swf in the current directory.  they both come as part of the
 # mythweb package.  im not really happy with them as an flv player, but i
 # havent found any others that i like any better.
+#
+# youll need to add this stuff to your .htaccess file in the current directory:
+# -- start .htaccess --
+# <Files *.pl>
+# SetHandler cgi-script
+# Options    +ExecCGI
+# </Files>
+#
+# RewriteEngine  on
+# RewriteRule  ^videos\.pl(/.*)$     videos.pl?method=stream&filename=$1
+# RewriteRule  ^videos\.pl/ff(/.*)$  videos.pl?method=stream&encoder=ffmpeg&filename=$1
+# -- end .htaccess --
 
 use warnings;
 use strict;
