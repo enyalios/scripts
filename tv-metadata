@@ -161,12 +161,12 @@ sub UpdateShow {
       # on try 5 remove the word part but keep the number
       elsif( $modifyTitleCounter == 5 ){
 	$workingTitle =~ s/, (Part|Pt.) \(?(\d+)\)?/ $2/g;
-	print "-->$workingTitle<--\n";
+
       }
       # on try 6 remove the word part and remove the number
       elsif( $modifyTitleCounter == 6 ){
 	$workingTitle =~ s/, (Part|Pt.) \(?\d+\)?//g;
-	print "-->$workingTitle<--\n";
+
       }
 
       # now get all the id's for episodes that match the current formatting
