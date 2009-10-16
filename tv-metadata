@@ -50,7 +50,7 @@ sub GetData {
  # find the url of the episode listing for the given show
     (my $show_url) = get("http://www.google.com/search?hl=en&q=allintitle%3A+site%3Atv.com+$old_title&btnG=Search")
         =~ m!href="(http://www.tv.com/.*?/summary.html)!;
-    ($title) = get("$show_url") =~ m!<title>(.*?)( - TV\.com | on TV\.com - .*)</title>!;
+    ($title) = get("$show_url") =~ m!<title>(.*?)( at TV\.com| - TV\.com | on TV\.com - .*)</title>!;
     die "could not find show '$old_title'!\n" unless $show_url;
 
   $show_url =~ s/summary\.html$/episode_guide.html?printable=1/;
@@ -64,7 +64,7 @@ sub GetData {
 
   foreach( split(/<div class="pl-5 pr-5">/,$page)){
     my %episode;
-   
+
     ($episode{number}, $episode{title}) =  $_ =~ 
 	m!<h1><a.*>\s+(\d+|Pilot|Special)\.\s+(.*)\s+</a> </h1>!;
     ($episode{year}) = $_ =~ m|First aired:</span>\s*\d+/\d+/(\d+)<br/>|;
@@ -100,7 +100,7 @@ sub UpdateShow {
     # these guys control the changes that are made to the title to try and
     # and find a file name match.
     my $modifyTitleCounter = 0;
-    my $modifyTitleCounterMax = 5;
+    my $modifyTitleCounterMax = 6;
 
     # this holds the return values from our sql queries.
     my $listRef;
@@ -112,6 +112,8 @@ sub UpdateShow {
       my $workingShow = $show;
       # always remove these evil chars, they will never be in file names
       $workingTitle =~ s/[:\*\?"<>\\\/|\x91\x92]//g;
+      $workingTitle =~ s/&#039;/'/g;
+      $workingTitle =~ s/&ntilde;/n/g;
       $workingTitle =~ s/&/and/g;
       $workingTitle =~ s/À/A/g;
       $workingTitle =~ s/à/a/g;
@@ -134,7 +136,7 @@ sub UpdateShow {
       # is what removing parenthetical references, step 2, does.
       # Step 1 must come before step 2!
 
-      # step 3 for paul's stuff is roughly independent and can be placed
+      # step 4 for paul's stuff is roughly independent and can be placed
       # before or after steps 1 and 2.
 
       # On 0 try the title as is, with evil chars ^above^ removed of course.
@@ -155,6 +157,16 @@ sub UpdateShow {
           s/ /_/g;
           s/[^-\w]//g;
         }
+      }
+      # on try 5 remove the word part but keep the number
+      elsif( $modifyTitleCounter == 5 ){
+	$workingTitle =~ s/, (Part|Pt.) \(?(\d+)\)?/ $2/g;
+	print "-->$workingTitle<--\n";
+      }
+      # on try 6 remove the word part and remove the number
+      elsif( $modifyTitleCounter == 6 ){
+	$workingTitle =~ s/, (Part|Pt.) \(?\d+\)?//g;
+	print "-->$workingTitle<--\n";
       }
 
       # now get all the id's for episodes that match the current formatting
