@@ -2,10 +2,10 @@
 
 use strict;
 use warnings;
-use Date::Parse;
+use Date::Parse; # from dev-perl/TimeDate
 use POSIX qw(strftime);
-use Term::ReadKey;
-use MIME::Words qw(decode_mimewords); # needs MIME-tools
+use Term::ReadKey; # from dev-perl/TermReadKey
+use MIME::Words qw(decode_mimewords); # from dev-perl/MIME-tools
 
 my $now = strftime "%s", localtime;
 
