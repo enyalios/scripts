@@ -1,0 +1,129 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Mail::IMAPClient;
+use IO::Socket::SSL;
+use Date::Parse; # from dev-perl/TimeDate
+use POSIX qw(strftime);
+use Term::ReadKey; # from dev-perl/TermReadKey
+use MIME::Words qw(decode_mimewords); # from dev-perl/MIME-tools
+use Getopt::Std;
+
+# parse arguments
+my %opts;
+getopts('s:nf', \%opts);
+if(    (defined($opts{s}) && $opts{n}) 
+    || (defined($opts{s}) && $opts{f})
+    || ($opts{n} && $opts{f})) {
+    die "-s -n and -f are mutually exclusive\n";
+}
+my $now = strftime "%s", localtime;
+my $width = 0;
+eval { ($width) = GetTerminalSize(); };
+
+# grab authentication info
+my ($host, $user, $pass) = @{do "$ENV{HOME}/.imapls"};
+
+# open an ssl socket since gmail is over ssl
+my $sock = IO::Socket::SSL->new($host) or die "socket(): $@";
+my $greeting = <$sock>;
+die "problems logging in: $greeting" unless $greeting =~ ' OK ';
+
+# use the socket and our credentials to open an imap connection
+my $imap = Mail::IMAPClient->new(
+    Socket   => $sock,
+    User     => $user,
+    Password => $pass,
+) or die "Cannot imap: $@";
+
+# figure out what we are searching for
+my @search = ("ALL");
+@search = ("UNSEEN") if $opts{n};
+@search = ("FLAGGED") if $opts{f};
+@search = ('OR', 'OR', 'TO', $imap->Quote($opts{s}), 
+    'FROM', $imap->Quote($opts{s}),
+    'SUBJECT', $imap->Quote($opts{s})) if $opts{s};
+
+# connect and login
+$imap->State($imap->Connected);
+$imap->login() or die "cannot login: $@\n";
+print "could not authenticate\n" unless $imap->IsAuthenticated();
+
+# get a list of all folders
+my @folders = @ARGV;
+@folders = $imap->folders() unless @folders;
+for(@folders) {
+    my @emails;
+    # skip some special cases
+    next if /^\[Gmail\]\/(All Mail|Spam|Starred)$/;
+    # open the folder read-only
+    $imap->examine($_);
+    # list unread messages
+    my $msgs = $imap->search(@search);
+    next unless $msgs;
+    # print out a folder header
+    print "* $_(", scalar @{$msgs}, ")\n";
+    my $headers = $imap->parse_headers($msgs, "Date", "From", "Subject");
+    my $flags = $imap->flags($msgs);
+    for(keys %{$headers}) {
+        # format the date nicely
+        my $date = $headers->{$_}->{Date}->[0];
+        my $epoch = str2time $date;
+        $epoch ||= 0;
+        if(($now - $epoch) < 60*60) {
+            my $amount = ($now - $epoch) / 60;
+            $date = sprintf "%2d min%s ago", $amount, $amount>=2?"s":" ";
+        } elsif(($now - $epoch) < 60*60*24) {
+            my $amount = ($now - $epoch) / 60 / 60;
+            $date = sprintf "%2d hr%s  ago", $amount, $amount>=2?"s":" ";
+        } elsif(($now - $epoch) < 60*60*24*7) {
+            my $amount = ($now - $epoch) / 60 / 60 / 24;
+            $date = sprintf "%2d day%s ago", $amount, $amount>=2?"s":" ";
+        } else {
+            $date = strftime "%b %d %Y", localtime $epoch;
+        }
+
+        # format the from field nicely
+        my $from = $headers->{$_}->{From}->[0];
+        $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+        $from =~ s/\n//g;
+        $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
+
+        # format the subject field nicely
+        my $subject = $headers->{$_}->{Subject}->[0];
+        $subject =~ s/\n//g;
+        $subject =~ s/\t+/ /g;
+        $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
+        substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
+
+        # get info on the message flags
+        my %flags;
+        @flags{ @{$flags->{$_}} } = ();
+        my $flag_string = sprintf "%s%s",
+                          exists($flags{"\\Seen"})?" ":"N",
+                          exists($flags{"\\Flagged"})?"!":" ";
+
+        # put all of the info in an array
+        push @emails, { date => $date, epoch => $epoch,
+            from => $from, subject => $subject, flags => $flag_string };
+    }
+
+    # print everything out nicely sorted by date
+    for(sort { $a->{epoch} <=> $b->{epoch} } @emails) {
+        printf "  %-2s %-11s  %-23.23s  %-s\n", $_->{flags}, $_->{date}, $_->{from}, $_->{subject};
+    }
+
+}
+
+$imap->logout();
+
+=for comment
+
+TODO:
+
+add a help function to print out usage
+maybe an option to just list all folders and quit
+make the default be to print out all flagged and new messages
+add an option to print out all messages
+better error handly especially for when there is no .imapls file
