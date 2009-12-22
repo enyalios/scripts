@@ -3,10 +3,11 @@
 RESOLUTION=$(DISPLAY=:0 xrandr -q | perl -ne 'print "$1\n" if /^\s.*?(\d+x\d+).*\*.*/')
 RANDOM_URL="http://interfacelift.com/wallpaper_beta/downloads/random/any/$RESOLUTION/"
 
-URL=$(wget -qO - $RANDOM_URL |
+URL=$(wget -qO - --user-agent "Mozilla" $RANDOM_URL |
     perl -ne 'if(m!<a href="(/wallpaper(_beta)?/.*?.jpg)">!) { print "http://interfacelift.com$1\n"; exit }')
 [[ -t 1 ]] && echo $URL
 NAME=`basename $URL`
+echo wget -qO /tmp/$NAME --referer $RANDOM_URL --user-agent "Mozilla" $URL >> $HOME/.random_url
 wget -qO /tmp/$NAME --referer $RANDOM_URL --user-agent "Mozilla" $URL
 rm $(readlink $HOME/.wallpaper) $HOME/.wallpaper
 ln -sf /tmp/$NAME $HOME/.wallpaper
