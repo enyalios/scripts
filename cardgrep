@@ -41,6 +41,7 @@ if($opts{u}) {
         s/^\s+//mg; # moosh everything together
         s/\r\n//g; # more mooshing
         s/<\/tr>/<\/tr>\n/g; # add line breaks in the right places
+        s/^<br \/>\n//mg; # remove random extra blank lines
         s/<.*?>//g; # remove all the markup crap
         s/^ *(Name:|Cost:|Type:|Pow\/Tgh:|Rules Text:|Set\/Rarity:|(?!$)) */sprintf "%-13.13s", $1/meg;
         # do some voodoo to have everything indented correctly
@@ -52,6 +53,17 @@ if($opts{u}) {
     # and then save it permanently to the data file
     open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
     print OUTPUT $data;
+    close OUTPUT;
+
+    # stupid hack because i cant get 2 of the regexs above to work for some reason
+    open OUTPUT, "<$data_file" or die "cant open output file '$data_file': $!\n";
+    $data = join "", <OUTPUT>;
+    close OUTPUT;
+    for($data) { s/\xC3\x86/AE/g; s/ *\xE2\x80\x94 */ - /g }
+    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
+    print OUTPUT $data;
+    close OUTPUT;
+
     exit;
 }
 
