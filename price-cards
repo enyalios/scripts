@@ -5,7 +5,7 @@ use warnings;
 use Getopt::Std;
 
 my %opts;
-getopts('uf', \%opts);
+getopts('ufc', \%opts);
 my $type = $opts{f}?"-foils":"";
 
 if($opts{u}) {
@@ -21,6 +21,20 @@ if($opts{u}) {
         close OUTPUT;
     }
 
+    exit;
+}
+
+if($opts{c}) {
+    require LWP::UserAgent;
+    my $ua = LWP::UserAgent->new; 
+    sub post { $ua->post($_[0], { "query" => $_[1] } )->{_content}; }
+    sub get { $ua->get($_[0])->{_content}; }
+    my $page = &post("http://cardshark.com/quick_search.asp", join(' ', @ARGV));
+    for($page =~ m!<A HREF="(/magic/card_detail\.asp\?card_id=\d+)"!g) {
+        $page = &get("http://cardshark.com$_");
+        $page =~ m!</B>.*?<B>(.*?)</B>.*?</I>.*?<I>(.*?)</I>.*?Estimated Value: <B><font size="4" COLOR=".FF0000">(?:Unknown|\$(.*?))</FONT>!s;
+        printf "%-30s %-30s %6s\n", $1, $2, $3?$3:"??";
+    }
     exit;
 }
 
