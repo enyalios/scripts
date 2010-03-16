@@ -33,7 +33,7 @@ if($opts{c}) {
     for($page =~ m!<A HREF="(/magic/card_detail\.asp\?card_id=\d+)"!g) {
         $page = &get("http://cardshark.com$_");
         $page =~ m!</B>.*?<B>(.*?)</B>.*?</I>.*?<I>(.*?)</I>.*?Estimated Value: <B><font size="4" COLOR=".FF0000">(?:Unknown|\$(.*?))</FONT>!s;
-        printf "%-30s %-30s %6s\n", $1, $2, $3?$3:"??";
+        printf "%-30s  %-30s  %6s,\n", $1, "$2,", $3?$3:"??";
     }
     exit;
 }
