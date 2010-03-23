@@ -37,7 +37,9 @@ for(sort by_quality @data) {
     unless($_->{enc} eq "on" or $seen{$_->{essid}}) {
         $seen{$_->{essid}} = 1;
         print FILE "\nnetwork={\n    ssid=\"", $_->{essid}, "\"\n    # ", $_->{address}, "\n    key_mgmt=NONE\n    priority=1\n}\n";
+        system("/usr/bin/logger", "-t", "$progname", "found wireless network '" . $_->{essid} . "'");
     }
 }
+system("/usr/bin/logger", "-t", "$progname", "no wireless networks found") unless @data;
 
 close FILE;
