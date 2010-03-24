@@ -2,22 +2,25 @@
 
 use warnings;
 use strict;
+use Sys::Syslog;
 
 undef $/;
 
 while(1) {
-    open(BATTERY, "</proc/acpi/battery/BAT0/state") or die "couldnt find battery\n";
+    open(BATTERY, "</sys/class/power_supply/BAT0/uevent") or die "couldnt find battery\n";
     my $data = <BATTERY>;
-    my $discharging = ($data =~ /^charging state:\s+charging/m)?0:1;
-    my $remaining = ($data =~ /^remaining.*?(\d+) mWh$/m)[0];
-    my $rate = ($data =~ /^present rate.*?(\d+) mW$/m)[0];
+    my $discharging = ($data =~ /^POWER_SUPPLY_STATUS=Discharging/m)?1:0;
+    my $remaining = ($data =~ /^POWER_SUPPLY_ENERGY_NOW=(\d+)$/m)[0];
+    my $rate = ($data =~ /^POWER_SUPPLY_POWER_NOW=(\d+)$/m)[0];
     if($remaining && $rate) {
         my $time = $remaining/$rate*60;
         if($time < 3 && $discharging) { 
-            system("logger -t acpi battery running low, hibernating");
+            openlog("acpi", "pid", "user");
+            syslog("info", "battery running low, hibernating");
+            closelog();
             system("/usr/sbin/hibernate");
         }
-        #print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n";
+        #print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n\n";
     }
     sleep 60
 }
