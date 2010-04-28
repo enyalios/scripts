@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Sys::Syslog;
+use Fcntl ':flock';
 
 my $progname = $0;
 $progname =~ s!.*/!!;
@@ -16,6 +17,7 @@ sub by_essid   { $a->{essid} cmp $b->{essid} || $b->{quality} <=> $a->{quality} 
 sub by_quality { $b->{quality} <=> $a->{quality} || $a->{essid} cmp $b->{essid} }
 
 open FILE, "+<$wpa_file" or die "could not open $wpa_file\n";
+flock(FILE, LOCK_EX) or die "Could not get exclusive lock on $wpa_file: $!.\n";
 my $content = <FILE>;
 seek FILE, 0, 0;
 truncate FILE, 0;
