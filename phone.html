@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<html>
+    <head>
+        <title>Phone Links</title>
+        <style>
+            body            { background-color: #000000; 
+                              color: #DEDEDE; 
+                              font-family: verdana; }
+            img             { border: 0; }
+            td.icon         { text-align: center; 
+                              vertical-align: bottom;
+                              width: 100px; }
+            a               { text-decoration: none; 
+                              color: #3181B4; }
+            #help           { display: none;
+                              font-size: 8pt; 
+                              width: 200px;
+                              border: 1px solid #3181B4;
+                              /* this stuff is now done in startup() */
+                              /* border-width: 5px;
+                              -moz-border-image: url("border.png") 5;
+                              -webkit-border-image: url("border.png") 5; */
+                            }
+            .help           { padding: 5px; }
+            .shortcuts      { margin: 5px; }
+            .hint           { color: #DEDEDE; 
+                              width: 190px; 
+                              padding-left: 5px;
+                              padding-right: 5px; }
+            .hint:hover     { background-color: #3181B4; }
+            .selected       { background-color: #3181B4; }
+        </style>
+        <script language="JavaScript" type="text/javascript">
+            <!-- 
+            var xmlhttp = null;
+            var selected = -2;
+            var searchstring;
+            function startup() {
+                document.search.query.focus();
+                var help = document.getElementById("help");
+                if(help.style.MozBorderImage != null) {
+                    help.style.borderWidth = "5px";
+                    help.style.MozBorderImage = "url('border.png') 5";
+                } else if(help.style.webkitBorderImage != null) { 
+                    help.style.borderWidth = "5px";
+                    help.style.webkitBorderImage = "url('border.png') 5";
+                }
+            }
+            function toggle_help() {
+                if(document.getElementById("helptext")) { 
+                    document.getElementById("help").innerHTML = "";
+                    document.getElementById("help").style.display = "none";
+                    return;
+                }
+                document.getElementById("help").innerHTML = 
+                    "<div class=\"help\" id=\"helptext\">Prefix your search with the " +
+                    "following strings to make magic happen.<br/>" +
+                    "<table class=\"shortcuts\">" +
+                    "<tr><td>g</td><td>google</td></tr>" +
+                    "<tr><td>gm</td><td>maps</td></tr>" +
+                    "<tr><td>w</td><td>wikipedia</td></tr>" +
+                    "<tr><td>m</td><td>movies</td></tr>" +
+                    "<tr><td>pl</td><td>perl modules</td></tr>" +
+                    "<tr><td>n</td><td>netflix</td></tr>" +
+                    "<tr><td>c</td><td>magic cards</td></tr>" +
+                    "<tr><td>cg</td><td>magic cards on gatherer</td></tr>" +
+                    "<tr><td>t</td><td>tv shows</td></tr>" +
+                    "<tr><td>p</td><td>magic card prices</td></tr>" +
+                    "</table>Use no prefix to do an \"I'm feeling " +
+                    "lucky\" search.</div>";
+                document.getElementById("help").style.display = "block";
+            }
+            function go(q) {
+                if(q.match(/^$/)) { /* toggle_help(); */ }
+                else if(q.match(/^g /i))  { window.location = "http://www.google.com/search?q=" + q.replace(/^g /i, ""); }
+                else if(q.match(/^gm /i)) { window.location = "http://maps.google.com/maps?q=" + q.replace(/^gm /i, ""); }
+                else if(q.match(/^w /i))  { window.location = "http://en.wikipedia.org/wiki/" + q.replace(/^w /i, ""); }
+                else if(q.match(/^m /i))  { window.location = "http://imdb.com/find?q=" + q.replace(/^m /i, ""); }
+                else if(q.match(/^pl /i)) { window.location = "http://search.cpan.org/search?query=" + q.replace(/^pl /i, ""); }
+                else if(q.match(/^n /i))  { window.location = "http://www.netflix.com/Search?v1=" + q.replace(/^n /i, ""); }
+                else if(q.match(/^c /i))  { window.location = "http://magiccards.info/query.php?cardname=" + q.replace(/^c /i, ""); }
+                else if(q.match(/^cg /i)) { window.location = "http://gatherer.wizards.com/Pages/Search/Default.aspx?name=+[" + q.replace(/^cg /i, "") + "]"; }
+                else if(q.match(/^t /i))  { window.location = "http://www.tv.com/search.php?type=11&stype=all&x=0&y=0&qs=" + q.replace(/^t /i, ""); }
+                else if(q.match(/^p /i))  { window.location = "/cgi-bin/price.cgi?query=" + q.replace(/^p /i, ""); }
+                else { window.location = "http://www.google.com/search?q=" + q + "&btnI=I'm+Feeling+Lucky"; }
+                return false;
+            }
+            function hint(x) {
+                if (x.length < 3)
+                { 
+                    document.getElementById("help").innerHTML="";
+                    document.getElementById("help").style.display = "none"
+                    return;
+                }
+
+                var url = "/cgi-bin/hints.cgi?query=" + x;
+                if (window.XMLHttpRequest)
+                { xmlhttp = new XMLHttpRequest(); }
+                else // for older IE 5/6
+                { xmlhttp = new ActiveXObject("Microsoft.XMLHTTP"); }
+
+                xmlhttp.onreadystatechange = function() {
+                    if(xmlhttp.readyState == 4) {
+                        document.getElementById("help").innerHTML=xmlhttp.responseText;
+                        if(document.getElementById("help").innerHTML != "") { 
+                            document.getElementById("help").style.display = "block";
+                        } else {
+                            document.getElementById("help").style.display = "none";
+                        }
+                    }
+                }
+                xmlhttp.open("GET", url, true);
+                xmlhttp.send(null);
+            }
+            function openall() {
+                window.open('http://feedproxy.google.com/DilbertDailyStrip');
+                window.open('http://dilbert.com/blog/');
+                window.open('http://liryon.liquidorange.net/');
+                window.open('http://xkcd.com/');
+                window.open('http://www.basicinstructions.net/');
+                window.open('http://www.jamiewakefield.com/');
+                window.open('http://thedailywtf.com/');
+                window.open('http://icanhascheezburger.com/');
+                window.open('http://www.sheldoncomics.com/');
+                window.open('http://www.viruscomix.com/subnormality.html');
+                //window.open('http://www.aikida.net/');
+                window.open('http://theferrett.livejournal.com/');
+                window.open('http://geekologie.com/');
+                window.open('http://www.fmylife.com/');
+                window.open('http://uiucnopants.com/');
+            }
+            function handlekeys(x) {
+                var keynum = (window.event) ? event.keyCode : x.keyCode;
+                
+                if(keynum == 40) { // down arrow
+                    var children = document.getElementById('help').childNodes;
+                    if(selected >= 0 && selected < children.length) { children[selected].setAttribute("class", "hint"); }
+                    selected += 2;
+                    if(selected >= children.length - 1 || children[selected].childNodes[0] == undefined) { selected = -2; }
+                    if(selected < 0) { 
+                        document.search.query.value = searchstring;
+                    } else {
+                        children[selected].setAttribute("class", "hint selected");
+                        document.search.query.value = children[selected].childNodes[0].innerHTML;
+                    }
+                    return false;
+                } else if(keynum == 38) { // up arrow
+                    var children = document.getElementById('help').childNodes;
+                    if(selected >= 0 && selected < children.length) { children[selected].setAttribute("class", "hint"); }
+                    selected -= 2;
+                    if(selected < -2) { 
+                        selected = children.length - 2;
+                        if(children[children.length-2].childNodes[0] == undefined) { selected -= 2; } 
+                    }
+                    if(selected < 0) {
+                        document.search.query.value = searchstring;
+                    } else {
+                        children[selected].setAttribute("class", "hint selected");
+                        document.search.query.value = children[selected].childNodes[0].innerHTML;
+                    }
+                    return false;
+                } else {
+                    selected = -2;
+                    searchstring = document.search.query.value;
+                    hint(document.search.query.value);
+                }
+            }
+            function tabselect(x) {
+                var keynum = (window.event) ? event.keyCode : x.keyCode;
+                if(keynum == 9) { // they hit tab
+                    document.search.query.value = document.getElementById("help").childNodes[0].childNodes[0].innerHTML;
+                    return false;
+                }
+            }
+            window.onload = startup;
+
+            //-->
+        </script>
+
+    </head>
+    <body link="#3181B4" alink="#CC0000" vlink="#3181B4">
+        Smart Search <a style="font-size:8pt" href="javascript:toggle_help()">(?)</a><br/>
+        <form method="get" name="search" action="/cgi-bin/redirect.cgi" onsubmit="return go(this.query.value)">
+            <input type="text" name="query" onkeyup="handlekeys(event)" onkeypress="return tabselect(event)" autocomplete="off" />
+        </form>
+        <div id="help"></div><br/>
+        Random Useful Links<br/>
+        <table>
+            <tr><td class="icon"><a href="https://mail.google.com/mail" accesskey="1"><img src="img/gmail.png"><br/>Email</a></td>
+                <td class="icon"><a href="http://www.google.com/movies?q=movies&loc=61820"><img src="img/movie_times.png"><br/>Movie Times</a></td>
+                <td class="icon"><a href="/life"><img src="life/plus.png" width="48" height="48"><br/>Life Counter</a></td></tr>
+            <tr><td class="icon"><a href="http://www.wizards.com/magic/Magazine/Default.aspx"><img src="img/magic_the_gathering.jpg"><br/>Daily MTG</a></td>
+                <td class="icon"><a href="http://www.starcitygames.com/"><img src="img/starcitygames.png"><br/>StarCity</a></td>
+                <td class="icon"><a href="http://www.weather.com/weather/today/Urbana+IL+61801"><img src="img/weather.png"><br/>Weather</a></td></tr>
+        </table>
+        <br/>
+        <!--
+        <table><tr>
+                <td class="icon"><a href="http://www.google.com" accesskey="2"><img src="img/google.png"><br/>Google</a></td>
+                <td class="icon"><a href="http://en.m.wikipedia.org/" accesskey="3"><img src="img/wikipedia.png"><br/>Wikipedia</a></td>
+                <td class="icon"><a href="http://xhtml.weather.com/xhtml/cc/61801" accesskey="4"><img src="img/weather.png"><br/>Weather</a></td>
+                <td class="icon"><a href="http://www.imdb.com/" accesskey="5"><img src="img/imdb.png"><br/>IMDB</a></td>
+                <td class="icon"><a href="http://magiccards.info/"><img src="img/magic_cards_info.gif"><br/>MagicCards</a></td>
+                <td class="icon"><a href="http://cardshark.com/"><img src="img/cardshark.png"><br/>Card Shark</a></td>
+                <td class="icon"><a href="http://magictraders.com/"><img src="img/magictraders.png"><br/>MTGtraders</a></td>
+        </tr></table>
+        -->
+Daily Links
+<a style="font-size:8pt" href="javascript:openall()">(open all)</a><br/>
+<a href="http://feedproxy.google.com/DilbertDailyStrip">Dilbert Comic</a><br/>
+<a href="http://dilbert.com/blog/">Dilbert Blog</a><br/>
+<a href="http://liryon.liquidorange.net/">Liryon Blog</a><br/>
+<a href="http://xkcd.com/">xkcd</a><br/>
+<a href="http://www.basicinstructions.net/">Basic Instructions</a><br/>
+<a href="http://www.jamiewakefield.com/">Jamie Wakefield Blog</a><br/>
+<a href="http://thedailywtf.com/">The Daily WTF</a><br/>
+<a href="http://icanhascheezburger.com/">I Can Has Cheezburger?</a><br/>
+<!--<a href="http://comics.com/pearls_before_swine/?PerPage=50">Pearls Before Swine Comic</a><br/>-->
+<a href="http://www.sheldoncomics.com/">Sheldon Comic</a><br/>
+<a href="http://www.viruscomix.com/subnormality.html">Subnormality Comic</a><br/>
+<!-- <a href="http://www.aikida.net/">Aikida Comic</a><br/> -->
+<a href="http://theferrett.livejournal.com/">The Ferrett Blog</a><br/>
+<a href="http://geekologie.com/">Geekologie</a><br/>
+<a href="http://www.fmylife.com/">FMyLife</a><br/>
+<a href="http://uiucnopants.com/">UIUC No Pants</a><br/>
+<br/>
+<!--
+        <td><a href="http://mobile.usablenet.com/mt/www.delta.com/home/index.jsp">Delta Airlines</a></td>
+1. <a href="http://127.0.0.1/cgi-bin/email.pl" accesskey="1">Email</a/><br/>
+6. <a href="http://192.168.0.102/mythweb/" accesskey="6">Mythweb</a><br/>
+<a href="https://mail.google.com/mail">Gmail</a><br/>
+<a href="http://www.accuweather.com/pda/pda_5dy.asp?act=L">AccuWeather</a><br/>
+<a href="http://192.168.1.16/temp/dinner_ideas.html">Dinner Ideas</a><br/>
+<a href="http://wap.arune.se/imdb/index.php">IMDB</a><br/>
+<a href="http://m.facebook.com/login.php?http&next=http://m.facebook.com/home.php">Facebook</a><br/>
+<a href="http://m.gmail.com/">Gmail</a><br/>
+<a href="http://mobile.google.com">Google Mobile</a><br/>
+<a href="http://mobile.fandango.com/">Fandango</a><br/>
+<a href="http://palm.moviefone.com/">Moviefone</a><br/>
+-->
+</body>
+</html>
