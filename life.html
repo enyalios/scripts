@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<html>
+    <head>
+        <title>Magic Life Counter</title>
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="viewport" content="width=device-width; initial-scale=1.0; user-scalable=0;">
+        <style>
+            *    { -webkit-user-select: none;
+                   -webkit-touch-callout: none; }
+            body { background-color: #000; 
+                   color: #fff; 
+                   font-family: verdana; }
+            img  { border: 0; }
+            td   { 
+                   vertical-align: top; 
+                   width: 80px;
+                   border: dashed; 
+                   border-color: #555; 
+                   border-width: 1px; 
+                   /* border-width: 5px;
+                   -moz-border-image: url("border.png") 5;
+                   -webkit-border-image: url("border.png") 5; */
+               }
+            .sml { font-size: 9pt; 
+                   color: #999; }
+            .big { font-size: 18pt; 
+                   font-weight: bold; }
+            .center { text-align: center; }
+            .button { padding: 1px; }
+        </style>
+        <script language="JavaScript" type="text/javascript">
+            <!-- 
+            var touchscreen = 0;
+            var players = 4;
+            var startinglife = 20;
+            var t;
+            var life = new Array();
+            var names = new Array();
+            var hist = new Array();
+            var timer = new Array();
+            names[0] = "Me";
+            function startup() {
+                window.scrollTo(0, 2);
+                maketable();
+            }
+            function maketable() {
+                var x;
+                var output = "<table><tr>";
+                for(x = 0; x < players; x++) {
+                    if(life[x] == null) { life[x] = startinglife; }
+                    if(names[x] == null) { names[x] = "???"; }
+                    if(hist[x] == null) { hist[x] = life[x]; }
+                    output += "<td>";
+                    output += "<div class=\"center\">";
+                    output += "<span class=\"big\" id=\"name" + x + "\" onclick=\"rename(" + x + ")\">" + names[x] + "</span><br />";
+                    output += "<a href=\"javascript:void()\" onmousedown=\"return inc(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
+                    output += "ontouchstart=\"return inc(" + x + ", 1)\" ontouchend=\"clearTimeout(t)\">";
+                    output += "<img src=\"plus.png\" height=\"40px\" width=\"40px\" /></a><br />";
+                    output += "<span class=\"big\" id=\"life" + x + "\" onclick=\"setlife(" + x + ")\">" + life[x] + "</span><br />";
+                    output += "<a href=\"javascript:void()\" onmousedown=\"return dec(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
+                    output += "ontouchstart=\"return dec(" + x + ", 1)\" ontouchend=\"clearTimeout(t)\">";
+                    output += "<img src=\"minus.png\" height=\"40px\" width=\"40px\" /></a>";
+                    output += "</div>";
+                    output += "<span class=\"sml\" id=\"hist" + x + "\" style=\"width:300px\">" + hist[x] + "</h3>";
+                    output += "</td>";
+                }
+                output += "</tr></table><br />";
+                output += "<a href=\"javascript:addplayer()\"><img class=\"button\" src=\"add.png\" /></a> ";
+                output += "<a href=\"javascript:remplayer()\"><img class=\"button\" src=\"rem.png\" /></a> ";
+                output += "<a href=\"javascript:resetall(20)\"><img class=\"button\" src=\"20.png\" /></a> ";
+                output += "<a href=\"javascript:resetall(40)\"><img class=\"button\" src=\"40.png\" /></a> ";
+                output += "<br/><a href=\"javascript:first()\">who goes first?</a>";
+                document.getElementById("table").innerHTML = output; 
+            }
+            function inc(x, touch) { 
+                if(touch) { touchscreen = 1; }
+                if(!touch && touchscreen) { return false; }
+                clearTimeout(timer[x]);
+                life[x]++;
+                document.getElementById("life" + x).innerHTML = life[x]; 
+                t = setTimeout("inc(" + x + "," + touch + ")", 120);
+                timer[x] = setTimeout("updatehistory(" + x + ")", 1500);
+                return false;
+            }
+            function dec(x, touch) { 
+                if(touch) { touchscreen = 1; }
+                if(!touch && touchscreen) { return false; }
+                clearTimeout(timer[x]);
+                life[x]--;
+                document.getElementById("life" + x).innerHTML = life[x]; 
+                t = setTimeout("dec(" + x + "," + touch + ")", 120);
+                timer[x] = setTimeout("updatehistory(" + x + ")", 1500);
+                return false;
+            }
+            function setlife(x) {
+                var newlife = prompt("Set Life Total:", life[x]);
+                var anum=/^-?\d+$/;
+                if(!anum.test(newlife)) { return; }
+                life[x] = newlife;
+                document.getElementById("life" + x).innerHTML = newlife;
+                updatehistory(x);
+            }
+            function rename(x) {
+                var newname = prompt("Change player name:", names[x]);
+                if(newname != null && newname != "") {
+                    names[x] = newname;
+                    document.getElementById("name" + x).innerHTML = newname;
+                }
+            }
+            function addplayer() {
+                life[players] = null;
+                names[players] = null;
+                hist[players] = null;
+                players++;
+                maketable();
+            }
+            function remplayer() {
+                players--;
+                maketable();
+            }
+            function resetall(x) {
+                var i = 0;
+                startinglife = x;
+                while(i < players) {
+                    hist[i] = null;
+                    life[i++] = x;
+                }
+                maketable();
+            }
+            function updatehistory(x) {
+                hist[x] += ", " + life[x];
+                document.getElementById("hist" + x).innerHTML = hist[x]; 
+            }
+            function first() {
+                var p1 = Math.floor(Math.random()*players);
+                if(names[p1] == "???") { 
+                    p1 = "Player " + (p1+1); 
+                } else {
+                    p1 = names[p1];
+                }
+                alert(p1 + " goes first.");
+            }
+            window.onload = startup;
+            //-->
+        </script>
+    </head>
+    <body>
+        <div id="table"></div>
+    </body>
+</html>
