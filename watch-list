@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# email
+if [[ -e ~/.imapls ]]; then
+    imapls -n
+else
+    mdls
+fi
+echo
+
+# irc stuff
+if [[ -e ~/.irssi ]]; then
+    for i in ~/.irssi/logs/*/*.log; do cat $i | perl -e '
+        undef $/; 
+        $_ = <>;
+        s/[\s\S]*\n--- Log closed.*\n//;
+        s/[\s\S]*\n\d+:\d+\s+\*!\* \| Irssi:.*?Total of \d+ nicks.*\n//;
+        s/.*\*!\* \|.*\n//g;
+        s/^--- Day changed.*\n//mg;
+        s/[\s\S]*\n\d\d:\d\d\s+\@?enyalios\s+\|.*\n//;
+        print;
+        print "\n" if $_'
+    done
+fi
+
+# aim stuff
+if [[ -e ~/.pork ]]; then
+    for i in ~/.pork/*/logs/*; do cat $i | perl -e 'undef $/; $_ = <>; s/[\s\S]*\n---------- Log ended on.*----------\n+(---------- Log started on .* ----------)?\n*//; s/[\s\S]*\n\[\d\d:\d\d:\d\d\] > .*\n//; print; print "\n" if $_'; done
+fi
+
+# jabber stuff
+if [[ -e ~/.mcabber ]]; then
+    for i in ~/.mcabber/histo/*; do name=`echo $i | perl -pe 's/^.*\///; s/\@.*$//'`; echo $i | egrep -q '@conference|/illinois.edu$' || cat $i | perl -e 'undef $/; $_ = <>; s/[\s\S]*\nM?S.*\n//; print; print "\n" if $_' | perl -pe "s/^M. /$name /"; done
+fi
