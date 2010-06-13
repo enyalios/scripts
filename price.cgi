@@ -13,6 +13,7 @@ my $ua = LWP::UserAgent->new;
 sub get { $ua->get($_[0])->{_content}; }
 
 my $string = param('query');
+exit if $string eq "";
 
 print "Content-Type: text/html\n\n<html><head>\n<script language=\"JavaScript\" type=\"text/javascript\">\n";
 print "<!--\nfunction setfocus() {\ndocument.prices.query.focus();\n}\n//-->\n</script>\n<body onload=\"setfocus()\">\n";
@@ -28,8 +29,14 @@ print "</pre><h3><a href=\"http://cardshark.com/Search.aspx?qu=$string\">cardsha
 
 # print cardshark prices
 my $page = &get("http://cardshark.com/Search.aspx?qu=$string");
-while($page =~ m!<a href="CardDetail\.aspx\?id=\d+&amp;game=Magic">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Buy\.aspx\?Game=Magic&amp;CardSet=.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font></td>!ig) {
-    printf "%-30s %-30s %6s\n", $1, $2, $3?$3:"??";
+if($page =~ /CardShark\.com - Search for cards/) { # multiple results
+    while($page =~ m!<a href="CardDetail\.aspx\?id=\d+&amp;game=Magic">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Buy\.aspx\?Game=Magic&amp;CardSet=.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font></td>!ig) {
+        printf "%-30s %-30s %6s\n", $1, $2, $3?$3:"??";
+    }
+} else { # returned a single card page
+    my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
+    my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
+    printf "%-30s %-30s %6s\n", $name, $set, $price?$price:"??";
 }
 print "</pre><br />\nSearch Again:<br />\n<form method=\"get\" name=\"prices\" action=\"$progname\"><input type=\"text\" name=\"query\" />\n";
 print "</body></html>";
