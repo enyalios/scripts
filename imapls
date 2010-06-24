@@ -2,8 +2,8 @@
 
 use strict;
 use warnings;
-use Mail::IMAPClient;
-use IO::Socket::SSL;
+use Mail::IMAPClient; # from dev-perl/Mail-IMAPClient
+use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
 use Date::Parse; # from dev-perl/TimeDate
 use POSIX qw(strftime);
 use Term::ReadKey; # from dev-perl/TermReadKey
@@ -32,9 +32,9 @@ die "problems logging in: $greeting" unless $greeting =~ ' OK ';
 
 # use the socket and our credentials to open an imap connection
 my $imap = Mail::IMAPClient->new(
-    Socket   => $sock,
-    User     => $user,
-    Password => $pass,
+    RawSocket => $sock,
+    User      => $user,
+    Password  => $pass,
 ) or die "Cannot imap: $@";
 
 # figure out what we are searching for
@@ -61,7 +61,7 @@ for(@folders) {
     $imap->examine($_);
     # list unread messages
     my $msgs = $imap->search(@search);
-    next unless $msgs;
+    next unless $msgs && @{$msgs};
     # print out a folder header
     print "* $_(", scalar @{$msgs}, ")\n";
     my $headers = $imap->parse_headers($msgs, "Date", "From", "Subject");
@@ -99,7 +99,9 @@ for(@folders) {
 
         # get info on the message flags
         my %flags;
-        @flags{ @{$flags->{$_}} } = ();
+        if($flags->{$_} && @{$flags->{$_}}) {
+            @flags{ @{$flags->{$_}} } = ();
+        }
         my $flag_string = sprintf "%s%s",
                           exists($flags{"\\Seen"})?" ":"N",
                           exists($flags{"\\Flagged"})?"!":" ";
