@@ -6,7 +6,7 @@ if [[ -e ~/.imapls ]]; then
 else
     mdls
 fi
-echo
+echo " "
 
 # irc stuff
 if [[ -e ~/.irssi ]]; then
@@ -30,5 +30,5 @@ fi
 
 # jabber stuff
 if [[ -e ~/.mcabber ]]; then
-    for i in ~/.mcabber/histo/*; do name=`echo $i | perl -pe 's/^.*\///; s/\@.*$//'`; echo $i | egrep -q '@conference|/illinois.edu$' || cat $i | perl -e 'undef $/; $_ = <>; s/[\s\S]*\nM?S.*\n//; print; print "\n" if $_' | perl -pe "s/^M. /$name /"; done
+    for i in ~/.mcabber/histo/*; do name=`echo $i | perl -pe 's/^.*\///; s/\@.*$//'`; cat $i | perl -e 'undef $/; $_ = <>; s/[\s\S]*\n(M?S|MI .* 000 You have joined as ).*\n//; print; print "\n" if $_' | perl -pe "s/^M. /$name /"; done
 fi
