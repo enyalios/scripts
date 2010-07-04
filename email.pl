@@ -3,13 +3,13 @@
 # this is meant to be run as a cgi script via apache and acts a simple webmail
 # interface.  it is kept very simple and small in order to be checked from a
 # mobile phone.  beware however, as this has no security features whatsoever so
-# security must be build into either apache or the wap proxy for you phone.
+# security must be build into either apache or the wap proxy for your phone.
 # right now is only supports reading mail from a maildir, but that could easily
 # be extended to other formats.
 
 use strict;
 use warnings;
-use Date::Parse;
+use Date::Parse; # from dev-perl/TimeDate
 use POSIX qw(strftime ceil);
 use CGI;
 use Data::Dumper;
@@ -21,9 +21,11 @@ my $path = $q->param('path') || "";
 my $action = $q->param('action') || "";
 my $skip = $q->param('skip') || 0;
 my $messages_per_page = 50;
-my $maildir_root = "/home/enyalios/.maildir";
-die if $path && $path !~ /^$maildir_root\//;
-die if $path =~ /\/\.\.\//;
+my $access_keys = 0;
+my $maildir_root = "/var/www/enyalios.net/htdocs/mail/maildir";
+my $header_cache = "/var/www/enyalios.net/htdocs/mail/header_cache";
+my $real_path = "$maildir_root/$path";
+die if $real_path =~ m!(^|/)\.\.(/|$)!;
 (my $url = $0) =~ s/.*\///;
 my $now = strftime "%s", localtime;
 
@@ -37,9 +39,12 @@ Pragma: no-cache
 Expires: 0
 $redir
 
+<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
 <html><head><title>email</title>
+<meta name="viewport" content="width=device-width; initial-scale=1.0; user-scalable=0;">
 <style>
     body        { color: #000000; 
+                  margin: 0;
                   background-color: #fff; }
     .even       { background-color: #ffc; }
     .odd        { background-color: #fff; }
@@ -47,29 +52,38 @@ $redir
     .directory  { background-color: #aaf; }
     .header     { background-color: #aaf; }
     .new        { font-weight: bold; }
-    .hdrtitle   { font-weight: bold; }
+    .hdrtitle   { font-weight: bold; 
+                  padding: 5px; }
     a           { color: #2000a0; 
                   text-decoration: none; }
     .action     { font-size: 70%;
-                  background-color: #a7f; }
+                  background-color: #a7f; 
+                  padding: 1px 5px; }
     .pages      { font-size: 70%;
-                  background-color: #a7f; }
+                  background-color: #a7f;
+                  padding: 1px 5px; }
     .submit     { background: #ccf;
                   width: 100px; }
     .mailboxes  { width: 100%;
                   border-collapse: collapse; 
                   margin: 2px; }
-    .underline  { border-bottom: 1px solid #999; }
+    .underline  { border-bottom: 1px solid #999; padding: 2px 5px; }
     .doubleline { border-bottom: 1px solid #000;
                   border-top: 1px solid #000; }
-    .body       { font-family: monospace; }
+    .body       { font-family: monospace;
+                  padding: 15px 5px; }
+    .topmenu    { padding: 5px; }
+    .mailbox    { padding: 2px 10px; }
+    .mailboxnum { padding: 2px 10px;
+                  width: 0px; }
 </style>
 </head>
 <body>
 
 EOF
 
-    print "<div><a href=\"\">Refresh</a> - 0. <a href=\"$url\" accesskey=\"0\">Mailboxes</a>",
+    print "<div class=\"topmenu\">", $access_keys?"0. ":"",
+          "<a href=\"$url\" accesskey=\"0\">Mailboxes</a>",
           " - <a href=\"$url?action=compose\">Compose</a></div>\n";
 }
 
@@ -100,38 +114,38 @@ if($action eq "compose") { # compose an email
     print "<tr><td>From: </td><td><input type=\"text\" name=\"from\"    value=\"enyalios\@gmail.com\" /></td></tr>\n";
     print "<tr><td>To:   </td><td><input type=\"text\" name=\"to\"      value=\"$to\"                 /></td></tr>\n";
     print "<tr><td>Subj: </td><td><input type=\"text\" name=\"subject\" value=\"$subject\"            /></td></tr>\n";
-    print "</table>\n<textarea name=\"body\" rows=\"8\" cols=\"80\">\n\n-paul$body</textarea><br>\n";
+    print "</table>\n<textarea name=\"body\" rows=\"8\" cols=\"80\"> \n\n-paul$body</textarea><br>\n";
     print "<input type=\"hidden\" name=\"action\"      value=\"send\"         />\n";
     print "<input type=\"hidden\" name=\"references\"  value=\"$references\"  />\n";
     print "<input type=\"hidden\" name=\"in_reply_to\" value=\"$in_reply_to\" />\n";
     print "<input type=\"hidden\" name=\"path\"        value=\"$path\"        />\n";
-    print "<input class=\"submit\" type=\"submit\" value=\"9. Send\" accesskey=\"9\" /></form>\n";
+    print "<input class=\"submit\" type=\"submit\" value=\"",$access_keys?"9. ":"","Send\" accesskey=\"9\" /></form>\n";
 } elsif($action) { # perform an action on a message
     my $redir_path = $path;
     $redir_path =~ s/^(.*\/).*$/$url?path=$1/;
     $redir_path = $url unless $redir_path;
     print_header($redir_path);
     if($action eq "delete") {
-        die if -l $path;
+        die if -l $real_path;
         die unless -f _;
-        unlink $path;
+        unlink $real_path;
         print "Deleting '$path'.<br>\n<br>\n";
         print "<a href=\"$redir_path\">click here</a> if you are not redirected automatically\n";
     } elsif($action eq "markread") {
-        die if -l $path;
+        die if -l $real_path;
         die unless -f _;
-        my $new_path = add_maildir_flags($path, "S");
+        my $new_path = add_maildir_flags($real_path, "S");
         $new_path =~ s!/new/!/cur/!;
         print "\nrename $path, $new_path\n";
-        rename $path, $new_path;
+        rename $real_path, $new_path;
         print "Marking '$path' as read.<br>\n<br>\n";
         print "<a href=\"$redir_path\">click here</a> if you are not redirected automatically\n";
     } elsif($action eq "marknew") {
-        die if -l $path;
+        die if -l $real_path;
         die unless -f _;
-        my $new_path = remove_maildir_flags($path, "S");
+        my $new_path = remove_maildir_flags($real_path, "S");
         $new_path =~ s!/cur/!/new/!;
-        rename $path, $new_path;
+        rename $real_path, $new_path;
         print "Marking '$path' as new.<br>\n<br>\n";
         print "<a href=\"$redir_path\">click here</a> if you are not redirected automatically\n";
     } elsif($action eq "send") { # send an email
@@ -162,37 +176,13 @@ if($action eq "compose") { # compose an email
         print "Invalid action '$action'.<br>\n<br>\n";
         print "<a href=\"$redir_path\">click here</a> if you are not redirected automatically\n";
     }
-} elsif(!$path) { # generate a list of mailboxes
-    print_header();
-    my @maildirs;
-    open BOXES, "/home/enyalios/.mailboxes" or 
-    die "Could not open '/home/enyalios/.mailboxes': $!\n";
-    @maildirs = <BOXES>;
-    chomp for @maildirs;
-
-    my $line_num = 1;
-    print "<table class=\"mailboxes\">\n";
-    for my $dir(@maildirs) {
-        my $new_num = read_maildir("$dir/new");
-        my $old_num = read_maildir("$dir/cur") + $new_num;
-        (my $short_dir = $dir) =~ s/^\/home\/enyalios\/.maildir\/?/=/;
-        if($new_num) { $dir .= "/new" } else { $dir .= "/cur" }
-        print "<tr class=\"", $line_num%2?"odd":"even", "\">",
-              "<td>$line_num.</td>",
-              "<td class=\"", ($new_num)?"new":"", "\">",
-              "<a href=\"$url?path=$dir/\" accesskey=\"", $line_num++, "\">$short_dir</a>",
-              "</td>",
-              "<td align=\"right\" class=\"", ($new_num)?"new":"", "\">", $new_num?"$new_num/":"", "$old_num",
-              "</td></tr>\n";
-    }
-    print "</table>\n";
 } elsif($path =~ /\/$/) { # generate a list of emails in a mailbox
     my ($cache_file, %files, %emails);
     print_header();
 
     # make a hash of all the email file names
     @files{read_maildir($path)} = ();
-    ($cache_file = $path) =~ s/\//_/g;
+    ($cache_file = $path) =~ y/\//_/;
     %emails = load_cache($cache_file);
     # remove stale entries from the %emails hash
     for(keys %emails) { delete $emails{$_} unless exists $files{$_} }
@@ -205,10 +195,10 @@ if($action eq "compose") { # compose an email
     my $new = 1 if $path =~ m!/new/$!;
     $other_path =~ s/\/new\/$/\/cur\// or $other_path =~ s/\/cur\/$/\/new\//;
     my $short_path = $path;
-    $short_path =~ s!^/home/enyalios/.maildir/!=!;
     $short_path =~ s/\/$//;
+    $short_path =~ s!^\/!inbox/!;
     print "<div class=\"directory doubleline\"><table width=\"100%\"><tr><td>$short_path(",
-          scalar keys %emails,  ")</td><td align=\"right\">9. <a href=\"$url?path=",
+          scalar keys %emails,  ")</td><td align=\"right\">",$access_keys?"9. ":"","<a href=\"$url?path=",
           "$other_path\" accesskey=\"9\">View ", $new?"old":"new", "</a></td></tr>",
           "</table>\n";
 
@@ -222,18 +212,21 @@ if($action eq "compose") { # compose an email
         if(($count <= $skip) || ($count > $skip + $messages_per_page)) {
             next;
         }
-        print "<div class=\"underline ", $line_num%2?"odd":"even", "\"><table width=\"100%\"><tr>",
-                  "<td>$_->{from}</td>", 
+        print "<div class=\"underline ", $line_num%2?"odd":"even", 
+                  "\" onclick=\"window.location='$url?path=$_->{path}'\">\n",
+                  "<table width=\"100%\"><tr>",
+                  "<td>$_->{from}</td>\n", 
                   "<td align=\"right\">", format_date_nicely($_->{epoch}), "</td>",
               "</tr></table>\n",
               "<span class=\"nowrap\">",
-                  ($line_num < 9)?"$line_num. ":"", "<a href=\"$url?path=$_->{path}\"",
-                  ($line_num < 9)?" accesskey=\"$line_num\"":"", ">$_->{subject}</a>",
-              "</span></div>\n";
+                  ($access_keys && $line_num < 9)?"$line_num. ":"", "<a href=\"$url?path=$_->{path}\"",
+                  ($line_num < 9)?" accesskey=\"$line_num\"":"", ">", 
+                  $_->{subject} ? $_->{subject} : "(no subject)", "</a>",
+              "</span></div>\n\n";
         $line_num++;
     }
     print "<br><br><center>No ", $new?"new":"old", " emails</center>" unless %emails;
-} else { # display the contents of an email
+} elsif($path) { # display the contents of an email
     print_header();
     my $email = read_email($path);
     for(values %{$email}) { next unless $_; s/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g; }
@@ -245,24 +238,54 @@ if($action eq "compose") { # compose an email
     print "<span class=\"hdrtitle\">Date:</span> ";
     print strftime("%a, %d %B %Y %T", localtime $email->{epoch}), "\n";
     if($path =~ m!/new/!) {
-        print "<div class=\"action\">1. <a href=\"$url?path=$path&action=markread\" accesskey=\"1\">Mark as Read</a>\n";
+        print "<div class=\"action\">",$access_keys?"1. ":"","<a href=\"$url?path=$path&action=markread\" accesskey=\"1\">Mark as Read</a>\n";
     } else {
-        print "<div class=\"action\">1. <a href=\"$url?path=$path&action=marknew\" accesskey=\"1\">Mark as New</a>\n";
+        print "<div class=\"action\">",$access_keys?"1. ":"","<a href=\"$url?path=$path&action=marknew\" accesskey=\"1\">Mark as New</a>\n";
     }
-    print " - 2. <a href=\"$url?path=$path&action=compose\" accesskey=\"2\">Reply</a>\n";
-    print " - 9. <a href=\"$url?path=$path&action=delete\" accesskey=\"9\">Delete</a></div>\n";
-    print "</div>\n<br>\n";
+    print " - ",$access_keys?"2. ":"","<a href=\"$url?path=$path&action=compose\" accesskey=\"2\">Reply</a>\n";
+    print " - ",$access_keys?"9. ":"","<a href=\"$url?path=$path&action=delete\" accesskey=\"9\">Delete</a></div>\n";
+    print "</div>\n";
     for($email->{body}) { 
         s/(?<= ) /&nbsp;/g; s/\t/\&nbsp;\&nbsp;\&nbsp;\&nbsp;/g; s/\n/<br\/>\n/g; 
         print "<div class=\"body\">$_</div>\n";
     }
-#    print "<pre>$email->{body}</pre>\n";
+    # print "<pre>$email->{body}</pre>\n";
+} else { # generate a list of mailboxes
+    print_header();
+    my @maildirs;
+
+    sub recurse {
+        (my $dir = $_[0]) =~ s!^/!!;
+        push @maildirs, $dir;
+        opendir DIR, "$maildir_root/$dir" or die "could not open dir '$dir': $!\n";
+        my @files = sort grep { !/^\.\.?$/ && -d "$maildir_root/$dir/$_" } readdir DIR;
+        closedir DIR;
+        for(@files) { recurse("$dir/$_") unless /^(new|tmp|cur)$/ }
+    }
+    recurse("");
+
+    my $line_num = 1;
+    print "<table class=\"mailboxes\">\n";
+    for my $dir(@maildirs) {
+        my $new_num = read_maildir("$dir/new");
+        my $old_num = read_maildir("$dir/cur") + $new_num;
+        (my $short_dir = $dir) =~ s!^$!inbox!;
+        if($new_num) { $dir .= "/new" } else { $dir .= "/cur" }
+        print "<tr class=\"", $line_num%2?"odd":"even", "\">",
+              $access_keys?"<td class=\"mailboxnum\">$line_num.</td>":"",
+              "<td class=\"mailbox ", ($new_num)?"new":"", "\">",
+              "<a href=\"$url?path=$dir/\" accesskey=\"", $line_num++, "\">$short_dir</a>",
+              "</td>",
+              "<td align=\"right\" class=\"mailbox ", ($new_num)?"new":"", "\">", $new_num?"$new_num/":"", "$old_num",
+              "</td></tr>\n";
+    }
+    print "</table>\n";
 }
 
 print "</body></html>\n";
 
 sub read_maildir {
-    my $dir = $_[0];
+    my $dir = $maildir_root . "/" . $_[0];
     opendir DIR, $dir or die "Cannot open directory '$dir': $!\n";
     my @files = grep { !/^\./ } readdir(DIR);
     closedir DIR;
@@ -271,7 +294,8 @@ sub read_maildir {
 
 sub read_email {
     undef $/;
-    my $file_path = $_[0];
+    my $short_path = $_[0];
+    my $file_path = $maildir_root . "/" . $short_path;
     my ($from, $raw_from, $epoch, $subject, $date);
 
     open EMAIL, "<$file_path" or die "Cannot open file '$file_path': $!\n";
@@ -301,7 +325,7 @@ sub read_email {
     my $body = recparse($email);
 
     { to         => scalar $email->header('to'),       epoch    => $epoch,    from  => $from,
-      cc         => scalar $email->header('cc'),       subject  => $subject,  path  => $file_path,
+      cc         => scalar $email->header('cc'),       subject  => $subject,  path  => $short_path,
       reply_to   => scalar $email->header('reply-to'), raw_from => $raw_from, body  => $body, 
       references => scalar $email->header('references'), 
       message_id => scalar $email->header('message-id') };
@@ -357,12 +381,12 @@ sub generate_pages_header {
 }
 
 sub load_cache {
-    my $cache_file = "/home/enyalios/.email_header_cache/" . $_[0];
+    my $cache_file = $header_cache . "/" . $_[0];
     -e $cache_file ? %{do $cache_file} : ();
 }
 
 sub write_cache {
-    my $cache_file = "/home/enyalios/.email_header_cache/" . $_[0];
+    my $cache_file = $header_cache . "/" . $_[0];
     my $data = $_[1];
     open CACHE, ">$cache_file"
         or die "could not open '$cache_file' for writing: $!\n";
@@ -467,12 +491,8 @@ TODO:
 - add the 'R' flag when you reply to messages
 - wrap the headers to a sane width on outgoing messages
 - wrap your email text on outgoing messages
-- make everything use the $maildir_root variable
-- strip off the $maildir_root variable from the path param
 - handle parsing email bodies so that it returns an array of text and attachments
 - get rid of all the warnings we dump into apache's error_log
-- do some sanity checking on the path and bail if necessary
 - handle errors when we cant open files and such
 - add comments
-- move cache files into maildir_root
 - combine /new and /cur caches
