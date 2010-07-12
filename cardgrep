@@ -59,7 +59,7 @@ if($opts{u}) {
     open OUTPUT, "<$data_file" or die "cant open output file '$data_file': $!\n";
     $data = join "", <OUTPUT>;
     close OUTPUT;
-    for($data) { s/\xC3\x86/AE/g; s/ *\xE2\x80\x94 */ - /g }
+    for($data) { s/\xC3\x86/AE/g; s/ *\xE2\x80\x94 */ - /g; s/\xC3\xB6/o/g; }
     open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
     print OUTPUT $data;
     close OUTPUT;
