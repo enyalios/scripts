@@ -115,7 +115,7 @@ sub grab_eps {
     # find the url of the episode listing for the given show
     (my $show_url) = get("http://www.google.com/search?hl=en&q=allintitle%3A+site%3Atv.com+$title&btnG=Search")
     =~ m!href="(http://www.tv.com/.*?/summary.html)!;
-    my ($tmp_title) = get("$show_url") =~ m!<title>(.*?) - TV\.com </title>!;
+    my ($tmp_title) = get("$show_url") =~ m!<title>(.*?) on TV\.com</title>!;
     $title = $tmp_title if $tmp_title;
     die "could not find any show by that name!\n" unless $show_url;
     $show_url =~ s/summary\.html$/episode_listings.html/;
