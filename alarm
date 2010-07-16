@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use POSIX "strftime";
+use Date::Parse;
+use File::Find;
+use List::Util "shuffle";
+
+my $volume_file = "/proc/acpi/ibm/volume";
+my $music_dir = "$ENV{HOME}/media";
+$| = 1;
+$SIG{INT} = sub { &fix_term && exit };
+END { &fix_term }
+
+my $end = $ARGV[0];
+if($end =~ /^\d+$/) {
+    $end = strftime("%s", localtime()) + $end*60;
+} else {
+    $end = str2time($end);
+    $end += 24*60*60 if $end < &now;
+}
+
+print "\e[?25l";
+#my $format = "%02d:%02d:%02d  ";
+my $format = "%d hours, %d minutes, %d seconds    ";
+
+while(1) {
+    my $diff = $end - &now;
+    my $hours = int($diff / 60 / 60);
+    my $minutes =  int($diff / 60) % 60;
+    my $seconds = $diff % 60;
+
+    printf "\r$format", $hours, $minutes, $seconds;
+    last if $diff <= 0;
+    sleep 1;
+}
+
+print "\nbuzz, buzz!\n";
+&set_volume_and_unmute;
+&play_music;
+
+sub now { strftime("%s", localtime()); }
+
+sub fix_term { print "\e[?25h"; }
+
+sub play_music {
+    my @files;
+    find( sub { push @files, $File::Find::name if -f }, $music_dir );
+    system "mplayer", shuffle @files;
+}
+
+sub set_volume_and_unmute { 
+    system "amixer set PCM 35% > /dev/null";
+    &volume_cmd("level 14\n");
+    &volume_cmd("up\n") while &is_muted;
+}
+
+sub is_muted {
+    open VOL, "<$volume_file" or die "couldnt open volume file\n";
+    my @lines = <VOL>;
+    close VOL;
+    return 1 if grep /^mute:.*on/, @lines;
+    return 0;
+}
+
+sub volume_cmd {
+    open VOL, ">$volume_file" or die "couldnt open volume file\n";
+    print VOL @_;
+    close VOL;
+}
