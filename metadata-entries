@@ -15,7 +15,7 @@ my @db = ("DBI:mysql:database=mythconverg;host=delta", "mythtv", "mythtv");
 
 # find all the files that should be in the database
 my @files;
-find( { wanted => sub { push @files, $File::Find::name if -f $_ }, follow_fast => 1 }, $video_dir );
+find( { wanted => sub { push @files, $File::Find::name if /\.(avi|mkv|mpe?g|rm|asf|wmv|mov|mp4|iso)$/i && -f $_ }, follow_fast => 1 }, $video_dir );
 
 # find all the files that are already in the database
 my $dbh = DBI->connect(@db, {'RaiseError' => 1}) or die "couldnt connect to db\n";
