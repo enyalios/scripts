@@ -2,9 +2,13 @@
 
 use strict;
 use warnings;
-use LWP::UserAgent;
+use LWP::Simple;
 use Data::Dumper;
 use Getopt::Std;
+use XML::Simple;
+
+my $tvdb_url = "http://www.thetvdb.com/api/";
+my $api_key = "232FED794A5A8D27";
 
 my $cache_file;
 if(-d "$ENV{HOME}" && -w "$ENV{HOME}") {
@@ -14,14 +18,6 @@ if(-d "$ENV{HOME}" && -w "$ENV{HOME}") {
 }
 
 my ($title, $subtitle, $ext, %data, %opts);
-
-sub get {
-    my $url = $_[0];
-    my $ua = LWP::UserAgent->new;
-    # act like mozilla since google hates LWP
-    $ua->agent('Mozilla/5.0'); 
-    $ua->get($url)->content;
-}
 
 sub parse_args {
     getopts('luhvcdi', \%opts);
@@ -112,59 +108,20 @@ sub grab_eps {
     # invalidate the cache for this show
     delete $data{simple($title)};
 
-    # find the url of the episode listing for the given show
-    (my $show_url) = get("http://www.google.com/search?hl=en&q=allintitle%3A+site%3Atv.com+$title&btnG=Search")
-    =~ m!href="(http://www.tv.com/.*?/summary.html)!;
-    my ($tmp_title) = get("$show_url") =~ m!<title>(.*?) on TV\.com</title>!;
-    $title = $tmp_title if $tmp_title;
-    die "could not find any show by that name!\n" unless $show_url;
-    $show_url =~ s/summary\.html$/episode_listings.html/;
-    print "\$show_url: $show_url\n" if $opts{v};
-
-    # loop over the episode pages and print out the episodes
-    # using this page first, follow by any other season pages
-    (my $season_url = $show_url) =~ s/summary\.html$/episode_listings.html/;
-    my ($last_season) = (get("$season_url?season=1") =~ /<a .*?href=".*?episode(?:_listings)?.html\?season=(\d+)/);
-    print "\$last_season = $last_season\n" if $opts{v};
-    my @seasons = 1..($last_season || 1); 
-    $seasons[0] = 1 unless @seasons;
-    my $season_length = length $seasons[-1];
-    for(@seasons) {
-        my ($season_num) = $_;
-        my $ep_num = 1;
-        print "  getting season page: $season_url?season=$_\n" if $opts{v};
-        my $page = get( $season_url . "?shv=list&season=" . $_ );
-        for (reverse $page =~ m!(<tr class="episode">.*?</tr>)!sg) {
-
-            m!<td class="number".*?>\s*(\d+|Special|)\s*</td>\s*<td class="title">\s*<a href="http://www\.tv\.com.*?">(.*?)</a>!;
-
-            my $ep_title = $2;
-            next unless $ep_title;
-
-            # this code starts us using the right number if a "Piolt" episode in
-            # first season is listed as Pilot and the next episode starts at
-            # number 2. This occurs to futurama, currently the pilot episode
-            # is still skipped. a 2 pass aproach seems the only way to really
-            # solve this, and not scew up shows like star trek where the pilot is
-            # not counted in the first season
-
-            if( $1 ne $ep_num &&
-                $ep_num == 1 &&
-                $season_num == 1){
-                $ep_num = $1;
-                print "    using data suplied starting ep number: $1\n" if $opts{v};
-            }
-
-            $ep_title =~ s/\xC0/A/g;
-            $ep_title =~ s/\xE0/a/g;
-            $ep_title =~ s/\xE9/e/g;
-            $ep_title =~ s/&#039;/'/g;
-
-            print "    found episode: $ep_title\n" if $opts{v};
-
-            $data{simple($title)}{simple($ep_title)} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $season_num, $ep_num++, $ep_title);
-        }
+    my $content = XMLin(&get($tvdb_url . "GetSeries.php?seriesname=" . $title), KeyAttr => [], ForceArray => [ "Series" ]);
+    my $show_url = $tvdb_url . $api_key . "/series/" . $content->{Series}->[0]->{seriesid} . "/all/";
+    my $title = $content->{Series}->[0]->{SeriesName};
+    print "$title ($show_url)\n" if $opts{v};
+    my $episodes = XMLin(&get($show_url), KeyAttr => []);
+    my $season_length = 0;
+    for(@{$episodes->{Episode}}) {
+        $season_length = length $_->{SeasonNumber} if length $_->{SeasonNumber} > $season_length;
     }
+    for(@{$episodes->{Episode}}) {
+        $data{simple($title)}{simple($_->{EpisodeName})} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $_->{SeasonNumber}, $_->{EpisodeNumber}, $_->{EpisodeName});
+        print "    found episode: ", $_->{EpisodeName}, "\n" if $opts{v};
+    }
+
     write_cache();
 }
 
