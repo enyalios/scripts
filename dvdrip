@@ -377,8 +377,8 @@ sub rm_tmp {
         }
     }
     unless($keep) {
-        unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/video-$pid.avi",
-            "$temp_dir/chapters-$pid";
+        unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/divx2pass-$pid.log.mbtree", 
+            "$temp_dir/video-$pid.avi", "$temp_dir/chapters-$pid";
         for (@oggs) {
             unlink $_;
             s/audio/pipe/;
