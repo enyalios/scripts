@@ -330,7 +330,7 @@ sub video1_pass {
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5), 
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
-        "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
+        "-vf", "${deint}${crop}${noise}spp,scale=$width:-10", @dvd_device, 
         @opts, @sid, @fps, @{$aid[0]});
 }
 
@@ -342,7 +342,7 @@ sub video2_pass {
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5),
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
         "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
-        "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
+        "-vf", "${deint}${crop}${noise}spp,scale=$width:-10", @dvd_device,
         @opts, @sid, @fps, @{$aid[0]});
 }
 
