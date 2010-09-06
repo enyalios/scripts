@@ -8,7 +8,8 @@
 # in order for the web interface to work youll also need MFPlayer.swf and
 # MFPlayer_styles.swf in the current directory.  they both come as part of the
 # mythweb package.  im not really happy with them as an flv player, but i
-# havent found any others that i like any better.
+# havent found any others that i like any better.  copy them from 
+# /var/www/localhost/htdocs/mythweb/modules/tv/ .
 #
 # youll need to add this stuff to your .htaccess file in the current directory:
 # -- start .htaccess --
@@ -18,8 +19,9 @@
 # </Files>
 #
 # RewriteEngine  on
-# RewriteRule  ^videos\.pl(/.*)$     videos.pl?method=stream&filename=$1
-# RewriteRule  ^videos\.pl/ff(/.*)$  videos.pl?method=stream&encoder=ffmpeg&filename=$1
+# RewriteRule  ^videos\.pl/info/(/.*)$      videos.pl?method=info&filename=$1
+# RewriteRule  ^videos\.pl/stream/(.*)$     videos.pl?method=stream&filename=$1
+# RewriteRule  ^videos\.pl/stream/ff/(.*)$  videos.pl?method=stream&encoder=ffmpeg&filename=$1
 # -- end .htaccess --
 
 use warnings;
@@ -34,6 +36,7 @@ sub bail { print $q->header(), @_; exit; }
 
 my $f = $q->param('filename');
 my $m = $q->param('method');
+(my $script_root = $ENV{SCRIPT_NAME}) =~ s!/[^/]*$!!;
 
 my $dbh = DBI->connect("DBI:mysql:database=mythconverg;host=delta",
     "mythtv", "mythtv", {'RaiseError' => 1}) or die "couldnt connect to db\n";
@@ -50,14 +53,14 @@ if(!defined $f) {
     while (my $ref = $sth->fetchrow_hashref()) {
         my $name = $ref->{filename};
         $name =~ s!^\Q$video_dir\E/?!!;
-        print "<a href=\"videos.pl?method=info&filename=$name\">$name</a><br>\n";
+        print "<a href=\"videos.pl/info/$name\">$name</a><br>\n";
     }
 } else {
 
     bail("no filename")    unless $f;
     #bail("bad directory")  unless $f =~ m!^/mnt/videos/!;
     bail("bad extension")  unless $f =~ m/\.(avi|mkv|mpe?g|rm|asf|wmv|mov|mp4)$/i;
-    bail("cant use '..'")  if $f =~ m!/\.\./!;
+    bail("cant use '..'")  if $f =~ m!(^|/)\.\./!;
     bail("cant find file") unless -e "$video_dir/$f";
 
     if($m eq "stream") {
@@ -100,14 +103,14 @@ if(!defined $f) {
 
         print $q->start_html(-title => $ref->{title}, -style=>{-code=>generate_stylesheet()}); 
         print "<div class=header1><div class=headertext>";
-        print "<img src='mepo.png' style='float:right'>Video Information</div></div>\n";
+        print "<img src='$script_root/mepo.png' style='float:right'>Video Information</div></div>\n";
         print "<div class=header2>&nbsp;</div>\n<div class=header3>&nbsp;</div>\n";
         print "<div class=body>\n";
 
         my $cover = $ref->{coverfile};
         # in order for this to work you'll need to make a symlink to your covers dir
         $cover =~ s!^/home/enyalios/.mythtv/MythVideo!covers!;
-        print "<img src='$cover' width='300' class=cover>\n" unless $cover eq 'No Cover';
+        print "<img src='$script_root/$cover' width='300' class=cover>\n" unless $cover eq 'No Cover';
         print "<span class=title>", $ref->{title}, "</span><br><br>\n";
         print "<span class=director><span class=yellowish>Directed by:</span> ", $ref->{director}, "</span><br>\n";
         print $ref->{plot}, "<br><br><br>\n<span class=yellowish>", $ref->{rating}, "</span><br><br>\n";
@@ -125,15 +128,17 @@ if(!defined $f) {
         my $height = int(480 * $vinfo{ID_VIDEO_HEIGHT} / $vinfo{ID_VIDEO_WIDTH} + 20);
         my $time = int($vinfo{ID_LENGTH});
 
-        print "<br>\n<a href=\"javascript:void(0)\" onclick=\"", 
-        "javascript:window.open('MFPlayer.swf?totalTime=$time&width=480",
-        "&height=$height&styles=MFPlayer_styles.swf&file=/videos/videos.pl/$f",
-        "','videoplayer','width=480,height=$height')\">play using mencoder</a>";
+        my $link = "$script_root/MFPlayer.swf?totalTime=$time&width=480&height=$height" .
+                   "&styles=MFPlayer_styles.swf&file=/videos/videos.pl/stream/$f";
+        print "<br>\n<a href=\"$link\">play with mencoder</a> (<a ",
+              "href=\"javascript:void(0)\" onclick=\"javascript:window.open('",
+              "$link','videoplayer','width=480,height=$height')\">new window</a>)";
 
-        print "<br>\n<a href=\"javascript:void(0)\" onclick=\"", 
-        "javascript:window.open('MFPlayer.swf?totalTime=$time&width=480",
-        "&height=$height&styles=MFPlayer_styles.swf&file=/videos/videos.pl/ff/$f",
-        "','videoplayer','width=480,height=$height')\">play using ffmpeg</a>";
+        $link = "$script_root/MFPlayer.swf?totalTime=$time&width=480&height=$height" .
+                   "&styles=MFPlayer_styles.swf&file=/videos/videos.pl/stream/ff/$f";
+        print "<br>\n<a href=\"$link\">play with ffmpeg</a> (<a ",
+              "href=\"javascript:void(0)\" onclick=\"javascript:window.open('",
+              "$link','videoplayer','width=480,height=$height')\">new window</a>)";
 
         print "<div class=clearer></div></div><br>\n<div class=footer1>&nbsp</div>";
         print "<div class=footer2>&nbsp;</div>";
