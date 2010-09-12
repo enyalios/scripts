@@ -9,35 +9,46 @@
 # extension installed.  
 #
 # try the '-v' switch for more verbose information.
+#
+# now you need to have dev-perl/JSON installed
 
 use Getopt::Std;
 
-getopts('mv');
+getopts('msv');
 
-$dir = $opt_m?
-    glob "$ENV{HOME}/.mozilla/default/*.slt":
-    glob "$ENV{HOME}/.mozilla/firefox/*.default";
+$dir = glob "$ENV{HOME}/.mozilla/firefox/*.default";
+$dir = glob "$ENV{HOME}/.mozilla/default/*.slt" if $opt_m;
+$dir = glob "$ENV{HOME}/.mozilla/seamonkey/*.default" if $opt_s;
 
-$file = (-e "$dir/sessionstore.js")?
-    "$dir/sessionstore.js":
-    "$dir/prefs.js";
+$file = "$dir/prefs.js";
+$file = "$dir/sessionstore.js" if -e "$dir/sessionstore.js";
+$file = "$dir/sessionstore.json" if -e "$dir/sessionstore.json";
 
 die unless open(INPUT, "<$file");
 
-if($file eq "$dir/sessionstore.js") { 
-    @tabs = split /"index":(\d+)/, <INPUT>; 
+if($file =~ /^$dir\/sessionstore.js(on)?$/) { 
+    require JSON;
+    my $input = join "", <INPUT>;
     close INPUT;
-    while($tabs[$i+1]) { 
-        ($_, $hist_num) = @tabs[$i, $i+1]; 
-        $hist_num--;
-        if(/"_closedTabs":/) {
-            last unless $opt_v;
-            print "\nrecently closed tabs:\n";
+    $input =~ s/^\((.*)\)$/$1/sm;
+    my $tree = JSON::decode_json($input);
+
+    my $win = 0;
+    for(@{$tree->{windows}}) {
+        print "Window ", $win++, ":\n" if @{$tree->{windows}} > 1;
+        for(@{$_->{"tabs"}}) {
+            if($opt_v) {
+                print "hist_num: ", $_->{"index"}, "\n";
+                print "  ", $_->{"url"}, "\n" for @{$_->{"entries"}};
+            }
+            print $_->{"entries"}[$_->{"index"} - 1]{"url"}, "\n";
         }
-        @urls = /"url":"(.*?)"/g; 
-        if($opt_v) { print "hist_num: $hist_num\n"; print "  $_\n" for @urls; }
-        print $urls[$hist_num], "\n";
-        $i += 2; 
+        if($opt_v) {
+            print "Recently Closed Tabs:\n" if @{$_->{"_closedTabs"}};
+            for(@{$_->{"_closedTabs"}}) {
+                print "  ", $_->{"state"}{"entries"}[$_->{"state"}{"index"} - 1]{"url"}, "\n";
+            }
+        }
     }
 } else {
     @lines = <INPUT>;
