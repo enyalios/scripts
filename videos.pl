@@ -97,11 +97,17 @@ if(!defined $f) {
 
         my $sth = $dbh->prepare("
             SELECT rating, director, userrating, inetref, length, plot,
-            title, coverfile, year FROM videometadata where filename = ?");
+            title, subtitle, season, episode, coverfile, year FROM 
+	    videometadata where filename = ?");
         $sth->execute("$video_dir/$f");
         my $ref = $sth->fetchrow_hashref();
+	my $title = $ref->{title};
+        if($ref->{subtitle} ne "") {
+            $title .= sprintf " - %d%02d - %s", $ref->{season}, 
+	    $ref->{episode}, $ref->{subtitle};
+        }
 
-        print $q->start_html(-title => $ref->{title}, -style=>{-code=>generate_stylesheet()}); 
+        print $q->start_html(-title => $title, -style=>{-code=>generate_stylesheet()}); 
         print "<div class=header1><div class=headertext>";
         print "<img src='$script_root/mepo.png' style='float:right'>Video Information</div></div>\n";
         print "<div class=header2>&nbsp;</div>\n<div class=header3>&nbsp;</div>\n";
@@ -111,7 +117,7 @@ if(!defined $f) {
         # in order for this to work you'll need to make a symlink to your covers dir
         $cover =~ s!^/home/enyalios/.mythtv/MythVideo!covers!;
         print "<img src='$script_root/$cover' width='300' class=cover>\n" unless $cover eq 'No Cover';
-        print "<span class=title>", $ref->{title}, "</span><br><br>\n";
+        print "<span class=title>", $title, "</span><br><br>\n";
         print "<span class=director><span class=yellowish>Directed by:</span> ", $ref->{director}, "</span><br>\n";
         print $ref->{plot}, "<br><br><br>\n<span class=yellowish>", $ref->{rating}, "</span><br><br>\n";
         print "<table><tr><td><span class=yellowish>Runtime:</span></td><td>", $ref->{length}, " minutes</td></tr>";
