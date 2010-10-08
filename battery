@@ -30,7 +30,7 @@ case $1 in
         ;;
     (-d)
         BATT_PERC=`battery`
-        if grep discharging $BAT_DIR/state &> /dev/null; then
+        if grep Discharging $BAT_DIR/status &> /dev/null; then
             BATTERY_COLOR="red"
             [[ "$BATT_PERC" -gt "10" ]] && BATTERY_COLOR="yellow"
             [[ "$BATT_PERC" -gt "50" ]] && BATTERY_COLOR="green"
@@ -42,7 +42,7 @@ case $1 in
         --font='-*-helvetica-*-r-*-*-20-*-*-*-*-*-*-*' --text="`battery -p`"
         ;;
     (-s)
-        if grep discharging $BAT_DIR/state &> /dev/null; then
+        if grep Discharging $BAT_DIR/status &> /dev/null; then
             echo Discharging
         else
             echo AC-power
