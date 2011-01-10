@@ -15,7 +15,7 @@ for(@access_points) {
     my ($address) = /^\s*Address: ([0-9A-F:]+)$/m;
     my ($essid)   = /^\s*ESSID:"(.*?)"$/m;
     my ($enc)     = /^\s*Encryption key:(\w*)$/m;
-    my ($quality) = /^\s*Quality=(\d+)\/100/m;
+    my ($quality) = /^\s*Quality=(\d+)\/\d+0/m;
     next unless $address && $essid && $enc && $quality;
     push @data, { address => $address, quality => $quality, essid => $essid, enc => $enc };
 }
