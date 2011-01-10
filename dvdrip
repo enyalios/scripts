@@ -91,8 +91,8 @@ sub parse_args {
                                       print "Input file '$_[0]' is not a valid ", 
                                       "dvd track or readable input file.\n";
                                       $bail++; }
-                                  @fps = qw(-ofps 24000/1001) 
-                                      if $_[0] =~ m#^dvd://\d+$#;
+                                      #@fps = qw(-ofps 24000/1001) 
+                                      #if $_[0] =~ m#^dvd://\d+$#;
                                   push @infiles, $_[0]; }
     );
     
@@ -329,9 +329,9 @@ sub video1_pass {
     print "\n### Encoding first pass...\n";
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5), 
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
-        "/dev/null", "-x264encopts", "force_cfr:pass=1:bitrate=${bitrate}:turbo=1", 
+        "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}:turbo=1", 
         "-vf", "${deint}${crop}${noise}spp,scale=$width:-10", @dvd_device, 
-        @opts, @sid, @fps, @{$aid[0]});
+        @opts, @sid, @fps, @{$aid[0]}, "-forcedsubsonly");
 }
 
 # this is all basically the exact same thing as the first video pass except we
@@ -341,9 +341,9 @@ sub video2_pass {
     print "\n### Encoding second pass...\n";
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5),
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
-        "$temp_dir/video-$pid.avi", "-x264encopts", "force_cfr:pass=2:bitrate=${bitrate}", 
+        "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
         "-vf", "${deint}${crop}${noise}spp,scale=$width:-10", @dvd_device,
-        @opts, @sid, @fps, @{$aid[0]});
+        @opts, @sid, @fps, @{$aid[0]}, "-forcedsubsonly");
 }
 
 # here we are mixing the audio stream from the ogg file with the video stream
