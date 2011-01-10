@@ -56,7 +56,7 @@ my @folders = @ARGV;
 for(@folders) {
     my @emails;
     # skip some special cases
-    next if /^\[Gmail\]\/(All Mail|Spam|Starred)$/;
+    next if /^\[Gmail\]\/(All Mail|Spam|Starred|Sent Mail)$/;
     # open the folder read-only
     $imap->examine($_);
     # list unread messages
