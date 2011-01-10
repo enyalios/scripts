@@ -2,7 +2,7 @@
 
 # email
 if [[ -e ~/.imapls ]]; then
-    imapls -n
+    imapls -n 2>&1
 else
     mdls
 fi
