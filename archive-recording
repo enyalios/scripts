@@ -26,7 +26,8 @@ logger -t archive-recording "\"$1\" \"$2\" \"$3\" \"$4\""
 title=$1
 subtitle=$2
 chanid=$3
-starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
+#starttime=$(echo $4 | perl -pe 's/^(....)(..)(..)(..)(..)..$/$1-$2-$3-$4-$5/')
+starttime=$4
 
 # this is in case mythtv is missing subtitle data
 [[ "$subtitle" == "" ]] && subtitle="unknown_episode"
