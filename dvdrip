@@ -34,6 +34,7 @@ my @fps         = ();
 my @chapters    = ();
 my @opts        = ();
 my @oggs        = ();
+my $copy        = 0;
 
 # this is a nice usage message that will get printed if anything goes wrong
 sub print_help {
@@ -56,6 +57,7 @@ Options:
   --size        -s <n>            target filesize in mbs
   --sid         -u <n>            subtitle id number
   --width       -w <n>            video width (default: 640)
+  --copy        -y                make a copy of the dvd before ripping
   --                              end dvdrip options--remaining args to mplayer
 
   Short options may be bundled and long options abbreviated.
@@ -87,6 +89,7 @@ sub parse_args {
         'size|s=i'       => \$size,
         'sid|u=i'        => sub { @sid = ("-sid", $_[1]) },
         'width|w=i'      => sub { $width = 16 * int(($_[1] + 8)/16) },
+        'copy|y'         => \$copy,
         '<>'             => sub { unless($_[0] =~ m#^dvd://\d+$# || -r $_[0]) {
                                       print "Input file '$_[0]' is not a valid ", 
                                       "dvd track or readable input file.\n";
@@ -101,6 +104,8 @@ sub parse_args {
     unless(@infiles)        { print "You must specify at least one input file.\n";         print_help(); }
     if(@chapters && !$chapters[1] && $infiles[0] !~ m#^dvd://\d+$#) 
     { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
+    if($copy && $infiles[0] !~ m#dvd://\d+$#)
+    { print "You can only use the --copy option when the input is a DVD.\n"; print_help(); }
     print_help() if $bail;
 
     #get leftover options to pass to mplayer/mencoder
@@ -129,9 +134,6 @@ sub parse_args {
     print "\n";
 
     if (@aid == 0) { @aid = ([]); }
-
-    get_crop();
-    get_chapters();
 
     if(!$pretend) {
         local $| = 1; #autoflush on for this block
@@ -183,7 +185,7 @@ sub my_system {
 # decided is best.
 sub get_crop {
     if($crop eq "autodetect") {
-        print "### Calculating crop region...\n";
+        print "\n### Calculating crop region...\n";
         if($pretend) {
             print "crop_region=\$(mplayer @dvd_device @infiles @opts -vo null ",
             "-ao null -vf cropdetect=50:4 -sstep 60 -frames 60 -v 2>/dev/null | ",
@@ -255,17 +257,17 @@ sub audio_pass {
             $pipe = "$temp_dir/pipe-$pid";
         }
         my_system("mkfifo", $pipe);
-        my $child = fork;
+        my $child = fork unless $pretend;
         if(!$child) {
             my_system(qw(oggenc -b 96 -o), $ogg, $pipe, $pretend?"&":());
-            exit;
+            exit unless $pretend;
         }
         my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$pipe",
             @infiles, @$aid, @opts, @dvd_device);
 
         # wait for oggenc to finish encoding whats left in the pipe, since mplayer
         # will return before oggenc is done
-        waitpid($child, 0);
+        waitpid($child, 0) unless $pretend;
         push @oggs,$ogg;
     }
     
@@ -397,7 +399,25 @@ sub find_program {
         or die "Cannot find program '$program' in your path.\n";
 }
 
+# we use ddrescue or dd to make a copy of the disc before ripping it
+sub copy_dvd {
+    my $copy_output = $outfile;
+    $copy_output =~ s/\.mkv$/.iso/;
+    # for some reason the copy doesnt work unless we do a quick mplayer read first
+    system("echo q | mplayer -dvd-device $dvd_device[1] dvd://1 &> /dev/null") unless $pretend;
+    print "\n### Copying DVD to hard drive...\n";
+    if(system("which ddrescue &> /dev/null") == 0) {
+        my_system("ddrescue", "-nv", $dvd_device[1], $copy_output);
+    } else {
+        my_system("dd", "if=$dvd_device[1]", "of=$copy_output");
+    }
+    $dvd_device[1] = $copy_output;
+}
+
 parse_args();
+copy_dvd() if $copy;
+get_crop();
+get_chapters();
 audio_pass();
 video1_pass();
 video2_pass();
@@ -409,8 +429,7 @@ rm_tmp();
 TODO:
 
 do some testing on the new deinterlacing method
-think about making the pretend output guaranteed correct
 make dvdrip work on multiple input files
-make sure we dont have any weird sig child bugs
+fix the frames per second bug that causes the passes to have different numbers of frames
 
 =cut
