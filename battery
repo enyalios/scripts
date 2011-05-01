@@ -9,62 +9,76 @@
 BAT_DIR="/proc/acpi/battery/BAT0"
 BAT_DIR="/sys/class/power_supply/BAT0"
 
-case $1 in
-    (-l)
+battery_long() {
+    CUR_CAPAC=$(< $BAT_DIR/energy_now)
+    MAX_CAPAC=$(< $BAT_DIR/energy_full)
+    [[ "$MAX_CAPAC" != "" ]] && echo "100*$CUR_CAPAC/$MAX_CAPAC" | bc -l
+}
+
+battery_time() {
+    if [[ -e /proc/acpi ]]; then
         CUR_CAPAC=$(< $BAT_DIR/energy_now)
-        MAX_CAPAC=$(< $BAT_DIR/energy_full)
-        [[ "$MAX_CAPAC" != "" ]] && echo "100*$CUR_CAPAC/$MAX_CAPAC" | bc -l
-        ;;
-    (-t)
-        if [[ -e /proc/acpi ]]; then
-            CUR_CAPAC=$(< $BAT_DIR/energy_now)
-            RATE=$(< $BAT_DIR/power_now)
-            if [[ "$RATE" -eq "0" ]]; then
-                echo "undefined"
-            else
-                echo "$CUR_CAPAC*60/$RATE" | bc
-            fi
-        elif [[ -e /proc/apm ]]; then
-            cat /proc/apm | awk '{print $8}'
-        fi
-        ;;
-    (-d)
-        BATT_PERC=`battery`
-        if grep Discharging $BAT_DIR/status &> /dev/null; then
-            BATTERY_COLOR="red"
-            [[ "$BATT_PERC" -gt "10" ]] && BATTERY_COLOR="yellow"
-            [[ "$BATT_PERC" -gt "50" ]] && BATTERY_COLOR="green"
+        RATE=$(< $BAT_DIR/power_now)
+        if [[ "$RATE" -eq "0" ]]; then
+            echo "undefined"
         else
-            BATTERY_COLOR="blue"
-        fi  
-        osd_cat --barmode=percentage --percentage=$BATT_PERC --pos=bottom \
-        --align=center --color=$BATTERY_COLOR --offset=30 --outline=2 \
-        --font='-*-helvetica-*-r-*-*-20-*-*-*-*-*-*-*' --text="`battery -p`"
-        ;;
-    (-s)
-        if grep Discharging $BAT_DIR/status &> /dev/null; then
-            echo Discharging
-        else
-            echo AC-power
+            echo "$CUR_CAPAC*60/$RATE" | bc
         fi
-        ;;
-    (-p)
+    elif [[ -e /proc/apm ]]; then
+        cat /proc/apm | awk '{print $8}'
+    fi
+}
+
+battery_display() {
+    BATT_PERC=`battery`
     if grep Discharging $BAT_DIR/status &> /dev/null; then
-        echo "Discharging: `battery`% (`battery -t` minutes left)"
+        BATTERY_COLOR="red"
+        [[ "$BATT_PERC" -gt "10" ]] && BATTERY_COLOR="yellow"
+        [[ "$BATT_PERC" -gt "50" ]] && BATTERY_COLOR="green"
+    else
+        BATTERY_COLOR="blue"
+    fi  
+    osd_cat --barmode=percentage --percentage=$BATT_PERC --pos=bottom \
+        --align=center --color=$BATTERY_COLOR --offset=30 --outline=2 \
+        --font='-*-helvetica-*-r-*-*-20-*-*-*-*-*-*-*' --text="`battery_pretty`"
+}
+
+battery_status() {
+    if grep Discharging $BAT_DIR/status &> /dev/null; then
+        echo Discharging
+    else
+        echo AC-power
+    fi
+}
+
+battery_pretty() {
+    if grep Discharging $BAT_DIR/status &> /dev/null; then
+        echo "Discharging: `battery`% (`battery_time` minutes left)"
     else
         echo "AC-power: `battery`%"
     fi
-    ;;
-    ("")
-        if [[ -e /proc/acpi ]]; then
-            CUR_CAPAC=$(< $BAT_DIR/energy_now)
-            MAX_CAPAC=$(< $BAT_DIR/energy_full)
-            [[ "$MAX_CAPAC" != "" ]] && echo "100*$CUR_CAPAC/$MAX_CAPAC" | bc
-        elif [[ -e /proc/apm ]]; then
-            cat /proc/apm | awk '{print $7}' | sed -e 's/%//'
-        fi
-        ;;
-    (*)
-        echo "usage:  `basename $0` [-l|-t|-d|-s|-p]"
-        ;;
+}
+
+battery() {
+    if [[ -e /proc/acpi ]]; then
+        CUR_CAPAC=$(< $BAT_DIR/energy_now)
+        MAX_CAPAC=$(< $BAT_DIR/energy_full)
+        [[ "$MAX_CAPAC" != "" ]] && echo "100*$CUR_CAPAC/$MAX_CAPAC" | bc
+    elif [[ -e /proc/apm ]]; then
+        cat /proc/apm | awk '{print $7}' | sed -e 's/%//'
+    fi
+}
+
+usage() {
+    echo "usage:  `basename $0` [-l|-t|-d|-s|-p]"
+}
+
+case $1 in
+    (-l) battery_long ;;
+    (-t) battery_time ;;
+    (-d) battery_display ;;
+    (-s) battery_status ;;
+    (-p) battery_pretty ;;
+    ("") battery ;;
+    (*) usage ;;
 esac
