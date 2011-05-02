@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+`wmiir read /tag/sel/ctl` =~ /^select client (.*)/m;
+my $current_client = $1;
+
+`wmiir read ctl` =~ /^view (.*)/m;
+my $current_view = $1;
+
+my @clients = grep { s#/\n##; !/^sel$/ } `wmiir ls /client`;
+my @clients_in_view;
+for(sort @clients) {
+    if($current_view eq `wmiir read /client/$_/tags`) {
+        push @clients_in_view, $_;
+    }
+}
+push @clients_in_view, $clients_in_view[0];
+my $found = 0;
+for(@clients_in_view) {
+    exec "wmiir xwrite /tag/sel/ctl 'select client $_'" if $found;
+    $found = 1 if($_ eq $current_client);
+}
