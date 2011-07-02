@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Data::Dumper;
+
+open TORRENT, "<$ARGV[0]" or die;
+undef $/;
+my $torrent_string = <TORRENT>;
+close TORRENT;
+
+my $torrent = decode_wrapper($torrent_string);
+$torrent->{info}->{pieces} = "XXX binary junk XXX";
+print Dumper $torrent;
+
+sub decode_wrapper {
+    my ($retval, undef) = decode(@_);
+    $retval;
+}
+
+sub decode {
+    my $string = $_[0];
+    my $char = substr $string, 0, 1;
+    #print "string: $string\nchar: $char\n";
+    if($char eq "i") {
+        if($string =~ s/^i(-?\d+)e//) {
+            return $1, $string;
+        } else {
+            die "not a valid int";
+        }
+    } elsif ($char =~ /^\d$/) {
+        if($string =~ s/^(\d+)://) {
+            return substr($string, 0, $1, ""), $string;
+        } else {
+            die "not a valid byte string";
+        }
+    } elsif ($char eq "l") {
+        my $list;
+        $string =~ s/^l//;
+        while(substr($string, 0, 1) ne "e") {
+            my $retval; 
+            ($retval, $string) = decode($string);
+            push @$list, $retval;
+        }
+        $string =~ s/^e//;
+        return $list, $string;
+    } elsif ($char eq "d") {
+        my $dict;
+        $string =~ s/^d//;
+        while(substr($string, 0, 1) ne "e") {
+            my $retval;
+            ($retval, $string) = decode($string);
+            my $key = $retval;
+            ($retval, $string) = decode($string);
+            my $value = $retval;
+            $dict->{$key} = $value;
+        }
+        $string =~ s/^e//;
+        return $dict, $string;
+    } else {
+        die "what the fuck: $string\n";
+    }
+}
