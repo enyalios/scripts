@@ -10,7 +10,9 @@ my $torrent_string = <TORRENT>;
 close TORRENT;
 
 my $torrent = decode_wrapper($torrent_string);
-$torrent->{info}->{pieces} = "XXX binary junk XXX";
+if(defined $torrent->{info} && defined $torrent->{info}->{pieces}) {
+    $torrent->{info}->{pieces} = "XXX binary junk XXX";
+}
 print Dumper $torrent;
 
 sub decode_wrapper {
