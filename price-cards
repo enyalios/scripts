@@ -40,7 +40,7 @@ if(@ARGV) { # they gave us arguments to search for
     sub get { $ua->get($_[0])->{_content}; }
     my $page = &get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
     if($page =~ /CardShark\.com - Search for cards/) { # multiple results
-        while($page =~ m!<a href="CardDetail\.aspx\?id=\d+&amp;game=Magic">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Buy\.aspx\?Game=Magic&amp;CardSet=.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font></td>!ig) {
+        while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
             printf "%-30s %-30s %6s\n", $1, $2, $3?$3:"??";
         }
     } else { # returned a single card page
