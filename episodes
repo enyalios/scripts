@@ -20,13 +20,13 @@ if(-d "$ENV{HOME}" && -w "$ENV{HOME}") {
 my ($title, $subtitle, $ext, %data, %opts);
 
 sub parse_args {
-    getopts('luhvcdi', \%opts);
+    getopts('luhvcdis', \%opts);
     HELP_MESSAGE() if $opts{h};
     if(@ARGV == 2) { 
         ($title, $subtitle) = @ARGV;
     }
     elsif(@ARGV == 1) {
-      if( $opts{d} ){
+      if( $opts{s} ){
         ($title, $subtitle, $ext) = $ARGV[0] =~ 
         /^(.+?) - (?:[-\dsex]* - )?(.+?)(\.[a-z]{2,4})?$/i;
       }
@@ -61,7 +61,8 @@ options:
     -l    lowercase filenames
     -u    convert spaces to underscores
     -v    verbose info
-    -d    segments of the title are delimited with the ' - ' squence
+    -s    segments of the title are delimited with the ' - ' sequence
+    -d    print the date episodes first aired
 
 EOF
     exit 1;
@@ -118,7 +119,11 @@ sub grab_eps {
         $season_length = length $_->{SeasonNumber} if length $_->{SeasonNumber} > $season_length;
     }
     for(@{$episodes->{Episode}}) {
-        $data{simple($title)}{simple($_->{EpisodeName})} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $_->{SeasonNumber}, $_->{EpisodeNumber}, $_->{EpisodeName});
+        next if ref $_->{EpisodeName} eq "HASH";
+        $data{simple($title)}{simple($_->{EpisodeName})}{title} = sprintf("%s - %0*d%02d - %s", $title, $season_length, $_->{SeasonNumber}, $_->{EpisodeNumber}, $_->{EpisodeName});
+        my $aired = $_->{FirstAired};
+        $aired = "          " if ref $aired eq "HASH";
+        $data{simple($title)}{simple($_->{EpisodeName})}{date} = $aired;
         print "    found episode: ", $_->{EpisodeName}, "\n" if $opts{v};
     }
 
@@ -133,23 +138,32 @@ sub write_cache {
 }
 
 sub format_match {
-    $_[0] =~ s/&#039/'/g;
-    $_[0] =~ s/&#133/.../g;
-    $_[0] =~ s/&#150/-/g;
-    $_[0] =~ s/&/and/g;
-    $_[0] =~ s/([^-_A-Za-z0-9 .,'()%?!])+/ /g;
-    $_[0] =~ s/ +/ /g;
-    $_[0] = lc $_[0] if $opts{l};
-    $_[0] =~ s/ (- )?/_/g if $opts{u};
-    if($opts{u} && $opts{l}) {
-        $_[0] =~ y/'.//d;
-        $_[0] =~ s/([^-a-z_0-9])+/_/g;
-        $_[0] =~ y/_/_/s;
-        $_[0] =~ s/_+$//;
-        $_[0] =~ s/_---_/__/;
+    my ($string, $date);
+    if(ref $_[0] eq "HASH") {
+        $string = $_[0]->{title};
+        $date = $_[0]->{date};
+    } else {
+        $string = $_[0];
+        $date = "";
     }
-    $_[0] =~ s/ --- / - /;
-    return $_[0];
+    $string =~ s/&#039/'/g;
+    $string =~ s/&#133/.../g;
+    $string =~ s/&#150/-/g;
+    $string =~ s/&/and/g;
+    $string =~ s/([^-_A-Za-z0-9 .,'()%?!])+/ /g;
+    $string =~ s/ +/ /g;
+    $string = lc $string if $opts{l};
+    $string =~ s/ (- )?/_/g if $opts{u};
+    if($opts{u} && $opts{l}) {
+        $string =~ y/'.//d;
+        $string =~ s/([^-a-z_0-9])+/_/g;
+        $string =~ y/_/_/s;
+        $string =~ s/_+$//;
+        $string =~ s/_---_/__/;
+    }
+    $string =~ s/ --- / - /;
+    $string = "$date  $string" if $opts{d} && $date ne "";
+    return $string;
 }
 
 parse_args();
@@ -163,5 +177,5 @@ if($subtitle) {
     print $match ? "$match" : format_match("$title --- $subtitle"), "$ext\n"; 
 } else {
     grab_eps() if ($opts{i} || !$data{simple($title)});
-    print format_match($_), "\n" for sort values %{$data{simple($title)}};
+    print format_match($_), "\n" for sort { $a->{title} cmp $b->{title} } values %{$data{simple($title)}};
 }
