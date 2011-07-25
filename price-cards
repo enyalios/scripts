@@ -41,12 +41,15 @@ if(@ARGV) { # they gave us arguments to search for
     my $page = &get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
     if($page =~ /CardShark\.com - Search for cards/) { # multiple results
         while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
-            printf "%-30s %-30s %6s\n", $1, $2, $3?$3:"??";
+            my ($name, $set, $price) = ($1, $2, $3);
+            $price = "??" if $price eq "&nbsp;";
+            printf "%-30s %-30s %6s\n", $name, $set, $price;
         }
     } else { # returned a single card page
         my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
         my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
-        printf "%-30s %-30s %6s\n", $name, $set, $price?$price:"??";
+        $price = "??" if $price eq "&nbsp;";
+        printf "%-30s %-30s %6s\n", $name, $set, $price;
     }
 } else { # no arguments, match cards on stdin
     while(<>) {
