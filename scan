@@ -2,9 +2,15 @@
 
 use strict;
 
-my $dev = $ARGV[0] || "eth0";
+my $dev = $ARGV[0];
+$dev = "wlan0" if (!$dev && -e "/etc/init.d/net.wlan0");
+$dev = "eth1" if (!$dev && -e "/etc/init.d/net.eth1");
+$dev = "eth0" if (!$dev && -e "/etc/init.d/net.eth0");
+$dev = "eth0" unless $dev;
 
-my $output = `/sbin/iwlist $dev scan`;
+my $sudo = "";
+$sudo = "/usr/bin/sudo" if $>;
+my $output = `$sudo /sbin/iwlist $dev scan`;
 my @data;
 
 sub by_essid   { $a->{essid} cmp $b->{essid} || $b->{quality} <=> $a->{quality} }
