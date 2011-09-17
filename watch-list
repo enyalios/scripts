@@ -32,3 +32,23 @@ fi
 if [[ -e ~/.mcabber ]]; then
     for i in ~/.mcabber/histo/*; do name=`echo $i | perl -pe 's/^.*\///; s/\@.*$//'`; cat $i | perl -e 'undef $/; $_ = <>; s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <guder> ).*\n//; s/^MI .* 000 .* has (left|joined)\n//mg; print; print "\n" if $_' | perl -MPOSIX -ne "s/^M. /$name /; print unless /^cites-smg /; \$date = strftime \"%Y%m%d\", localtime; print if /cites-smg \$date/"; done
 fi
+
+# minecraft players
+if [[ -e ~/minecraft/server.log ]]; then
+    cat ~/minecraft/server.log | perl -ne '
+    $active{$1} = 1 
+        if(/^.*?\[INFO\] (.*?) \[.*?\] logged in.*$/);
+    delete $active{$1} 
+        if(/^.*?\[INFO\] (.*?) lost connection:.*$/);
+    END { 
+        if(%active) { 
+            print "minecraft players:\n";
+            print "  $_\n" for sort keys %active;
+            print "\n"; 
+        } 
+    }'
+fi
+
+if [[ -S ~/.rtorrent.socket ]] && ps -C rtorrent &> /dev/null; then
+    ~/bin/rtorrent-status
+fi
