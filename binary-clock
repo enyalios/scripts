@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my ($hours, $minutes) = (localtime)[2, 1];
+my $bit = 32;
+
+print "[";
+while($bit >= 1) {
+    if($hours & $bit & $minutes) { print ":" }
+    elsif($hours & $bit)         { print "'" }
+    elsif($minutes & $bit)       { print "." }
+    else                         { print " " }
+    $bit /= 2;
+}
+print "]\n";
