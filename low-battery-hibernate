@@ -10,8 +10,8 @@ while(1) {
     open(BATTERY, "</sys/class/power_supply/BAT0/uevent") or die "couldnt find battery\n";
     my $data = <BATTERY>;
     my $discharging = ($data =~ /^POWER_SUPPLY_STATUS=Discharging/m)?1:0;
-    my $remaining = ($data =~ /^POWER_SUPPLY_ENERGY_NOW=(\d+)$/m)[0];
-    my $rate = ($data =~ /^POWER_SUPPLY_POWER_NOW=(\d+)$/m)[0];
+    my $remaining = ($data =~ /^POWER_SUPPLY_(?:ENERGY|CHARGE)_NOW=(\d+)$/m)[0];
+    my $rate = ($data =~ /^POWER_SUPPLY_(?:POWER|CURRENT)_NOW=(\d+)$/m)[0];
     if($remaining && $rate) {
         my $time = $remaining/$rate*60;
         if($time < 3 && $discharging) { 
