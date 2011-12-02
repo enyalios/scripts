@@ -4,19 +4,24 @@ use strict;
 use warnings;
 
 my $total = 0;
+my $root_maildir = $ARGV[0] || "$ENV{HOME}/.maildir";
 
 sub recurse {
     my ($dir, %num, @files);
     $dir = $_[0];
+    $dir =~ s/\/+/\//g;
+    (my $sdir = $dir) =~ s/^$root_maildir\/?//;
+    $sdir = "root" if $sdir eq "";
 
-    for(qw"new cur") {
-        opendir DIR, "$dir/$_" or die "could not open dir '$dir/$_': $!\n";
-        $num{$_} = scalar grep { !/^\./ } readdir DIR;
-        closedir DIR;
-        $total += $num{$_};
+    if(-d "$dir/new" && -d "$dir/cur") {
+        for(qw"new cur") {
+            opendir DIR, "$dir/$_" or die "could not open dir '$dir/$_': $!\n";
+            $num{$_} = scalar grep { !/^\./ } readdir DIR;
+            closedir DIR;
+            $total += $num{$_};
+        }
+        printf "%-24s  %3d  %6d\n", $sdir, $num{"new"}, $num{"cur"};
     }
-
-    printf "%-24s  %3d  %6d\n", $dir, $num{"new"}, $num{"cur"};
 
     opendir DIR, $dir or die "could not open dir '$dir': $!\n";
     @files = sort grep { !/^\.\.?$/ && -d "$dir/$_" } readdir DIR;
@@ -24,5 +29,5 @@ sub recurse {
     for(@files) { recurse("$dir/$_") unless /^(new|tmp|cur)$/ }
 }
 
-recurse($ARGV[0] || ".maildir");
+recurse($root_maildir);
 print "total  $total\n";
