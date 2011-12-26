@@ -201,21 +201,17 @@ sub get_crop {
                 # this crazy stuff lets us read info from mplayer, but close
                 # stdout so we dont get tons of error messages that fill up
                 # the screen
-                pipe my $parent, my $child or die;
-                my $kid = fork;
-                die "fork() failed: $!" unless defined $kid;
+                my $fork_pid = open(CROP, "-|");
+                die "fork() failed: $!" unless defined $fork_pid;
 
-                unless($kid) {
+                unless($fork_pid) {
                     close STDERR;
-                    close $parent;
-                    open(STDOUT, ">&=" . fileno($child)) or die;
                     exec "mplayer", @dvd_device, @infiles, @opts,
                     qw(-vo null -ao null -vf cropdetect=50:4 -v), @{$args};
                 } else {
-                    close $child;
                     # here we grab the second to last line to catch the case where
                     # only one 'Crop area:' line gets printed
-                    $crop_line = (grep { /Crop area:/ } <$parent>)[-2];
+                    $crop_line = (grep { /Crop area:/ } <CROP>)[-2];
                     last if $crop_line;
                 }
             }
