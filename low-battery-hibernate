@@ -18,7 +18,7 @@ while(1) {
             openlog("acpi", "pid", "user");
             syslog("info", "battery running low, hibernating");
             closelog();
-            system("/usr/sbin/hibernate");
+            system("/usr/sbin/pm-hibernate");
         }
         #print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n\n";
     }
