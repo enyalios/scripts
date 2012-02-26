@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use POSIX "strftime";
-use Date::Parse;
+use Date::Parse; # from dev-perl/TimeDate
 use File::Find;
 use List::Util "shuffle";
 
@@ -51,9 +51,10 @@ sub play_music {
 }
 
 sub set_volume_and_unmute { 
-    system "amixer set PCM 35% > /dev/null";
-    &volume_cmd("level 14\n");
-    &volume_cmd("up\n") while &is_muted;
+    system "amixer set PCM 60% > /dev/null";
+    system "amixer -c 29 set Console unmute > /dev/null"
+    #&volume_cmd("level 14\n");
+    #&volume_cmd("up\n") while &is_muted;
 }
 
 sub is_muted {
