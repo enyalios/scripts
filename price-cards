@@ -35,21 +35,21 @@ if(@ARGV) { # they gave us arguments to search for
     }
 
     # fetch and print cardshark prices
-    require LWP::UserAgent;
-    my $ua = LWP::UserAgent->new; 
-    sub get { $ua->get($_[0])->{_content}; }
-    my $page = &get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
-    if($page =~ /CardShark\.com - Search for cards/) { # multiple results
-        while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
-            my ($name, $set, $price) = ($1, $2, $3);
+    require LWP::Simple;
+    my $page = LWP::Simple::get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
+    if(defined $page) {
+        if($page =~ /CardShark\.com - Search for cards/) { # multiple results
+            while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
+                my ($name, $set, $price) = ($1, $2, $3);
+                $price = "??" if $price eq "&nbsp;";
+                printf "%-30s %-30s %6s\n", $name, $set, $price;
+            }
+        } else { # returned a single card page
+            my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
+            my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
             $price = "??" if $price eq "&nbsp;";
             printf "%-30s %-30s %6s\n", $name, $set, $price;
         }
-    } else { # returned a single card page
-        my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
-        my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
-        $price = "??" if $price eq "&nbsp;";
-        printf "%-30s %-30s %6s\n", $name, $set, $price;
     }
 } else { # no arguments, match cards on stdin
     while(<>) {
