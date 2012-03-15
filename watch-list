@@ -30,17 +30,25 @@ fi
 
 # jabber stuff
 if [[ -e ~/.mcabber ]]; then
-    for i in ~/.mcabber/histo/*; do name=`echo $i | perl -pe 's/^.*\///; s/\@.*$//'`; cat $i | perl -e 'undef $/; $_ = <>; s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <guder> ).*\n//; s/^MI .* 000 .* has (left|joined)\n//mg; print; print "\n" if $_' | perl -MPOSIX -ne "s/^M. /$name /; print unless /^cites-smg /; \$date = strftime \"%Y%m%d\", localtime; print if /cites-smg \$date/"; done
+    for i in ~/.mcabber/histo/*; do name=`echo $i | perl -pe 's/^.*\///; s/\@.*$//'`; cat $i 2>/dev/null | perl -e 'undef $/; $_ = <>; s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <guder> ).*\n//; s/^MI .* 000 .* has (left|joined)\n//mg; print; print "\n" if $_' | perl -MPOSIX -ne "s/^M. /$name /; print unless /^cites-smg /; \$date = strftime \"%Y%m%d\", localtime; print if /cites-smg \$date/"; done
 fi
 
 # minecraft players
 if [[ -e ~/minecraft/server.log ]]; then
     cat ~/minecraft/server.log | perl -ne '
+    $crashed = 1
+        if(/^.*?\[SEVERE\] Unexpected exception$/);
+    $crashed = 0
+        if(/^.*?\[INFO\] Starting Minecraft server/);
     $active{$1} = 1 
         if(/^.*?\[INFO\] (.*?) \[.*?\] logged in.*$/);
     delete $active{$1} 
         if(/^.*?\[INFO\] (.*?) lost connection:.*$/);
     END { 
+        if($crashed) {
+            print "the minecraft server seems broken\n\n";
+            exit;
+        }
         if(%active) { 
             print "minecraft players:\n";
             print "  $_\n" for sort keys %active;
