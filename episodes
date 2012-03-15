@@ -110,7 +110,7 @@ sub grab_eps {
     delete $data{simple($title)};
 
     my $content = XMLin(&get($tvdb_url . "GetSeries.php?seriesname=" . $title), KeyAttr => [], ForceArray => [ "Series" ]);
-    my $show_url = $tvdb_url . $api_key . "/series/" . $content->{Series}->[0]->{seriesid} . "/all/";
+    my $show_url = $tvdb_url . $api_key . "/series/" . $content->{Series}->[0]->{seriesid} . "/all/en.xml";
     my $title = $content->{Series}->[0]->{SeriesName};
     print "$title ($show_url)\n" if $opts{v};
     my $episodes = XMLin(&get($show_url), KeyAttr => []);
