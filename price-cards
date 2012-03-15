@@ -51,6 +51,44 @@ if(@ARGV) { # they gave us arguments to search for
             printf "%-30s %-30s %6s\n", $name, $set, $price;
         }
     }
+
+    # get star city games price data
+    $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=nofoil&for=no&display=4&numpage=100");
+    if(defined $page) {
+        my (%cards, $name, $set);
+        for(split /<tr class="deckdbbody2?">/, $page) {
+            my ($price, $count, @cells);
+            my $full_line = 0;
+            @cells = /<td class="deckdbbody2?">(.*?)<\/td>/sg;
+            next unless @cells;
+            if($cells[0] =~ /\n\s*(.*?)<\/a>/) {
+                $name = $1;
+                $set = $cells[1];
+                $set =~ s/<.*?>//g;
+                $full_line = 1;
+            }
+            next if $name =~ /\(Not Tournament Legal\)/;
+            $price = $cells[ $full_line?8:6 ];
+            $price =~ s/^\$//;
+            $count = $cells[ $full_line?7:5 ];
+            $count = 0 if $count eq "Out of Stock";
+            $cards{$name}{$set}{count} += $count;
+            $cards{$name}{$set}{min} = $price if(!defined $cards{$name}{$set}{min} || $price < $cards{$name}{$set}{min});
+            $cards{$name}{$set}{max} = $price if(!defined $cards{$name}{$set}{max} || $price > $cards{$name}{$set}{max});
+            #my $i = 0; print "  ", $i++, ": $_\n" for @cells;
+        }
+
+        print "### StarCityGames\n" if %cards;
+        for my $name(sort keys %cards) {
+            for my $set(sort keys %{$cards{$name}}) {
+                printf "%-30s %-30s %6.2f  %3d\n",
+                $name,
+                $set,
+                ($cards{$name}{$set}{min} + $cards{$name}{$set}{max}) / 2,
+                $cards{$name}{$set}{count};
+            }
+        }
+    }
 } else { # no arguments, match cards on stdin
     while(<>) {
         chomp(my $card = $_);
