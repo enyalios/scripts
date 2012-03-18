@@ -29,6 +29,7 @@ my @prices = <FILE>;
 
 if(@ARGV) { # they gave us arguments to search for
     # print out magic traders prices
+    print "### MagicTraders\n";
     LINE: for(@prices) {
         for my $regex (@ARGV) { next LINE unless /$regex/i; }
         print;
@@ -38,6 +39,7 @@ if(@ARGV) { # they gave us arguments to search for
     require LWP::Simple;
     my $page = LWP::Simple::get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
     if(defined $page) {
+        print "### CardShark\n";
         if($page =~ /CardShark\.com - Search for cards/) { # multiple results
             while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
                 my ($name, $set, $price) = ($1, $2, $3);
