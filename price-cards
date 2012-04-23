@@ -28,6 +28,9 @@ open(FILE, "<$ENV{HOME}/magic/prices$type") or die "couldnt open prices file\n";
 my @prices = <FILE>;
 
 if(@ARGV) { # they gave us arguments to search for
+    require LWP::Simple;
+    my $page;
+
     # print out magic traders prices
     print "### MagicTraders\n";
     LINE: for(@prices) {
@@ -36,26 +39,29 @@ if(@ARGV) { # they gave us arguments to search for
     }
 
     # fetch and print cardshark prices
-    require LWP::Simple;
-    my $page = LWP::Simple::get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
-    if(defined $page) {
-        print "### CardShark\n";
-        if($page =~ /CardShark\.com - Search for cards/) { # multiple results
-            while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
-                my ($name, $set, $price) = ($1, $2, $3);
+    # theres no easy way to search for foils on cardshark, so skip it
+    unless($opts{f}) {
+        $page = LWP::Simple::get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
+        if(defined $page) {
+            print "### CardShark\n";
+            if($page =~ /CardShark\.com - Search for cards/) { # multiple results
+                while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
+                    my ($name, $set, $price) = ($1, $2, $3);
+                    $price = "??" if $price eq "&nbsp;";
+                    printf "%-30s %-30s %6s\n", $name, $set, $price;
+                }
+            } else { # returned a single card page
+                my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
+                my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
                 $price = "??" if $price eq "&nbsp;";
                 printf "%-30s %-30s %6s\n", $name, $set, $price;
             }
-        } else { # returned a single card page
-            my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
-            my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
-            $price = "??" if $price eq "&nbsp;";
-            printf "%-30s %-30s %6s\n", $name, $set, $price;
         }
     }
 
     # get star city games price data
-    $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=nofoil&for=no&display=4&numpage=100");
+    my $foil = $opts{f}?"foil":"nofoil";
+    $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100");
     if(defined $page) {
         my (%cards, $name, $set);
         for(split /<tr class="deckdbbody2?">/, $page) {
