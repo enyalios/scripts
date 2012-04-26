@@ -1,0 +1,182 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Gtk2 '-init';
+use Cairo;
+use Getopt::Std;;
+use List::Util "max";
+
+my $supports_alpha;
+my $image;
+my $win_width = 0;
+my $win_height = 25;
+my $image_height;
+my $image_width;
+my $text_height;
+my $text_width;
+my $time = 0.0;
+my $opacity = 1.0;
+my $corner_radius = 40;
+my $bar_height = 5;
+my $bar_width = 200;
+my %opts;
+
+sub expose {
+    my($widget, $event) = @_;
+    my($width, $height, $radius);
+    my $y_coord = 15;
+
+    my $cr = Gtk2::Gdk::Cairo::Context->create($widget->window());
+
+    # make the window transparent
+    if($supports_alpha) {
+        $cr->set_source_rgba(1.0, 1.0, 1.0, 0.0);
+    } else {
+        $cr->set_source_rgb(1.0, 1.0, 1.0);
+    }
+    $cr->save;
+    $cr->set_operator('source');
+    $cr->paint;
+    $cr->restore;
+
+    # curved rectangle filling the window
+    $cr->move_to($corner_radius, 0);
+    $cr->line_to($win_width - $corner_radius, 0);
+    $cr->curve_to($win_width - $corner_radius, 0, $win_width, 0, $win_width, $corner_radius);
+    $cr->line_to($win_width, $win_height - $corner_radius);
+    $cr->curve_to($win_width, $win_height - $corner_radius, $win_width, $win_height, $win_width - $corner_radius, $win_height);
+    $cr->line_to($corner_radius, $win_height);
+    $cr->curve_to($corner_radius, $win_height, 0, $win_height, 0, $win_height - $corner_radius);
+    $cr->line_to(0, $corner_radius);
+    $cr->curve_to(0, $corner_radius, 0, 0, $corner_radius, 0);
+    $cr->set_source_rgba(0.2, 0.2, 0.6, $opacity * 0.5);
+    $cr->fill;
+    $cr->stroke;
+
+    if(defined $opts{i}) {
+        # add the image to the window
+        $cr->set_source_surface($image, ($win_width - $image_width) / 2, 15);
+        my $mask = Cairo::SolidPattern->create_rgba(1.0, 1.0, 1.0, $opacity);
+        $cr->mask($mask);
+        $y_coord = $y_coord + $image_height + 15;
+    }
+
+    if(defined $opts{t}) {
+        # draw the title text
+        $cr->set_source_rgba(1.0, 1.0, 1.0, $opacity);
+        $cr->select_font_face("Trebuchet", "normal", "normal");
+        $cr->set_font_size(36);
+        my $text_width = $cr->text_extents($opts{t})->{width};
+        $cr->move_to(($win_width - $text_width) / 2, $y_coord + $text_height);
+        $cr->show_text($opts{t});
+        $y_coord = $y_coord + $text_height + 15;
+    }
+
+    if(defined $opts{p}) {
+
+        # draw the empty part of the bar
+        $cr->set_source_rgba(0.4, 0.4, 0.4, $opacity);
+        $cr->set_line_width($bar_height);
+        $cr->move_to(($win_width - $bar_width) / 2, $y_coord + $bar_height/2);
+        $cr->line_to($win_width/2 + $bar_width/2, $y_coord + $bar_height/2);
+        $cr->stroke();
+
+        # draw the filled part of the bar
+        $cr->set_source_rgba(1.0, 1.0, 1.0, $opacity);
+        $cr->set_line_width($bar_height);
+        $cr->move_to(($win_width - $bar_width) / 2, $y_coord + $bar_height/2);
+        $cr->line_to(($win_width - $bar_width) / 2 + $bar_width * $opts{p}, $y_coord + $bar_height/2);
+        $cr->stroke();
+    }
+
+    Gtk2->main_quit if $opacity <= 0;
+}
+
+sub screen_changed {
+    my ($widget, $old_screen) = @_;
+
+    my $screen   = $widget->get_screen();
+    my $colormap = $screen->get_rgba_colormap();
+
+    if(!$colormap){
+        print "Your screen doesn't support alpha channels!\n";
+        $colormap = $screen->get_rgb_colormap();
+    } else {
+        $supports_alpha = 1;
+        #print "Your screen does support alpha channels!\n";
+    }
+
+    $widget->set_colormap($colormap);
+}
+
+sub dec_opacity {
+    $time += .05;
+    $opacity -= .05 if $time >= 1;
+    expose(@_);
+    return 1;
+}
+
+getopts('t:i:p:', \%opts);
+
+if(defined $opts{t}) {
+    my $surface = Cairo::ImageSurface->create ('argb32', 100, 100);
+    my $cr = Cairo::Context->create ($surface);
+    $cr->select_font_face("Trebuchet", "normal", "normal");
+    $cr->set_font_size(36);
+    $text_width = $cr->text_extents($opts{t})->{width};
+    $text_height = $cr->text_extents($opts{t})->{height};
+    $win_height = $win_height + $text_height + 15;
+    $win_width = $text_width;
+}
+
+if(defined $opts{i}) {
+    die "Could not read image file $opts{i}\n" unless -e $opts{i};
+    $image = Cairo::ImageSurface->create_from_png($opts{i});
+    $image_height = $image->get_height();
+    $image_width = $image->get_width();
+    $win_height = $win_height + $image_height + 15;
+    $win_width = $image_width if $image_width > $win_width;
+}
+
+if(defined $opts{p}) {
+    $opts{p} = $1 / $2 if $opts{p} =~ /^(\d+)\/(\d+)$/;
+    die "'$opts{p}' must be a number between 0 and 1\n" unless ($opts{p} <= 1 && $opts{p} >= 0);
+    $win_height = $win_height + $bar_height + 15;
+    $bar_width = 150;
+}
+
+$win_height = 80 if $win_height < 80;
+$win_width = max($text_width, $image_width, $bar_width);
+$win_width += 30;
+$win_width = 80 if $win_width < 80;
+$win_width = $win_height if $win_height > $win_width;
+$bar_width = $win_width - 60;
+
+# my brightness keys are broken and send 2 events rather than 1
+system "pgrep cairo-osd | grep -v '^$$\$' | xargs kill &>/dev/null" unless $opts{t} eq "Brightness";
+my $window = Gtk2::Window->new();
+$window->set_title("Cairo OSD");
+$window->set_app_paintable('TRUE');
+$window->set_decorated(0);
+$window->set_default_size($win_width, $win_height);
+$window->set_accept_focus(0);
+$window->set_skip_taskbar_hint(1);
+$window->stick;
+
+my $screen = $window->get_screen();
+my $screen_width = $screen->get_width();
+my $screen_height = $screen->get_height();
+$window->move(($screen_width - $win_width) / 2, $screen_height - $win_height - 100);
+#$window->move(50, $screen_height - $win_height - 100);
+
+$window->signal_connect('delete_event', sub { exit } );
+$window->signal_connect('expose_event', \&expose, $window);
+$window->signal_connect('screen_changed', \&screen_changed, $window);
+#Glib::Timeout->add(2000, sub { Gtk2->main_quit });
+Glib::Timeout->add(50, \&dec_opacity, $window);
+
+screen_changed($window);
+
+$window->show_all();
+Gtk2->main;
