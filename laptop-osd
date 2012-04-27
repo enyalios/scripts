@@ -1,6 +1,5 @@
 #!/bin/sh
 
-#killall cairo-osd &> /dev/null
 CAIRO_OSD="/home/enyalios/osd/cairo-osd"
 #IMAGE_DIR="/home/enyalios/osd/themes/MacOSX"
 IMAGE_DIR="/home/enyalios/osd/themes/Crystal"
@@ -12,7 +11,7 @@ case $1 in
         $CAIRO_OSD -t Brightness -i $IMAGE_DIR/brightness.png -p `cat /sys/class/backlight/acpi_video0/brightness`/`cat /sys/class/backlight/acpi_video0/max_brightness` &
         ;;
     (battery)
-        $CAIRO_OSD -t `cat /sys/class/power_supply/BAT0/status` -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4}' | sed -e 's/%,*/\/100/'` &
+        $CAIRO_OSD -t `cat /sys/class/power_supply/BAT0/status` -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'` &
         ;;
     (volume)
         $CAIRO_OSD -t Volume -i $IMAGE_DIR/volume.png -p `amixer get PCM | perl -ne 'print "$1/100\n" if /Front Left: Playback.*\[(\d+)%\]/'` &
@@ -43,10 +42,10 @@ case $1 in
         fi
         ;;
     (charging)
-        $CAIRO_OSD -t Charging -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4}' | sed -e 's/%,*/\/100/'` &
+        $CAIRO_OSD -t Charging -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'` &
         ;;
     (discharging)
-        $CAIRO_OSD -t Battery -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4}' | sed -e 's/%,*/\/100/'` &
+        $CAIRO_OSD -t Battery -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'` &
         ;;
     (*)
         echo "invalid command $1"
