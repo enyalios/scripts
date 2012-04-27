@@ -7,6 +7,7 @@ use Cairo;
 use Getopt::Std;;
 use List::Util "max";
 
+(my $progname = $0) =~ s/.*\///;
 my $supports_alpha;
 my $image;
 my $win_width = 0;
@@ -118,6 +119,18 @@ sub dec_opacity {
 }
 
 getopts('t:i:p:', \%opts);
+
+unless(defined $opts{t} || defined $opts{i} || defined $opts{p}) {
+    print <<EOF;
+Usage: $progname [-t title] [-i image] [-p progress]
+
+    -t title        display the string 'title'
+    -i image        display the image located at path 'image'
+    -p progress     display a progress bar (progress should be between 0 and 1)
+
+EOF
+    exit 1;
+}
 
 if(defined $opts{t}) {
     my $surface = Cairo::ImageSurface->create ('argb32', 100, 100);
