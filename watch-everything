@@ -1,0 +1,253 @@
+#!/usr/bin/perl
+
+use strict;
+#use warnings;
+use LWP::Simple;
+use Data::Dumper;
+use MIME::Base64;
+use Term::ReadKey;
+use Term::ANSIColor;
+use Term::Cap;
+use POSIX;
+
+# these are for exchange
+use SOAP::Lite maptype=>{};
+use SOAP::Transport::HTTP;
+use Date::Parse; # from dev-perl/TimeDate
+
+# set up some variables
+my $user = "guder";
+my $delay = 0;
+$delay = $ARGV[0] if(defined $ARGV[0] && $ARGV[0] =~ /\d+/);
+
+my ($buffer, $width, $height);
+$| = 1;
+
+# get the users password
+print "$user\'s AD password: ";
+ReadMode('noecho');
+my $pass = ReadLine(0);
+ReadMode('normal');
+chomp $pass;
+print "\n";
+
+# make the cursor dissappear if were a daemon
+$SIG{INT} = sub { &fix_term && exit };
+END { &fix_term }
+sub fix_term { print "\e[?25h"; }
+print "\e[?25l" if $delay;
+
+my $ua = LWP::UserAgent->new;
+my $r = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi');
+my $auth = MIME::Base64::encode("$user:$pass");
+$r->header(Authorization => "Basic $auth");
+while(1) {
+    ($width, $height, undef, undef) = GetTerminalSize();
+    $buffer = "";
+
+    if(system("ps -C fetchmail &>/dev/null")) {
+        output("fetchmail not running!\n\n");
+    }
+
+    # nagios probes
+    my $content = $ua->request($r)->{_content};
+    # strip off the html
+    $content =~ s/.*<\/?html>.*\n//g;
+
+    # combine lines if there are more than 3 probes down on a system
+    {
+        my %counts;
+        $counts{$_}++ for $content =~ /^(\S+)/mg;
+        for(sort keys %counts) {
+            next unless $counts{$_} > 3;
+            my $count = $content =~ s/^($_)\b.*\n//mg;
+            $content .= "There are $count $_ probes down.\n";
+        }
+    }
+    
+    # dont show ntp probes if there are more than 2 down
+    if($content =~ s/\bntp\b/ntp/g > 2) {
+        my $count = ($content =~ s/.*\bntp\b.*\n//g);
+        $content .= "There are $count ntp probes down.\n";
+    }
+
+    # truncate the lines so they dont wrap
+    $content =~ s/^(.{1,$width}).*$/$1/gm;
+    output("$content\n") if $content;
+
+    # exchange calendar
+    my $output = "Could not connect to the exchange calendar.\n\n";
+    eval '$output = &exchange_cal()';
+    output($output);
+
+    # unread emails
+    output(`mdls` . "\n");
+
+    # irc messages
+    my @logs = glob "$ENV{HOME}/.irssi/logs/*/*.log";
+    for(@logs) {
+        undef $/;
+        open LOG, "<$_" or die "couldnt open $_: $!\n";
+        $_ = <LOG>;
+        close LOG;
+        s/[\s\S]*\n--- Log closed.*\n//;
+        s/[\s\S]*\n\d+:\d+\s+\*!\* \| Irssi:.*?Total of \d+ nicks.*\n//;
+        s/.*\*!\* \|.*\n//g;
+        s/^--- Day changed.*\n//mg;
+        s/[\s\S]*\n\d\d:\d\d\s+\@?enyalios\s+\|.*\n//;
+        output("$_\n") if $_;
+    }
+
+    # jabber messages
+    @logs = glob "$ENV{HOME}/.mcabber/histo/*";
+    for(@logs) {
+        my $name = $_;
+        $name =~ s/^.*\///;
+        $name =~ s/\@.*$//;
+
+        undef $/;
+        open LOG, "<$_" or die "couldnt open $_: $!\n";
+        $_ = <LOG>;
+        close LOG;
+
+        s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <guder> ).*\n//;
+        s/^MI .* 000 .* has (left|joined)\n//mg;
+        s/^M. /$name /mg;
+        my $date = strftime "%Y%m%d", localtime;
+        if($_ !~ /^cites-smg /) {
+            output("$_\n") if $_;
+        } else {
+            for(split /\n/, $_) {
+                output("$_\n") if /^cites-smg $date/;
+            }
+            output("\n") if /^cites-smg $date/m;
+        }
+
+
+    }
+
+    # clear the screen if we're a daemon
+    if($delay) {
+        # clear the screen
+        my $termios = POSIX::Termios->new;
+        $termios->getattr;
+        my $term = Term::Cap->Tgetent( { OSPEED => $termios->getospeed } );
+        $term->Tputs('cl', 1, *STDOUT);
+
+        # print a header
+        my $lheader = "Every $delay.0s: $0";
+        my $rheader = localtime;
+        $buffer = $lheader . " " x ($width - length($rheader) - length($lheader)) . $rheader . "\n\n" . $buffer;
+
+        # truncate the buffer so it doesnt scroll off the screen
+        $buffer =~ s/^((?:.*\n){1,$height})[\s\S]*/$1/;
+        $buffer =~ s/\n$//;
+
+        # color probes that arent ack'ed
+        $buffer =~ s/(.*     WARNING .*)/color('YELLOW') . $1 . color('RESET')/eg;
+        $buffer =~ s/(.*     CRITICAL .*)/color('RED') . $1 . color('RESET')/eg;
+
+        print $buffer;
+    }
+    last unless $delay;
+    sleep $delay;
+}
+
+sub output {
+    if(defined $_[0]) {
+        if($delay) {
+            # add newlines so that no lines wrap
+            $_ = $_[0];
+            1 while s/^(.{$width})(?!\n)/$1\n/m;
+            $buffer .= $_;
+        } else {
+            print $_[0];
+        }
+    }
+}
+
+sub exchange_cal {
+
+    my $output;
+    my $now = strftime("%s", localtime);
+    my $tz = "-06:00";
+    my $start = strftime("%F", localtime) . 'T00:00:00' . $tz;
+    my $end   = strftime("%F", localtime($now + 24*60*60*7)) . 'T00:00:00' . $tz;
+
+    my $service = SOAP::Lite
+    ->service("https://exchws.illinois.edu/ews/Services.wsdl")
+    ->proxy("https://exchws.illinois.edu/ews/exchange.asmx")
+    #->outputxml('true')
+    ->encodingStyle('')
+    ->ns("http://schemas.microsoft.com/exchange/services/2006/types",'t')
+    ->default_ns("http://schemas.microsoft.com/exchange/services/2006/messages");
+
+    # over-ride method to handle authentication
+    sub SOAP::Schema::access
+    {
+        my $self = shift->new;
+        my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
+
+        my $req = HTTP::Request->new(GET => $url);
+
+        # this is why it's over-ridden
+        $req->authorization_basic($user, $pass);
+
+        my $resp = $self->useragent->request($req);
+        $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
+    }
+
+    # and get_basic_credentials for the service calls,
+    # if they require authentication
+    sub SOAP::Transport::HTTP::Client::get_basic_credentials
+    { return $user => $pass; }
+
+    my $response = $service->call(
+        SOAP::Data->name('FindItem')
+        ->attr({'Traversal'=>'Shallow',
+                'xmlns' => 'http://schemas.microsoft.com/exchange/services/2006/messages'
+            }),
+        SOAP::Header->name('RequestServerVersion')->prefix('t')->type('')
+        ->attr({'Version' => 'Exchange2010_SP1'}),
+        SOAP::Data->name('ItemShape' => \SOAP::Data->value(
+            SOAP::Data->name('BaseShape')->value('IdOnly')
+            ->prefix('t')
+            ->type(''),
+            SOAP::Data->name('AdditionalProperties' => \SOAP::Data->value(
+#)->prefix('t')->value(
+                SOAP::Data->name('FieldURI')->prefix('t')
+                ->attr({ 'FieldURI' => 'calendar:Start' }),
+                SOAP::Data->name('FieldURI')->prefix('t')
+                ->attr({ 'FieldURI' => 'calendar:End' }),
+                SOAP::Data->name('FieldURI')->prefix('t')
+                ->attr({ 'FieldURI' => 'item:Subject' }),
+                SOAP::Data->name('FieldURI')->prefix('t')
+                ->attr({ 'FieldURI' => 'calendar:Location' }),
+            ))->prefix('t'),
+    )),
+    SOAP::Data->name('CalendarView')
+    ->attr( { 'MaxEntriesReturned' => '10',
+        'StartDate' => $start,
+        'EndDate'   => $end,
+    }),
+    SOAP::Data->name('ParentFolderIds')->value(
+        \SOAP::Data->name('DistinguishedFolderId')->attr({ 'Id' => 'calendar' })
+    ->prefix('t')
+    ->type('')
+    ));
+
+    my $num = 0;
+    foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
+        my $time;
+        $time = strftime "%a %b %d %R", localtime str2time $_->{"Start"};
+        $output .= "$time - ";
+        $time = strftime "%R", localtime str2time $_->{"End"};
+        $output .= $time;
+        $output .= sprintf " %-28s ", $_->{'Location'}?$_->{'Location'}:"";
+        $output .= $_->{'Subject'} . "\n";
+        $num++;
+    }
+
+    $output .= "\n" if $num;
+    $output;
+}
