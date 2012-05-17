@@ -1,0 +1,112 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use File::Basename;
+use POSIX "strftime";
+use Time::Local;
+use LWP::Simple;
+
+my $length = 10;
+my $font = "-*-helvetica-medium-r-*-*-10-*-*-*-*-*-*-*";
+my $screen_width = 1920;
+
+unless(defined $ARGV[0] && $ARGV[0] eq "-p") {
+    exec "dzen2 -ta l -fn $font -y 1185 -h 15 -xs 1" unless open(STDOUT, "|-");
+}
+
+while(1) {
+=cut
+    for(`/bin/df -P`) {
+        next if /^Filesystem.*Mounted on$/;
+        my @fields = split ' ', $_;
+        next if $fields[0] =~ /^(udev|shm)$/;
+        my $name = basename $fields[5];
+        my $label = sprintf "%s: %.0f%%", $name, 100*$fields[2]/$fields[1];
+        my $boxes = sprintf "%.0f", $length*$fields[2]/$fields[1];
+        &print_bar($label, $boxes);
+    }
+=cut
+
+    print "^fg()";
+    my $load = `/usr/bin/uptime`;
+    $load =~ s/^.*: (.*?),.*\n$/$1/;
+    my $boxes = sprintf "%.0f", $load*$length;
+    #print "load: $load ^fg(#99cc99)^r(", $boxes * 5, ")^fg(#404040)^r(", (10 - $boxes) * 5, ")";
+    &print_bar(" Load: $load", $boxes);
+
+    print "^fg()";
+    for(`/usr/bin/free`) {
+        next unless /^\w+:/;
+        my @fields = split ' ', $_;
+        my $used = $fields[2];
+        for my $i(5, 6) {
+            $used -= $fields[$i] if defined $fields[$i];
+        }
+        my $label = sprintf "%s %.0f%%", $fields[0], 100*$used/$fields[1];
+        my $boxes = sprintf "%.0f", $length*$used/$fields[1];
+        &print_bar($label, $boxes);
+    }
+
+
+    my $width;
+=cut
+    my $battery = `$ENV{HOME}/bin/battery -p`;
+    chomp $battery;
+    my $battery_amount = `$ENV{HOME}/bin/battery`;
+    my $battery_color = "#cc4444";
+    $battery_color = "#aa9944" if $battery_amount > 10;
+    $battery_color = "#99cc99" if $battery_amount > 50;
+    $battery_color = "#8888dd" if $battery =~ /AC-power/;
+    $battery_amount = sprintf "%.0f", $battery_amount*15/100;
+    $width = `/usr/bin/textwidth "$font" " $battery"`;
+    print "^pa(", ($screen_width - $width - 17) / 2, ")";
+    print "^fg($battery_color)^r(2x5)";
+    print "^r(${battery_amount}x9)" if $battery_amount != 0;
+    print "^ro(", 15 - $battery_amount, "x9)" if $battery_amount != 15;
+    print " $battery";
+=cut
+
+    my $time = strftime "%T", localtime;
+    $width = `/usr/bin/textwidth "$font" "$time"`;
+    #print "^pa(", $screen_width - $width - 15, ")^fg()$time";
+
+    my $now = timelocal localtime;
+    my @stat;
+    my $weather;
+    if(-e "$ENV{HOME}/.weather" && (@stat = stat(_)) && (($now - $stat[9]) < 15*60)) {
+        open WEATHER, "<$ENV{HOME}/.weather" or die "couldnt open weather file: $!\n";
+        $weather = <WEATHER>;
+        close WEATHER;
+    } else {
+        $weather = get 'http://www.google.com/ig/api?weather=61701'; 
+        $weather =~ s/.*<condition data=\"(.*)\"\/>.*<temp_f data=\"(.*?)\"\/>.*/$1 $2\n/g;
+        open WEATHER, ">$ENV{HOME}/.weather" or die "couldnt open weather file write: $!\n";
+        print WEATHER $weather;
+        close WEATHER;
+    }
+    chomp $weather;
+    $width += `/usr/bin/textwidth "$font" "$weather"`;
+    print "^pa(", $screen_width - $width - 35, ")^fg()$weather^p(20)$time";
+
+    print "\n";
+    sleep 1;
+}
+
+sub print_bar {
+    my $label = $_[0];
+    my $boxes = $_[1];
+
+    print "^fg()$label ";
+    my $color = "#99cc99";
+    $color = "#aa9944" if $boxes >= 8;
+    $color = "#cc4444" if $boxes >= 10;
+    for(my $i = 0; $i < $length; $i++) {
+        if($i < $boxes) {
+            print "^fg($color)^r(2x8)^p(1)";
+        } else {
+            print "^fg(#404040)^r(2x8)^p(1)";
+        }
+    }
+    print " ";
+}
