@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IO::Socket::UNIX qw( SOCK_STREAM );
+
+my $socket_path = `ps -C uzbl-core -o cmd=`;
+$socket_path =~ s#^.*? -n (\d+-\d+).*$#/tmp/uzbl_socket_$1#s;
+-S $socket_path || die "couldnt find socket";
+
+# open the socket
+my $socket = IO::Socket::UNIX->new(
+    Type => SOCK_STREAM,
+    Peer => $socket_path,
+) or die("Can't connect to server: $!\n");
+
+# write the command
+my $cmd;
+if(defined $ARGV[0]) {
+    $cmd = "event NEW_TAB $ARGV[0]\n";
+} else {
+    $cmd = <STDIN>;
+}
+syswrite $socket, $cmd;
+
+# read back the output
+my $rin = '';
+vec($rin,fileno($socket),1) = 1;
+my $buf;
+while( select($rin, undef, undef, .25) ) {
+    sysread $socket, $buf, 1024;
+    print $buf;
+}
