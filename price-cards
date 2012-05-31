@@ -64,8 +64,28 @@ if(@ARGV) { # they gave us arguments to search for
     $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100");
     if(defined $page) {
         my (%cards, $name, $set);
+        my %code_to_digit;
+        my %offset_to_digit = qw(
+            66px   0    49.5pt 0    5.52em 0
+            0px    1    0pt    1    0em    1
+            7px    2    5pt    2    0.6em  2
+            14px   3    10.5pt 3    1.15em 3
+            21px   4    16pt   4    1.79em 4
+            28px   5    21pt   5    2.35em 5
+            35px   6    26pt   6    2.9em  6
+            42px   7    32pt   7    3.47em 7
+            49px   8    37pt   8    4.2em  8
+            56px   9    42pt   9    4.7em  9
+            63px   .    47.5pt .    5.25em .
+        );
+
+        # find the offset for each code and convert them to the correct digit
+        while($page =~ /\.(......) {background-position:-?([\d.]+(pt|px|em))/g) {
+            $code_to_digit{$1} = (exists $offset_to_digit{$2})?$offset_to_digit{$2}:"?";
+        }
+
         for(split /<tr class="deckdbbody2?">/, $page) {
-            my ($price, $count, @cells);
+            my ($price_line, $price, $count_line, $count, @cells);
             my $full_line = 0;
             @cells = /<td class="deckdbbody2?">(.*?)<\/td>/sg;
             next unless @cells;
@@ -73,13 +93,25 @@ if(@ARGV) { # they gave us arguments to search for
                 $name = $1;
                 $set = $cells[1];
                 $set =~ s/<.*?>//g;
+                s/&amp;/&/g for $name, $set;
                 $full_line = 1;
             }
             next if $name =~ /\(Not Tournament Legal\)/;
-            $price = $cells[ $full_line?8:6 ];
-            $price =~ s/^\$//;
-            $count = $cells[ $full_line?7:5 ];
-            $count = 0 if $count eq "Out of Stock";
+            $price_line = $cells[ $full_line?8:6 ];
+            for($price_line =~ /<div class="(.*?)">/g) {
+                for(split " ", $_) {
+                    s/2$//;
+                    $price .= $code_to_digit{$_} if defined $code_to_digit{$_};
+                }
+            }
+            $count_line = $cells[ $full_line?7:5 ];
+            $count = 0 if $count_line eq "Out of Stock";
+            for($count_line =~ /<div class="(.*?)">/g) {
+                for(split " ", $_) {
+                    s/2$//;
+                    $count .= $code_to_digit{$_} if defined $code_to_digit{$_};
+                }
+            }
             $cards{$name}{$set}{count} += $count;
             $cards{$name}{$set}{min} = $price if(!defined $cards{$name}{$set}{min} || $price < $cards{$name}{$set}{min});
             $cards{$name}{$set}{max} = $price if(!defined $cards{$name}{$set}{max} || $price > $cards{$name}{$set}{max});
