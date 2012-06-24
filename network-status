@@ -1,10 +1,9 @@
 #!/bin/sh
 
-DISABLED=$(/sbin/iwconfig $WIFI_DEV 2>&1 | grep -c "No such device")
 NETWORK=$(/sbin/iwconfig $WIFI_DEV 2>&1 | sed -ne 's/.*ESSID:"\(.*\)".*/\1/p')
 IP=$(/sbin/ifconfig $WIFI_DEV 2>&1 | sed -ne 's/.*inet addr:\([0-9.]*\).*/\1/p')
 
-if [[ "$DISABLED" -eq "1" ]]; then
+if /etc/init.d/net.$WIFI_DEV status 2>&1 | grep -q "stopped"; then
     #echo "Wifi off"
     exit
 fi
