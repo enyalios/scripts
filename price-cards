@@ -7,6 +7,7 @@ use Getopt::Std;
 my %opts;
 getopts('uf', \%opts);
 my $type = $opts{f}?"-foils":"";
+my $debug = 0;
 
 if($opts{u}) {
     require LWP::Simple;
@@ -81,6 +82,7 @@ if(@ARGV) { # they gave us arguments to search for
 
         # find the offset for each code and convert them to the correct digit
         while($page =~ /\.(......) {background-position:-?([\d.]+(pt|px|em))/g) {
+            print "code: $1\t$2\n" if $debug;
             $code_to_digit{$1} = (exists $offset_to_digit{$2})?$offset_to_digit{$2}:"?";
         }
 
@@ -112,6 +114,7 @@ if(@ARGV) { # they gave us arguments to search for
                     $count .= $code_to_digit{$_} if defined $code_to_digit{$_};
                 }
             }
+            print "price: $price\tcount: $count\n" if $debug;
             $cards{$name}{$set}{count} += $count;
             $cards{$name}{$set}{min} = $price if(!defined $cards{$name}{$set}{min} || $price < $cards{$name}{$set}{min});
             $cards{$name}{$set}{max} = $price if(!defined $cards{$name}{$set}{max} || $price > $cards{$name}{$set}{max});
