@@ -7,34 +7,41 @@ use POSIX "strftime";
 use Time::Local;
 use LWP::Simple;
 
-my $length = 10;
-my $font = "-*-helvetica-medium-r-*-*-10-*-*-*-*-*-*-*";
-my $screen_width = 1920;
+my $bar_sections = 10;
+my $font = "-*-*-medium-r-*-*-10-*-*-*-*-*-*-*";
+my $xrandr_output = `xrandr -q`;
+my $screen_width = $1 if $xrandr_output =~ /(\d+)x\d+.*\*/;
+my $screen_height = $1 if $xrandr_output =~ /\d+x(\d+).*\*/;
+my $dzen_height = 16;
+
+
 
 unless(defined $ARGV[0] && $ARGV[0] eq "-p") {
-    exec "dzen2 -ta l -fn $font -y 1185 -h 15 -xs 1" unless open(STDOUT, "|-");
+    exec "dzen2 -ta l -fn $font -y " . ($screen_height - $dzen_height) . " -h $dzen_height" unless open(STDOUT, "|-");
 }
 
 while(1) {
-=cut
+    my $width;
+
+    # print file system utilization for each mounted disk
     for(`/bin/df -P`) {
         next if /^Filesystem.*Mounted on$/;
         my @fields = split ' ', $_;
-        next if $fields[0] =~ /^(udev|shm)$/;
+        next if $fields[0] =~ /^(udev|shm|rootfs|devtmpfs|tmpfs|rc-svcdir|cgroup_root)$/;
         my $name = basename $fields[5];
         my $label = sprintf "%s: %.0f%%", $name, 100*$fields[2]/$fields[1];
-        my $boxes = sprintf "%.0f", $length*$fields[2]/$fields[1];
+        my $boxes = sprintf "%.0f", $bar_sections*$fields[2]/$fields[1];
         &print_bar($label, $boxes);
     }
-=cut
 
+    # print the 1 minute load average
     print "^fg()";
     my $load = `/usr/bin/uptime`;
     $load =~ s/^.*: (.*?),.*\n$/$1/;
-    my $boxes = sprintf "%.0f", $load*$length;
-    #print "load: $load ^fg(#99cc99)^r(", $boxes * 5, ")^fg(#404040)^r(", (10 - $boxes) * 5, ")";
+    my $boxes = sprintf "%.0f", $load*$bar_sections;
     &print_bar(" Load: $load", $boxes);
 
+    # print the memory and swap usage
     print "^fg()";
     for(`/usr/bin/free`) {
         next unless /^\w+:/;
@@ -44,16 +51,18 @@ while(1) {
             $used -= $fields[$i] if defined $fields[$i];
         }
         my $label = sprintf "%s %.0f%%", $fields[0], 100*$used/$fields[1];
-        my $boxes = sprintf "%.0f", $length*$used/$fields[1];
+        my $boxes = sprintf "%.0f", $bar_sections*$used/$fields[1];
         &print_bar($label, $boxes);
     }
 
-
-    my $width;
-=cut
-    my $battery = `$ENV{HOME}/bin/battery -p`;
+    # print the battery status
+    my $battery = `acpi`;
     chomp $battery;
-    my $battery_amount = `$ENV{HOME}/bin/battery`;
+    $battery =~ s/^.*?: //;
+    $battery =~ /.*?(\d+)%/;
+    my $battery_amount = $1;
+    $battery =~ s/^(Charg.*?%).*$/$1/;
+    $battery =~ y/,//d;
     my $battery_color = "#cc4444";
     $battery_color = "#aa9944" if $battery_amount > 10;
     $battery_color = "#99cc99" if $battery_amount > 50;
@@ -61,16 +70,17 @@ while(1) {
     $battery_amount = sprintf "%.0f", $battery_amount*15/100;
     $width = `/usr/bin/textwidth "$font" " $battery"`;
     print "^pa(", ($screen_width - $width - 17) / 2, ")";
-    print "^fg($battery_color)^r(2x5)";
-    print "^r(${battery_amount}x9)" if $battery_amount != 0;
-    print "^ro(", 15 - $battery_amount, "x9)" if $battery_amount != 15;
+    print "^fg($battery_color)^r(2x6)";
+    print "^r(${battery_amount}x10)" if $battery_amount != 0;
+    print "^ro(", 15 - $battery_amount, "x10)" if $battery_amount != 15;
     print " $battery";
-=cut
 
-    my $time = strftime "%T", localtime;
+    # print the date and time
+    my $time = strftime "%-m/%-d %T", localtime;
     $width = `/usr/bin/textwidth "$font" "$time"`;
     #print "^pa(", $screen_width - $width - 15, ")^fg()$time";
 
+    # print the current weather
     my $now = timelocal localtime;
     my @stat;
     my $weather;
@@ -79,12 +89,13 @@ while(1) {
         $weather = <WEATHER>;
         close WEATHER;
     } else {
-        $weather = get 'http://www.google.com/ig/api?weather=61701'; 
+        $weather = get 'http://www.google.com/ig/api?weather=94089';
         $weather =~ s/.*<condition data=\"(.*)\"\/>.*<temp_f data=\"(.*?)\"\/>.*/$1 $2\n/g;
         open WEATHER, ">$ENV{HOME}/.weather" or die "couldnt open weather file write: $!\n";
         print WEATHER $weather;
         close WEATHER;
     }
+    $weather = "" unless(defined $weather && $weather !~ /^Can't connect/);
     chomp $weather;
     $width += `/usr/bin/textwidth "$font" "$weather"`;
     print "^pa(", $screen_width - $width - 35, ")^fg()$weather^p(20)$time";
@@ -101,12 +112,10 @@ sub print_bar {
     my $color = "#99cc99";
     $color = "#aa9944" if $boxes >= 8;
     $color = "#cc4444" if $boxes >= 10;
-    for(my $i = 0; $i < $length; $i++) {
-        if($i < $boxes) {
-            print "^fg($color)^r(2x8)^p(1)";
-        } else {
-            print "^fg(#404040)^r(2x8)^p(1)";
-        }
+    print "^fg($color)";
+    for(my $i = 0; $i < $bar_sections; $i++) {
+        print "^fg(#404040)" if $i == $boxes; 
+        print "^r(2x8)^p(1)";
     }
     print " ";
 }
