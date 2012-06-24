@@ -54,7 +54,7 @@ while ( my $line = <PIPE> ) {
     next if $line =~ /^Filesystem.*Mounted on$/;
     my ($device,  $total, $used, $avail, undef, $mount)
 	= split /(?<!^map) +/, $line;
-    next if $device =~ /^(none|shm|udev|\/dev\/root|rc-svcdir)$/;
+    next if $device =~ /^(none|shm|udev|rootfs|rc-svcdir|.*tmpfs|cgroup_root)$/;
 	$device =~ s/^afp.*$/"afp".$afp++/ge;
 
     # format the device name correctly
