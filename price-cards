@@ -93,7 +93,17 @@ if(@ARGV) { # they gave us arguments to search for
         );
 
         my $background = $1 if $page =~ /background-image:url\((.*?)\)/;
-        my $digits = &background_image_to_string($background);
+        my $digits = "";
+        while(1) {
+            print "doing the OCR loop\nbackground: $background\n" if $debug;
+            $digits = &background_image_to_string($background);
+            if($digits ne "") {
+                last;
+            } else {
+                $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100");
+                $background = $1 if $page =~ /background-image:url\((.*?)\)/;
+            }
+        }
 
         # find the offset for each code and convert them to the correct digit
         while($page =~ /\.(......) {background-position:-?([\d.]+(pt|px|em))/g) {
