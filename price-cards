@@ -166,7 +166,7 @@ if(@ARGV) { # they gave us arguments to search for
 
 sub background_image_to_string {
     my $background = $_[0];
-    my @lines = `GET "$background" | convert - pnm:- | gocr -C 0-9.`;
+    my @lines = `GET "$background" | pngtopnm | gocr -C 0-9.`;
     for(@lines){ tr/ //d; chomp; }
     print "string1:  ", $lines[0], "\nstring2:  ", $lines[1], "\n" if $debug;
     my (@digits, %seen_digit);
