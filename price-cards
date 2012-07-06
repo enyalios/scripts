@@ -61,7 +61,9 @@ if(@ARGV) { # they gave us arguments to search for
 
     # get star city games price data
     my $foil = $opts{f}?"foil":"nofoil";
-    $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100");
+    my $ssg_url = "http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100";
+    print "URL: $ssg_url\n" if $debug;
+    $page = LWP::Simple::get($ssg_url);
     if(defined $page) {
         my (%cards, $name, $set);
         my %code_to_digit;
@@ -100,7 +102,7 @@ if(@ARGV) { # they gave us arguments to search for
             if($digits ne "") {
                 last;
             } else {
-                $page = LWP::Simple::get("http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100");
+                $page = LWP::Simple::get($ssg_url);
                 $background = $1 if $page =~ /background-image:url\((.*?)\)/;
             }
         }
@@ -114,7 +116,7 @@ if(@ARGV) { # they gave us arguments to search for
         for(split /<tr class="deckdbbody2?">/, $page) {
             my ($price_line, $price, $count_line, $count, @cells);
             my $full_line = 0;
-            @cells = /<td class="deckdbbody2?">(.*?)<\/td>/sg;
+            @cells = /<td class="deckdbbody2?"(?: nowrap="nowrap")?>(.*?)<\/td>/sg;
             next unless @cells;
             if($cells[0] =~ /\n\s*(.*?)<\/a>/) {
                 $name = $1;
