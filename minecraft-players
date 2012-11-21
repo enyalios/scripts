@@ -9,7 +9,7 @@ while(<LOG>) {
     $crashed = 0
     if(/^.*?\[INFO\] Starting Minecraft server/);
     $active{$1} = 1 
-    if(/^.*?\[INFO\] (.*?) \[.*?\] logged in.*$/);
+    if(/^.*?\[INFO\] (.*?) ?\[.*?\] logged in.*$/);
     delete $active{$1} 
     if(/^.*?\[INFO\] (.*?) lost connection:.*$/);
 }
