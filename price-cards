@@ -14,7 +14,7 @@ if($opts{u}) {
     print "updating price data...\n" if -t STDOUT;
 
     for("", "-foils") {
-        my $data = LWP::Simple::get("http://magictraders.com/cgi-bin/query.cgi?list=magic$_&target=.&field=0&operator=re");
+        my $data = LWP::Simple::get("http://classic.magictraders.com/cgi-bin/query.cgi?list=magic$_&target=.&field=0&operator=re");
         $data =~ s/^.*<PRE>\n//s;
         $data =~ s/\n *<\/PRE>\n.*$//s;
         open(OUTPUT, ">$ENV{HOME}/magic/prices$_") or die "couldnt open output file\n";
