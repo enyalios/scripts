@@ -1,0 +1,84 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IO::Socket::UNIX;
+use XML::Simple;
+use Data::Dumper;
+use Frontier::RPC2;
+
+$Frontier::RPC2::scalars{'i8'} = 1;
+
+=cut
+print send_request("system.listMethods", ());
+print send_request("download_list", "started");
+print send_request("download_list", "complete");
+print send_request("d.get_name", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+print send_request("d.get_bytes_done", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+print send_request("d.get_completed_bytes", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+print send_request("d.get_completed_chunks", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+print send_request("d.get_down_total", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+print send_request("d.get_down_rate", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+print send_request("d.get_up_rate", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
+=cut
+my @torrents = @{send_request('d.multicall', "main", 
+    "d.get_name=",
+    "d.get_bytes_done=",
+    "d.get_size_bytes=",
+    "to_kb=\$d.get_down_rate=",
+    "to_kb=\$d.get_up_rate=",
+    "d.get_complete=",
+)};
+
+my (@complete_torrents, @incomplete_torrents);
+
+for(@torrents) {
+    my ($name, $bytes_done, $bytes_total, $down_rate, $up_rate, $complete) = @{$_};
+    if($complete) {
+        push @complete_torrents, sprintf "  Completed %s (%d MB)\n", $name, $bytes_total/1024/1024;
+    } else {
+        my $proportion_done = $bytes_done / $bytes_total;
+        push @incomplete_torrents, sprintf "  Downloading %s (%d/%d MB)\n  %5.1f%% [%s>%s] %.1fK/s down, %.1fK/s up\n\n",
+        $name,
+        $bytes_done / 1024 / 1024,
+        $bytes_total / 1024 / 1024,
+        $proportion_done * 100, 
+        "=" x (40*$proportion_done),
+        " " x (40*(1-$proportion_done)),
+        $down_rate,
+        $up_rate;
+    }
+}
+
+print "Torrents:\n" if @incomplete_torrents || @complete_torrents;
+print sort(@incomplete_torrents), sort(@complete_torrents);
+print "\n" if @complete_torrents;
+
+sub send_request {
+    # open the socket
+    my $socket = IO::Socket::UNIX->new("$ENV{HOME}/.rtorrent.socket");
+    die "Cannot connect to socket. Is rtorrent running?\n\n" unless $socket;
+
+    # encode the request
+    my $coder = Frontier::RPC2->new;
+    my $xml_string = $coder->encode_call(@_);
+    my $len  = length $xml_string;
+    my $oheaders =
+    "CONTENT_LENGTH\0$len\0" 
+    . "SCGI\01\0"
+    . "REQUEST_METHOD\0POST\0";
+
+    # print it to the socket and read the response
+    print $socket length($oheaders), ":$oheaders,", $xml_string;
+    my $ans = '';
+    $ans .= $_ while <$socket>;
+
+    # clase the socket
+    $socket->close;
+
+    # split the response to header and xml
+    my ( $header, $xml ) = split( /\n\s?\n/, $ans );
+
+    # decode and return the response
+    $coder->decode($xml)->{value}->[0];
+} 
