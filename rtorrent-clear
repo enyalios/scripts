@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IO::Socket::UNIX;
+use XML::Simple;
+use Data::Dumper;
+use Frontier::RPC2;
+
+$Frontier::RPC2::scalars{'i8'} = 1;
+
+my @torrents = @{send_request('d.multicall', "main", 
+    "d.get_name=",
+    "d.get_bytes_done=",
+    "d.get_size_bytes=",
+    "d.get_complete=",
+    "d.get_hash=",
+)};
+
+for(@torrents) {
+    my ($name, $bytes_done, $bytes_total, $complete, $hash) = @{$_};
+    #print "Name: $name\nBytes Done: $bytes_done\nBytes Total: $bytes_total\nComplete: $complete\nHash:$hash\n";
+    next unless $complete;
+    printf "Removing %s (%d MB)\n", $name, $bytes_total/1024/1024;
+    send_request("d.erase", $hash);
+}
+
+sub send_request {
+    # open the socket
+    my $socket = IO::Socket::UNIX->new("$ENV{HOME}/.rtorrent.socket");
+    die "Cannot connect to socket. Is rtorrent running?\n\n" unless $socket;
+
+    # encode the request
+    my $coder = Frontier::RPC2->new;
+    my $xml_string = $coder->encode_call(@_);
+    my $len  = length $xml_string;
+    my $oheaders =
+    "CONTENT_LENGTH\0$len\0" 
+    . "SCGI\01\0"
+    . "REQUEST_METHOD\0POST\0";
+
+    # print it to the socket and read the response
+    print $socket length($oheaders), ":$oheaders,", $xml_string;
+    my $ans = '';
+    $ans .= $_ while <$socket>;
+
+    # clase the socket
+    $socket->close;
+
+    # split the response to header and xml
+    my ( $header, $xml ) = split( /\n\s?\n/, $ans );
+
+    # decode and return the response
+    $coder->decode($xml)->{value}->[0];
+} 
