@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NETWORK=$(/sbin/iwconfig $WIFI_DEV 2>&1 | sed -ne 's/.*ESSID:"\(.*\)".*/\1/p')
-IP=$(/sbin/ifconfig $WIFI_DEV 2>&1 | sed -ne 's/.*inet addr:\([0-9.]*\).*/\1/p')
+IP=$(/bin/ifconfig $WIFI_DEV 2>&1 | sed -ne 's/.*inet \([0-9.]*\).*/\1/p')
 
 if /etc/init.d/net.$WIFI_DEV status 2>&1 | grep -q "stopped"; then
     #echo "Wifi off"
