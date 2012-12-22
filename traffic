@@ -21,13 +21,11 @@ while(1) { # keep doing this until they ^C
     print "\e[${num_ifs}A"; # go up $num_ifs lines
     $num_ifs = 0;
     # get only lines with an iface name or TX RX info
-    my $lines = join "", grep { /^\w|RX bytes:.*TX bytes:/ } `/sbin/ifconfig`;
-    # join together the iface name with the transmit data
-    $lines =~ s/^(\w.*)\n/$1/mg;
+    my $lines = join "", grep { /^\w|RX .* bytes |TX .* bytes / } `/bin/ifconfig`;
     
     # then do stuff for each interface
-    for(split "\n", $lines) {
-        my ($iface, $rx, $tx) = /^(\w+).*RX bytes:(\d+).*TX bytes:(\d+)/;
+    for(split /\n(?=\w)/, $lines) {
+        my ($iface, $rx, $tx) = /^(\w+):.*RX packets \d+  bytes (\d+).*TX packets \d+  bytes (\d+)/s;
         next if $iface eq "lo";
         
         # only print something if we have historical data
