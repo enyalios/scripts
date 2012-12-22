@@ -95,6 +95,7 @@ if(@ARGV) { # they gave us arguments to search for
         );
 
         my $background = $1 if $page =~ /background-image:url\((.*?)\)/;
+        $background = "http:" . $background unless $background =~ m!^http://!;
         my $digits = "";
         while(1) {
             print "doing the OCR loop\nbackground: $background\n" if $debug;
@@ -104,6 +105,7 @@ if(@ARGV) { # they gave us arguments to search for
             } else {
                 $page = LWP::Simple::get($ssg_url);
                 $background = $1 if $page =~ /background-image:url\((.*?)\)/;
+                $background = "http:" . $background unless $background =~ m!^http://!;
             }
         }
 
@@ -113,10 +115,10 @@ if(@ARGV) { # they gave us arguments to search for
             $code_to_digit{$1} = (exists $offset_to_digit{$2})?$offset_to_digit{$2}:"?";
         }
 
-        for(split /<tr class="deckdbbody2?">/, $page) {
+        for(split /<tr class="deckdbbody2?.*?">/, $page) {
             my ($price_line, $price, $count_line, $count, @cells);
             my $full_line = 0;
-            @cells = /<td class="deckdbbody2?"(?: nowrap="nowrap")?>(.*?)<\/td>/sg;
+            @cells = /<td class="deckdbbody2?.*?"(?: nowrap="nowrap")?>(.*?)<\/td>/sg;
             next unless @cells;
             if($cells[0] =~ /\n\s*(.*?)<\/a>/) {
                 $name = $1;
