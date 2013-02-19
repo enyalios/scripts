@@ -5,9 +5,9 @@ use warnings;
 use Getopt::Std;
 
 my %opts;
-getopts('uf', \%opts);
+getopts('ufv', \%opts);
 my $type = $opts{f}?"-foils":"";
-my $debug = 0;
+my $debug = $opts{v}?1:0;
 
 if($opts{u}) {
     require LWP::Simple;
