@@ -117,7 +117,6 @@ if(@ARGV) { # they gave us arguments to search for
 
         for(split /<tr class="deckdbbody2?.*?">/, $page) {
             my ($price_line, $price, $count_line, $count, @cells);
-            my $full_line = 0;
             @cells = /<td class="deckdbbody2?.*?"(?: nowrap="nowrap")?>(.*?)<\/td>/sg;
             next unless @cells;
             if($cells[0] =~ /\n\s*(.*?)<\/a>/) {
@@ -125,19 +124,16 @@ if(@ARGV) { # they gave us arguments to search for
                 $set = $cells[1];
                 $set =~ s/<.*?>//g;
                 s/&amp;/&/g for $name, $set;
-                $full_line = 1;
             }
             next if $name =~ /\(Not Tournament Legal\)/;
-            $price_line = $cells[ $full_line?8:6 ];
-            for($price_line =~ /<div class="(.*?)">/g) {
+            for($cells[8] =~ /<div class="(.*?)">/g) {
                 for(split " ", $_) {
                     s/2$//;
                     $price .= substr $digits, $code_to_digit{$_}, 1 if defined $code_to_digit{$_};
                 }
             }
-            $count_line = $cells[ $full_line?7:5 ];
-            $count = 0 if $count_line eq "Out of Stock";
-            for($count_line =~ /<div class="(.*?)">/g) {
+            $count = 0 if $cells[7] eq "Out of Stock";
+            for($cells[7] =~ /<div class="(.*?)">/g) {
                 for(split " ", $_) {
                     s/2$//;
                     $count .= substr $digits, $code_to_digit{$_}, 1 if defined $code_to_digit{$_};
