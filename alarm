@@ -8,7 +8,7 @@ use File::Find;
 use List::Util "shuffle";
 
 my $volume_file = "/proc/acpi/ibm/volume";
-my $music_dir = "$ENV{HOME}/media";
+my $music_dir = "$ENV{HOME}/media/music/Daft\ Punk\ -\ Discovery";
 $| = 1;
 $SIG{INT} = sub { &fix_term && exit };
 END { &fix_term }
