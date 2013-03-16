@@ -4,6 +4,8 @@ use warnings;
 use strict;
 use Sys::Syslog;
 
+my $VERBOSE = (defined $ARGV[0] && $ARGV[0] eq "-v")?1:0;
+
 undef $/;
 
 while(1) {
@@ -20,7 +22,7 @@ while(1) {
             closelog();
             system("/usr/sbin/pm-hibernate");
         }
-        #print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n\n";
+        print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n\n" if $VERBOSE;
     }
     sleep 60
 }
