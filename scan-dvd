@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my $device = $ARGV[0] || "/dev/dvd";
+my (@chapters, @lengths, $title);
+my @info = `/usr/bin/midentify -dvd-device $device dvd://1`;
+die "no dvd found\n" if $info[0] eq "ID_EXIT=EOF\n";
+for(@info) {
+    $chapters[$1] = $2 if /^ID_DVD_TITLE_(\d+)_CHAPTERS=(\d+)$/;
+    $lengths[$1] = $2 if /^ID_DVD_TITLE_(\d+)_LENGTH=([\d.]+)$/;
+    $title = $1 if /^ID_DVD_VOLUME_ID=(.*)$/;
+}
+
+$title =~ s/\\ /_/g;
+$title =~ y/A-Z/a-z/;
+print "volume id: $title\n";
+
+# iterate through the titles and find the most likely main feature
+my $guess = 0;
+my $guess_chapters = 0;
+for(my $index = 1; $chapters[$index]; $index++) {
+    if($guess_chapters < $chapters[$index] && $lengths[$index] > 500) {
+        $guess = $index;
+        $guess_chapters = $chapters[$index];
+    }
+}
+
+# print out the number of chapters and length of each title
+for(my $index = 1; $chapters[$index]; $index++) {
+    print "\e[32m" if $index == $guess;
+    printf "title %2d:  %2d  %8s\n", $index, $chapters[$index], $lengths[$index];
+    print "\e[m" if $index == $guess;
+}
+
+# print out the command for easy copy pasting
+print "\n/mnt/media/incoming/dvdrip/; dvdrip -a 128 -b 900 -c dvd://$guess -r -o $title.mkv -y -d $device\n"
