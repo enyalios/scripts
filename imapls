@@ -67,48 +67,14 @@ for(@folders) {
     my $headers = $imap->parse_headers($msgs, "Date", "From", "Subject");
     my $flags = $imap->flags($msgs);
     for(keys %{$headers}) {
-        # format the date nicely
-        my $date = $headers->{$_}->{Date}->[0];
-        my $epoch = str2time $date;
-        $epoch ||= 0;
-        if(($now - $epoch) < 60*60) {
-            my $amount = ($now - $epoch) / 60;
-            $date = sprintf "%2d min%s ago", $amount, $amount>=2?"s":" ";
-        } elsif(($now - $epoch) < 60*60*24) {
-            my $amount = ($now - $epoch) / 60 / 60;
-            $date = sprintf "%2d hr%s  ago", $amount, $amount>=2?"s":" ";
-        } elsif(($now - $epoch) < 60*60*24*7) {
-            my $amount = ($now - $epoch) / 60 / 60 / 24;
-            $date = sprintf "%2d day%s ago", $amount, $amount>=2?"s":" ";
-        } else {
-            $date = strftime "%b %d %Y", localtime $epoch;
+        my $epoch = &get_epoch($headers->{$_}->{Date}->[0]);
+        push @emails, {
+            epoch => $epoch,
+            date => &format_date($epoch),
+            from => &format_from($headers->{$_}->{From}->[0]),
+            subject => &format_subject($headers->{$_}->{Subject}->[0]),
+            flags => &format_flags($flags->{$_}),
         }
-
-        # format the from field nicely
-        my $from = $headers->{$_}->{From}->[0];
-        $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
-        $from =~ s/\n//g;
-        $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
-
-        # format the subject field nicely
-        my $subject = $headers->{$_}->{Subject}->[0];
-        $subject =~ s/\n//g;
-        $subject =~ s/\t+/ /g;
-        $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
-        substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
-
-        # get info on the message flags
-        my %flags;
-        if($flags->{$_} && @{$flags->{$_}}) {
-            @flags{ @{$flags->{$_}} } = ();
-        }
-        my $flag_string = sprintf "%s%s",
-                          exists($flags{"\\Seen"})?" ":"N",
-                          exists($flags{"\\Flagged"})?"!":" ";
-
-        # put all of the info in an array
-        push @emails, { date => $date, epoch => $epoch,
-            from => $from, subject => $subject, flags => $flag_string };
     }
 
     # print everything out nicely sorted by date
@@ -119,6 +85,61 @@ for(@folders) {
 }
 
 $imap->logout();
+
+sub get_epoch {
+    my $epoch = str2time $_[0];
+    $epoch ||= 0;
+    return $epoch;
+}
+
+sub format_date {
+    # format a date nicely
+    my $date;
+    my $epoch = $_[0];
+    if(($now - $epoch) < 60*60) {
+        my $amount = ($now - $epoch) / 60;
+        $date = sprintf "%2d min%s ago", $amount, $amount>=2?"s":" ";
+    } elsif(($now - $epoch) < 60*60*24) {
+        my $amount = ($now - $epoch) / 60 / 60;
+        $date = sprintf "%2d hr%s  ago", $amount, $amount>=2?"s":" ";
+    } elsif(($now - $epoch) < 60*60*24*7) {
+        my $amount = ($now - $epoch) / 60 / 60 / 24;
+        $date = sprintf "%2d day%s ago", $amount, $amount>=2?"s":" ";
+    } else {
+        $date = strftime "%b %d %Y", localtime $epoch;
+    }
+    return $date;
+}
+
+sub format_from {
+    # format a from field nicely
+    my $from = $_[0] || "";
+    $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+    $from =~ s/\n//g;
+    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
+    return $from;
+}
+
+sub format_subject {
+    # format a subject field nicely
+    my $subject = $_[0] || "";
+    $subject =~ s/\n//g;
+    $subject =~ s/\t+/ /g;
+    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
+    substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
+    return $subject;
+}
+
+sub format_flags {
+    # get info on the message flags
+    my %flags;
+    # we're passed an array of flags, stuff it into a hash for easy querying
+    $flags{$_} = 1 for @{$_[0]};
+    my $flag_string = sprintf "%s%s",
+        exists($flags{"\\Seen"})?" ":"N",
+        exists($flags{"\\Flagged"})?"!":" ";
+    return $flag_string;
+}
 
 =for comment
 
