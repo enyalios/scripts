@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+#
+# this script is used to run several commands in parallel.  it takes a list of
+# newline seperated list of commands on standard in and optionally a number of
+# commands to run at once as the first argument (defaults to 5).
+
+use strict;
+use warnings;
+
+sub run {
+    return unless defined $_[0];
+    print "executing command: $_[0]\n";
+    exec($_[0]) unless fork();
+}
+
+# read in the commands to run from stdin
+chomp(my @commands = <STDIN>);
+
+# start by fork and execing n commands 
+run(shift @commands) for 1 .. $ARGV[0] || 5;
+
+# then sit in a loop and whenever one finishes, start up the next command
+# when wait() returns -1 that means all the children have finished running
+run(shift @commands) while wait() != -1;
