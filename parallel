@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 #
 # this script is used to run several commands in parallel.  it takes a list of
-# newline seperated list of commands on standard in and optionally a number of
-# commands to run at once as the first argument (defaults to 5).
+# newline seperated commands on standard in and optionally a number of commands
+# to run at once as the first argument (defaults to 5).
 
 use strict;
 use warnings;
