@@ -5,18 +5,19 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="viewport" content="width=device-width; initial-scale=1.0; user-scalable=0;">
         <style>
-            *    { -webkit-user-select: none;
-                   -webkit-touch-callout: none; }
+            *    { -webkit-touch-callout: none; }
             body { background-color: #000; 
                    color: #fff; 
                    font-family: verdana; }
-            img  { border: 0; }
+            img  { border: 0;
+                   -webkit-user-select: none; }
             td   { 
                    vertical-align: top; 
                    width: 80px;
-                   border: dashed; 
-                   border-color: #555; 
-                   border-width: 1px; 
+                   border: 1px solid #333; 
+                   -moz-border-radius: 10px; 
+                   -webkit-border-radius: 10px;
+                   border-radius: 10px;
                    /* border-width: 5px;
                    -moz-border-image: url("border.png") 5;
                    -webkit-border-image: url("border.png") 5; */
@@ -31,32 +32,41 @@
         <script language="JavaScript" type="text/javascript">
             <!-- 
             var touchscreen = 0;
-            var players = 4;
-            var startinglife = 20;
+            var players;
+            var startinglife;
             var t;
             var life = new Array();
             var names = new Array();
             var hist = new Array();
             var timer = new Array();
-            names[0] = "Me";
             function startup() {
                 window.scrollTo(0, 2);
-                maketable();
+                players = getCookie("numplayers");
+                if(players == null) { players = 2; }
+                startinglife = getCookie("startinglife");
+                if(startinglife == null) { startinglife = 20; }
+                for(var x = 0; x < players; x++) {
+                    names[x] = getCookie("player" + x + "name");
+                    life[x] = getCookie("player" + x + "life");
+                    hist[x] = getCookie("player" + x + "hist");
+                }
+                if(names[0] == null) { names[0] = "Me"; }
+                makeTable();
             }
-            function maketable() {
+            function makeTable() {
                 var x;
                 var output = "<table><tr>";
                 for(x = 0; x < players; x++) {
                     if(life[x] == null) { life[x] = startinglife; }
                     if(names[x] == null) { names[x] = "???"; }
-                    if(hist[x] == null) { hist[x] = life[x]; }
+                    if(hist[x] == null) { hist[x] = new String(life[x]); }
                     output += "<td>";
                     output += "<div class=\"center\">";
                     output += "<span class=\"big\" id=\"name" + x + "\" onclick=\"rename(" + x + ")\">" + names[x] + "</span><br />";
                     output += "<a href=\"javascript:void()\" onmousedown=\"return inc(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
                     output += "ontouchstart=\"return inc(" + x + ", 1)\" ontouchend=\"clearTimeout(t)\">";
                     output += "<img src=\"plus.png\" height=\"40px\" width=\"40px\" /></a><br />";
-                    output += "<span class=\"big\" id=\"life" + x + "\" onclick=\"setlife(" + x + ")\">" + life[x] + "</span><br />";
+                    output += "<span class=\"big\" id=\"life" + x + "\" onclick=\"setLife(" + x + ")\">" + life[x] + "</span><br />";
                     output += "<a href=\"javascript:void()\" onmousedown=\"return dec(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
                     output += "ontouchstart=\"return dec(" + x + ", 1)\" ontouchend=\"clearTimeout(t)\">";
                     output += "<img src=\"minus.png\" height=\"40px\" width=\"40px\" /></a>";
@@ -65,10 +75,10 @@
                     output += "</td>";
                 }
                 output += "</tr></table><br />";
-                output += "<a href=\"javascript:addplayer()\"><img class=\"button\" src=\"add.png\" /></a> ";
-                output += "<a href=\"javascript:remplayer()\"><img class=\"button\" src=\"rem.png\" /></a> ";
-                output += "<a href=\"javascript:resetall(20)\"><img class=\"button\" src=\"20.png\" /></a> ";
-                output += "<a href=\"javascript:resetall(40)\"><img class=\"button\" src=\"40.png\" /></a> ";
+                output += "<a href=\"javascript:addPlayer()\"><img class=\"button\" src=\"add.png\" /></a> ";
+                output += "<a href=\"javascript:remPlayer()\"><img class=\"button\" src=\"rem.png\" /></a><br /> ";
+                output += "<a href=\"javascript:resetAll(20)\"><img class=\"button\" src=\"20.png\" /></a> ";
+                output += "<a href=\"javascript:resetAll(40)\"><img class=\"button\" src=\"40.png\" /></a><br /> ";
                 output += "<br/><a href=\"javascript:first()\">who goes first?</a>";
                 document.getElementById("table").innerHTML = output; 
             }
@@ -79,7 +89,8 @@
                 life[x]++;
                 document.getElementById("life" + x).innerHTML = life[x]; 
                 t = setTimeout("inc(" + x + "," + touch + ")", 120);
-                timer[x] = setTimeout("updatehistory(" + x + ")", 1500);
+                timer[x] = setTimeout("updateHistory(" + x + ")", 1500);
+                setCookie("player" + x + "life", life[x]);
                 return false;
             }
             function dec(x, touch) { 
@@ -89,16 +100,18 @@
                 life[x]--;
                 document.getElementById("life" + x).innerHTML = life[x]; 
                 t = setTimeout("dec(" + x + "," + touch + ")", 120);
-                timer[x] = setTimeout("updatehistory(" + x + ")", 1500);
+                timer[x] = setTimeout("updateHistory(" + x + ")", 1500);
+                setCookie("player" + x + "life", life[x]);
                 return false;
             }
-            function setlife(x) {
+            function setLife(x) {
                 var newlife = prompt("Set Life Total:", life[x]);
                 var anum=/^-?\d+$/;
                 if(!anum.test(newlife)) { return; }
                 life[x] = newlife;
                 document.getElementById("life" + x).innerHTML = newlife;
-                updatehistory(x);
+                updateHistory(x);
+                setCookie("player" + x + "life", life[x]);
             }
             function rename(x) {
                 var newname = prompt("Change player name:", names[x]);
@@ -106,30 +119,48 @@
                     names[x] = newname;
                     document.getElementById("name" + x).innerHTML = newname;
                 }
+                setCookie("player" + x + "name", newname);
             }
-            function addplayer() {
+            function addPlayer() {
                 life[players] = null;
                 names[players] = null;
                 hist[players] = null;
+                setCookie("player" + players + "name", null);
+                setCookie("player" + players + "life", null);
+                setCookie("player" + players + "hist", null);
                 players++;
-                maketable();
+                setCookie("numplayers", players);
+                makeTable();
             }
-            function remplayer() {
+            function remPlayer() {
                 players--;
-                maketable();
+                setCookie("numplayers", players);
+                makeTable();
             }
-            function resetall(x) {
-                var i = 0;
+            function resetAll(x) {
                 startinglife = x;
-                while(i < players) {
+                setCookie("startinglife", x);
+                for(var i = 0; i < players; i++) {
                     hist[i] = null;
-                    life[i++] = x;
+                    life[i] = null;
+                    setCookie("player" + i + "life", null);
+                    setCookie("player" + i + "hist", null);
                 }
-                maketable();
+                makeTable();
             }
-            function updatehistory(x) {
-                hist[x] += ", " + life[x];
-                document.getElementById("hist" + x).innerHTML = hist[x]; 
+            function updateHistory(x) {
+                var lastvalue;
+                var index = hist[x].lastIndexOf(", ");
+                if(index == -1) {
+                    lastvalue = hist[x];
+                } else {
+                    lastvalue = hist[x].substr(index + 2);
+                }
+                if(lastvalue != life[x]) {
+                    hist[x] += ", " + life[x];
+                    document.getElementById("hist" + x).innerHTML = hist[x]; 
+                    setCookie("player" + x + "hist", hist[x]);
+                }
             }
             function first() {
                 var p1 = Math.floor(Math.random()*players);
@@ -140,11 +171,42 @@
                 }
                 alert(p1 + " goes first.");
             }
+            function toggleNotes() {
+                var notes = document.getElementById("notes");
+                if(notes.style.visibility == "collapse") {
+                    notes.style.visibility = "visible";
+                } else {
+                    notes.style.visibility = "collapse";
+                }
+            }
+            function setCookie(c_name, c_value) {
+                var exdate=new Date();
+                if(c_value == null) {
+                    exdate.setDate(exdate.getDate() - 1);
+                } else {
+                    exdate.setDate(exdate.getDate() + 7);
+                }
+                document.cookie = c_name + "=" + escape(c_value) + "; expires=" + exdate.toUTCString();
+            }
+            function getCookie(c_name) {
+                var nameEQ = c_name + "=";
+                var ca = document.cookie.split(';');
+                for(var i=0; i < ca.length;i++) {
+                    var c = ca[i];
+                    while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) == 0) return unescape(c.substring(nameEQ.length, c.length));
+                }
+                return null;
+            }
             window.onload = startup;
             //-->
         </script>
     </head>
     <body>
         <div id="table"></div>
+        <br />
+        <a href="javascript:void(0)" onclick="toggleNotes()">notes</a>
+        <br />
+        <textarea cols="40" rows="10" id="notes" style="visibility:collapse"></textarea>
     </body>
 </html>
