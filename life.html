@@ -40,11 +40,8 @@
             var hist = new Array();
             var timer = new Array();
             function startup() {
-                window.scrollTo(0, 2);
-                players = getCookie("numplayers");
-                if(players == null) { players = 2; }
-                startinglife = getCookie("startinglife");
-                if(startinglife == null) { startinglife = 20; }
+                players = getCookie("numplayers") || 2;
+                startinglife = getCookie("startinglife") || 20;
                 for(var x = 0; x < players; x++) {
                     names[x] = getCookie("player" + x + "name");
                     life[x] = getCookie("player" + x + "life");
@@ -52,11 +49,11 @@
                 }
                 if(names[0] == null) { names[0] = "Me"; }
                 makeTable();
+                window.scrollTo(0, 2);
             }
             function makeTable() {
-                var x;
                 var output = "<table><tr>";
-                for(x = 0; x < players; x++) {
+                for(var x = 0; x < players; x++) {
                     if(life[x] == null) { life[x] = startinglife; }
                     if(names[x] == null) { names[x] = "???"; }
                     if(hist[x] == null) { hist[x] = new String(life[x]); }
@@ -74,12 +71,7 @@
                     output += "<span class=\"sml\" id=\"hist" + x + "\" style=\"width:300px\">" + hist[x] + "</h3>";
                     output += "</td>";
                 }
-                output += "</tr></table><br />";
-                output += "<a href=\"javascript:addPlayer()\"><img class=\"button\" src=\"add.png\" /></a> ";
-                output += "<a href=\"javascript:remPlayer()\"><img class=\"button\" src=\"rem.png\" /></a><br /> ";
-                output += "<a href=\"javascript:resetAll(20)\"><img class=\"button\" src=\"20.png\" /></a> ";
-                output += "<a href=\"javascript:resetAll(40)\"><img class=\"button\" src=\"40.png\" /></a><br /> ";
-                output += "<br/><a href=\"javascript:first()\">who goes first?</a>";
+                output += "</tr></table>";
                 document.getElementById("table").innerHTML = output; 
             }
             function inc(x, touch) { 
@@ -91,6 +83,7 @@
                 t = setTimeout("inc(" + x + "," + touch + ")", 120);
                 timer[x] = setTimeout("updateHistory(" + x + ")", 1500);
                 setCookie("player" + x + "life", life[x]);
+                setCookie("player" + x + "hist", hist[x] + ", " + life[x]);
                 return false;
             }
             function dec(x, touch) { 
@@ -102,6 +95,7 @@
                 t = setTimeout("dec(" + x + "," + touch + ")", 120);
                 timer[x] = setTimeout("updateHistory(" + x + ")", 1500);
                 setCookie("player" + x + "life", life[x]);
+                setCookie("player" + x + "hist", hist[x] + ", " + life[x]);
                 return false;
             }
             function setLife(x) {
@@ -203,7 +197,15 @@
         </script>
     </head>
     <body>
-        <div id="table"></div>
+        <div id="table"></div><br />
+        <a href="javascript:addPlayer()"><img class="button" src="add.png" /></a>
+        <a href="javascript:remPlayer()"><img class="button" src="rem.png" /></a><br />
+        <a href="javascript:resetAll(20)"><img class="button" src="20.png" /></a>
+        <a href="javascript:resetAll(40)"><img class="button" src="40.png" /></a><br />
+        <br />
+        <a href="javascript:first()">who goes first?</a><br />
+        <br />
+        <a href="/cgi-bin/dice.cgi" target="_blank">roll some dice</a><br />
         <br />
         <a href="javascript:void(0)" onclick="toggleNotes()">notes</a>
         <br />
