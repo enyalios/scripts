@@ -132,6 +132,8 @@ if(@ARGV) { # they gave us arguments to search for
                     $price .= substr $digits, $code_to_digit{$_}, 1 if defined $code_to_digit{$_};
                 }
             }
+            # handle prices how they are listed when there is a sale
+            $price = $1 if $cells[8] =~ /^.*<span[^>]*>\$([\d.]+)<\/span>/;
             $count = 0 if $cells[7] eq "Out of Stock";
             for($cells[7] =~ /<div class="(.*?)">/g) {
                 for(split " ", $_) {
