@@ -126,6 +126,7 @@ if(@ARGV) { # they gave us arguments to search for
                 s/&amp;/&/g for $name, $set;
             }
             next if $name =~ /\(Not Tournament Legal\)/;
+            next if $set =~ /Rarities & Misprints/;
             for($cells[8] =~ /<div class="(.*?)">/g) {
                 for(split " ", $_) {
                     s/2$//;
