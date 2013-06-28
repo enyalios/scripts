@@ -6,8 +6,6 @@ use CGI qw/:standard/;
 use LWP::Simple;
 
 $| = 1;
-my $progname = $0;
-$progname =~ s!^.*/!!;
 
 my $string = param('query');
 exit if $string eq "";
@@ -60,7 +58,7 @@ Content-Type: text/html
         <pre id="ssg">Loading...</pre>
         <br />
         Search Again:<br />
-        <form method="get" name="prices" action="$progname"><input type="text" name="query" /></form>
+        <form method="get" name="prices"><input type="text" name="query" /></form>
     </body>
 </html>
 EOF
