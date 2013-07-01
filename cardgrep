@@ -43,6 +43,19 @@ if($opts{u}) {
         s/<\/tr>/<\/tr>\n/g; # add line breaks in the right places
         s/^<br \/>\n//mg; # remove random extra blank lines
         s/<.*?>//g; # remove all the markup crap
+        
+        # something like this will add the converted mana cost to each block of card data
+        #for(/^Cost: *(.*)$/mg) {
+        #     my $cost = $_;
+        #    my $cmc = 0;
+        #    $cost =~ y/X//d;
+        #    while($cost =~ s/\(2\/[WUBRG]\)//) { $cmc += 2 }; 
+        #    $cmc += $1 if $cost =~ s/(\d+)//;
+        #    while($cost =~ s/\([WUBRG]\/[WUBRGP]\)//) { $cmc++ };
+        #    $cmc += length($1) if $cost =~ s/([WUBRG]+)//;
+        #    print "CMC:         $cmc\n";
+        #}
+
         s/^ *(Name|Cost|Color|Type|Pow\/Tgh|Rules Text|Set\/Rarity|(?!$)):? */sprintf "%-13.13s", ($1 ne "")?"$1:":""/meg;
         # do some voodoo to have everything indented correctly
         s/\xC3\x86/AE/g; # change junk to AE
