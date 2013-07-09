@@ -26,7 +26,10 @@ eval { ($width) = GetTerminalSize(); };
 my ($host, $user, $pass) = @{do "$ENV{HOME}/.imapls"};
 
 # open an ssl socket since gmail is over ssl
-my $sock = IO::Socket::SSL->new($host) or die "socket(): $@";
+my $sock = IO::Socket::SSL->new(
+    SSL_verify_mode => SSL_VERIFY_PEER,
+    SSL_ca_path => '/etc/ssl/certs',
+    PeerHost => $host) or die "socket(): $@";
 my $greeting = <$sock>;
 die "problems logging in: $greeting" unless $greeting =~ ' OK ';
 
