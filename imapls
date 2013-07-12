@@ -119,7 +119,7 @@ sub format_from {
     my $from = $_[0] || "";
     $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
     $from =~ s/\n//g;
-    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
+    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
     return $from;
 }
 
@@ -128,7 +128,7 @@ sub format_subject {
     my $subject = $_[0] || "";
     $subject =~ s/\n//g;
     $subject =~ s/\t+/ /g;
-    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8)\?/i);
+    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
     substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
     return $subject;
 }
