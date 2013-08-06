@@ -1,0 +1,93 @@
+#!/usr/bin/perl
+#
+# This is a perl script for printing readable summary of exchange emails with
+# vcal attachements.  To have mutt use it, just add the following to your
+# .mailcap file:
+#
+#   text/calendar; $HOME/bin/vcal; copiousoutput
+
+use strict;
+use warnings;
+
+my $debug = 0;
+my ($organizer, $summary, $description, $location, @attendees, $date, $start, $end, $recurring);
+
+my $text = join "", <>;
+$text =~ s/\n //g;
+
+# useful data starts after the ORGANIZER line
+$text =~ s/.*^(ORGANIZER;.*?)$/$1/sm;
+$organizer = &fix_name($1) if $text =~ /^ORGANIZER;(.*)$/m;
+$summary = $1 if $text =~ /^SUMMARY;.*?:(.*)$/m;
+push @attendees, &fix_name($_) for $text =~ /^ATTENDEE;.*(CN=.*)$/gm;
+$location = $1 if $text =~ /^LOCATION;.*?:(.*)$/m;
+if($text =~ /^DTSTART;.*?:(....)(..)(..)T(..)(..)/m) {
+    $date = "$2/$3/$1";
+    $start = "$4:$5";
+}
+$end = "$1:$2" if $text =~ /^DTEND;.*?:.*?T(..)(..)/m;
+if($text =~ /^DESCRIPTION;.*?:(.*)$/m) {
+    $description = $1;
+    $description =~ s/\\n/\n/g;
+    $description =~ s/\x{e2}\x{80}\x{99}/'/g;
+}
+$recurring = &recurring_string($1, $2, $3) if $text =~ /^RRULE:FREQ=(.*?);INTERVAL=(\d+);BYDAY=(..);WKST=..$/m;
+    
+# print useful lines for debugging
+for(split /\n/, $text) {
+    print "$_\n" if $debug && /^(ORGANIZER|ATTENDEE|DESCRIPTION|RRULE|SUMMARY|DTSTART|DTEND|LOCATION)[;:]/;
+}
+
+# we dont care about the date it started if its a recurring event
+$date = $recurring if $recurring;
+
+# pretty-print a meeting description
+my $header = "-- $summary ($date $start - $end)";
+print "\n", $header, "-" x (72-length($header)), "\n";
+print "  Where: $location\n";
+print "  Organizer: $organizer\n\n";
+print "  Attendees:\n    ", join("\n    ", @attendees), "\n";
+print "-" x 72, "\n";
+print "  $description\n";
+
+# this nicely formats a name and email address
+sub fix_name {
+    $_[0] =~ /^CN=(.*):MAILTO:(.*)$/;
+    my ($name, $address) = ($1, $2);
+    $name =~ s/"(.*)"/$1/;
+    my @parts = split ", ", $name, 2;
+    if(@parts == 2) {
+        $name = "$parts[1] $parts[0]";
+    } else {
+        $name = $parts[0];
+    }
+    return "$name ($address)";
+}
+
+# this nicely formats a string describing a recurring event
+sub recurring_string {
+    my ($freq, $interval, $day) = @_;
+    my %days = qw(
+    MO Monday
+    TU Tuesday
+    WE Wednesday
+    TH Thursday
+    FR Friday
+    SA Saturday
+    SU Sunday
+    );
+    my %intervals = (
+        1 => "",
+        2 => "other ",
+        3 => "third ",
+    );
+    $day = $days{$day} if $freq eq "WEEKLY";
+    $day = "day" if $freq eq "DAILY";
+    if(defined $intervals{$interval}) {
+        $interval = $intervals{$interval};
+    } else {
+        $interval .= "th";
+    }
+    return "Every $interval$day from";
+}
+    
