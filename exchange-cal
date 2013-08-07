@@ -1,0 +1,145 @@
+#!/usr/bin/perl 
+# 
+# This script connects to exchange and prints out your calendar for the next
+# week.  It require some strange things so please read the rest of the comment
+# below carefully.
+#
+# Normal authentication no longer works.  Now you need a kerberos ticket.
+# Please make sure the contents of your /etc/krb5.conf contain the following:
+# [libdefaults]
+#     default_realm = AD.UILLINOIS.EDU
+#     ticket_lifetime = 5d
+# 
+# [realms]
+#     AD.UILLINOIS.EDU = {
+#         kdc = udc01.ad.uillinois.edu
+#         kdc = udc02.ad.uillinois.edu
+#         kdc = udc03.ad.uillinois.edu
+#         kdc = udc04.ad.uillinois.edu
+#         kdc = udc05.ad.uillinois.edu
+#         kdc = udc06.ad.uillinois.edu
+#         kdc = cdc01.ad.uillinois.edu
+#         kdc = cdc02.ad.uillinois.edu
+#         kdc = exchws.illinois.edu
+#         kdc = imap.illinois.edu
+#         default_domain = ad.uillinois.edu
+#     }
+# 
+# 
+# [domain_realm]
+#     .illinois.edu = AD.UILLINOIS.EDU
+#     illinois.edu = AD.UILLINOIS.EDU
+#     .ad.uillinois.edu = AD.UILLINOIS.EDU
+#     ad.uillinois.edu = AD.UILLINOIS.EDU
+#
+#
+# ...and you must have the following line in your /etc/hosts file.  I have no
+# clue why.
+# 192.17.45.235 exchws.illinois.edu
+# 
+# Finally, your NetID must match the name you are logged into your workstation
+# as, or you'll need to change line 55 below.
+
+use strict;
+use warnings;
+
+#use SOAP::Lite (+trace => 'debug', maptype => {});
+use SOAP::Lite maptype=>{};
+use SOAP::Transport::HTTP;
+use Date::Parse; # from dev-perl/TimeDate
+use POSIX qw(strftime);
+use Term::ReadKey;
+use GSSAPI; # from dev-perl/GSSAPI
+use LWP::Authen::Negotiate; # perl -MCPAN -e 'install LWP::Authen::Negotiate'
+
+my $login=$ENV{USER};
+# get the users password
+#print "$login\'s AD password: ";
+#ReadMode('noecho');
+#my $pw = ReadLine(0);
+#ReadMode('normal');
+#chomp $pw;
+#print "\n";
+# the password stuff no longer works, now you need a krb ticket
+system("klist -l >/dev/null || kinit $login\@AD.UILLINOIS.EDU");
+
+my $now = strftime("%s", localtime);
+my $tz = "-06:00";
+my $start = strftime("%F", localtime) . 'T00:00:00' . $tz;
+my $end   = strftime("%F", localtime($now + 24*60*60*7)) . 'T00:00:00' . $tz;
+
+my $service = SOAP::Lite
+    ->service("https://exchws.illinois.edu/ews/Services.wsdl")
+    ->proxy("https://exchws.illinois.edu/ews/exchange.asmx")
+    #->outputxml('true')
+    ->encodingStyle('')
+    ->ns("http://schemas.microsoft.com/exchange/services/2006/types",'t')
+    ->default_ns("http://schemas.microsoft.com/exchange/services/2006/messages");
+
+# over-ride method to handle authentication
+# sub SOAP::Schema::access
+# {
+#     my $self = shift->new;
+#     my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
+# 
+#     my $req = HTTP::Request->new(GET => $url);
+# 
+#     # this is why it's over-ridden
+#     $req->authorization_basic($login, $pw);
+# 
+#     my $resp = $self->useragent->request($req);
+#     $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
+# }
+
+# and get_basic_credentials for the service calls,
+# if they require authentication
+# sub SOAP::Transport::HTTP::Client::get_basic_credentials
+# { return $login => $pw; }
+
+my $response = $service->call(
+    SOAP::Data->name('FindItem')
+    ->attr({'Traversal'=>'Shallow',
+            'xmlns' => 'http://schemas.microsoft.com/exchange/services/2006/messages'
+        }),
+    SOAP::Header->name('RequestServerVersion')->prefix('t')->type('')
+    ->attr({'Version' => 'Exchange2010_SP1'}),
+    SOAP::Data->name('ItemShape' => \SOAP::Data->value(
+            SOAP::Data->name('BaseShape')->value('IdOnly')
+            ->prefix('t')
+            ->type(''),
+            SOAP::Data->name('AdditionalProperties' => \SOAP::Data->value(
+#)->prefix('t')->value(
+                    SOAP::Data->name('FieldURI')->prefix('t')
+                    ->attr({ 'FieldURI' => 'calendar:Start' }),
+                    SOAP::Data->name('FieldURI')->prefix('t')
+                    ->attr({ 'FieldURI' => 'calendar:End' }),
+                    SOAP::Data->name('FieldURI')->prefix('t')
+                    ->attr({ 'FieldURI' => 'item:Subject' }),
+                    SOAP::Data->name('FieldURI')->prefix('t')
+                    ->attr({ 'FieldURI' => 'calendar:Location' }),
+                ))->prefix('t'),
+        )),
+    SOAP::Data->name('CalendarView')
+    ->attr( { 'MaxEntriesReturned' => '10',
+            'StartDate' => $start,
+            'EndDate'   => $end,
+        }),
+    SOAP::Data->name('ParentFolderIds')->value(
+        \SOAP::Data->name('DistinguishedFolderId')->attr({ 'Id' => 'calendar' })
+        ->prefix('t')
+        ->type('')
+    ));
+
+my $num = 0;
+foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
+    my $time;
+    $time = strftime "%a %b %d %R", localtime str2time $_->{"Start"};
+    print "$time - ";
+    $time = strftime "%R", localtime str2time $_->{"End"};
+    print $time;
+    printf " %-28s ", $_->{'Location'};
+    print $_->{'Subject'}, "\n";
+    $num++;
+}
+
+print "\n" if $num;
