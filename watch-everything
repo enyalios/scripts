@@ -23,15 +23,9 @@ $delay = $ARGV[0] if(defined $ARGV[0] && $ARGV[0] =~ /\d+/);
 my ($buffer, $width, $height);
 $| = 1;
 
-# get the users password
-print "$user\'s AD password: ";
-ReadMode('noecho');
-my $pass = ReadLine(0);
-ReadMode('normal');
-chomp $pass;
-print "\n";
+my $pass = get_password();
 
-# make the cursor dissappear if were a daemon
+# make the cursor dissappear if we're a daemon
 $SIG{INT} = sub { &fix_term && exit };
 END { &fix_term }
 sub fix_term { print "\e[?25h"; }
@@ -45,11 +39,73 @@ while(1) {
     ($width, $height, undef, undef) = GetTerminalSize();
     $buffer = "";
 
-    if(system("ps -C fetchmail &>/dev/null")) {
-        output("fetchmail not running!\n\n");
-    }
+    &check_nagios();
+    &check_calendar();
+    &check_email();
+    &check_irc();
+    &check_jabber();
 
-    # nagios probes
+    # bail if we're not a daemon, since we already printed everything
+    last unless $delay;
+
+    &clear_screen();
+    $buffer = &get_header() . $buffer;
+    $buffer = &truncate($buffer);
+    $buffer = &colorize($buffer);
+    print $buffer;
+    sleep $delay;
+}
+
+sub output {
+    return unless defined $_[0];
+    print $_[0] and return unless $delay;
+    # add newlines so that no lines wrap
+    $_ = $_[0];
+    1 while s/^(.{$width})(?!\n)/$1\n/m;
+    $buffer .= $_;
+}
+
+sub get_password {
+    print "$user\'s AD password: ";
+    ReadMode('noecho');
+    my $pw = ReadLine(0);
+    ReadMode('normal');
+    chomp $pw;
+    print "\n";
+    return $pw;
+}
+
+sub clear_screen {
+    my $termios = POSIX::Termios->new;
+    $termios->getattr;
+    my $term = Term::Cap->Tgetent( { OSPEED => $termios->getospeed } );
+    $term->Tputs('cl', 1, *STDOUT);
+}
+
+sub get_header {
+    # generate a nice header like the one 'watch' prints
+    my $lheader = "Every $delay.0s: $0";
+    my $rheader = localtime;
+    return $lheader . " " x ($width - length($rheader) - length($lheader)) . $rheader . "\n\n";
+}
+
+sub truncate {
+    # truncate the buffer so it doesnt scroll off the screen
+    my $buffer = $_[0];
+    $buffer =~ s/^((?:.*\n){1,$height})[\s\S]*/$1/;
+    $buffer =~ s/\n$//;
+    return $buffer;
+}
+
+sub colorize {
+    # color probes that arent ack'ed
+    my $buffer = $_[0];
+    $buffer =~ s/(.*     WARNING .*)/color('YELLOW') . $1 . color('RESET')/eg;
+    $buffer =~ s/(.*     CRITICAL .*)/color('RED') . $1 . color('RESET')/eg;
+    return $buffer;
+}
+
+sub check_nagios {
     my $content = $ua->request($r)->{_content};
     # strip off the html
     $content =~ s/.*<\/?html>.*\n//g;
@@ -74,18 +130,10 @@ while(1) {
     # truncate the lines so they dont wrap
     $content =~ s/^(.{1,$width}).*$/$1/gm;
     output("$content\n") if $content;
+}
 
-    # exchange calendar
-    my $output = "Could not connect to the exchange calendar.\n\n";
-    eval '$output = &exchange_cal()';
-    output($output);
-
-    # unread emails
-    output(`mdls` . "\n");
-
-    # irc messages
-    my @logs = glob "$ENV{HOME}/.irssi/logs/*/*.log";
-    for(@logs) {
+sub check_irc {
+    for(glob "$ENV{HOME}/.irssi/logs/*/*.log") {
         undef $/;
         open LOG, "<$_" or die "couldnt open $_: $!\n";
         $_ = <LOG>;
@@ -97,20 +145,19 @@ while(1) {
         s/[\s\S]*\n\d\d:\d\d\s+\@?enyalios\s+\|.*\n//;
         output("$_\n") if $_;
     }
+}
 
-    # jabber messages
-    @logs = glob "$ENV{HOME}/.mcabber/histo/*";
-    for(@logs) {
+sub check_jabber {
+    for(glob "$ENV{HOME}/.mcabber/histo/*") {
         my $name = $_;
-        $name =~ s/^.*\///;
-        $name =~ s/\@.*$//;
+        $name =~ s/^.*\/(.*)\@.*$/$1/;
 
         undef $/;
         open LOG, "<$_" or die "couldnt open $_: $!\n";
         $_ = <LOG>;
         close LOG;
 
-        s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <guder> ).*\n//;
+        s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <$user> ).*\n//;
         s/^MI .* 000 .* has (left|joined)\n//mg;
         s/^M. /$name /mg;
         my $date = strftime "%Y%m%d", localtime;
@@ -122,52 +169,26 @@ while(1) {
             }
             output("\n") if /^cites-smg $date/m;
         }
-
-
     }
-
-    # clear the screen if we're a daemon
-    if($delay) {
-        # clear the screen
-        my $termios = POSIX::Termios->new;
-        $termios->getattr;
-        my $term = Term::Cap->Tgetent( { OSPEED => $termios->getospeed } );
-        $term->Tputs('cl', 1, *STDOUT);
-
-        # print a header
-        my $lheader = "Every $delay.0s: $0";
-        my $rheader = localtime;
-        $buffer = $lheader . " " x ($width - length($rheader) - length($lheader)) . $rheader . "\n\n" . $buffer;
-
-        # truncate the buffer so it doesnt scroll off the screen
-        $buffer =~ s/^((?:.*\n){1,$height})[\s\S]*/$1/;
-        $buffer =~ s/\n$//;
-
-        # color probes that arent ack'ed
-        $buffer =~ s/(.*     WARNING .*)/color('YELLOW') . $1 . color('RESET')/eg;
-        $buffer =~ s/(.*     CRITICAL .*)/color('RED') . $1 . color('RESET')/eg;
-
-        print $buffer;
-    }
-    last unless $delay;
-    sleep $delay;
 }
 
-sub output {
-    if(defined $_[0]) {
-        if($delay) {
-            # add newlines so that no lines wrap
-            $_ = $_[0];
-            1 while s/^(.{$width})(?!\n)/$1\n/m;
-            $buffer .= $_;
-        } else {
-            print $_[0];
-        }
-    }
+sub check_email {
+    my $emails = join "", `imapls -n`;
+    output("$emails\n") if $emails;
+}
+
+sub check_calendar {
+    my $output = "Could not connect to the exchange calendar.\n\n";
+    # we eval this so that errors connecting to exchange dont kill the whole script
+    eval '$output = &exchange_cal()';
+    #$output = &exchange_cal();
+    output($output);
 }
 
 sub exchange_cal {
 
+    # renew our kerberos ticket
+    system(qw"kinit -R");
     my $output;
     my $now = strftime("%s", localtime);
     my $tz = "-06:00";
@@ -177,30 +198,9 @@ sub exchange_cal {
     my $service = SOAP::Lite
     ->service("https://exchws.illinois.edu/ews/Services.wsdl")
     ->proxy("https://exchws.illinois.edu/ews/exchange.asmx")
-    #->outputxml('true')
     ->encodingStyle('')
     ->ns("http://schemas.microsoft.com/exchange/services/2006/types",'t')
     ->default_ns("http://schemas.microsoft.com/exchange/services/2006/messages");
-
-    # over-ride method to handle authentication
-    sub SOAP::Schema::access
-    {
-        my $self = shift->new;
-        my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
-
-        my $req = HTTP::Request->new(GET => $url);
-
-        # this is why it's over-ridden
-        $req->authorization_basic($user, $pass);
-
-        my $resp = $self->useragent->request($req);
-        $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
-    }
-
-    # and get_basic_credentials for the service calls,
-    # if they require authentication
-    sub SOAP::Transport::HTTP::Client::get_basic_credentials
-    { return $user => $pass; }
 
     my $response = $service->call(
         SOAP::Data->name('FindItem')
@@ -214,7 +214,6 @@ sub exchange_cal {
             ->prefix('t')
             ->type(''),
             SOAP::Data->name('AdditionalProperties' => \SOAP::Data->value(
-#)->prefix('t')->value(
                 SOAP::Data->name('FieldURI')->prefix('t')
                 ->attr({ 'FieldURI' => 'calendar:Start' }),
                 SOAP::Data->name('FieldURI')->prefix('t')
@@ -238,16 +237,14 @@ sub exchange_cal {
 
     my $num = 0;
     foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
-        my $time;
-        $time = strftime "%a %b %d %R", localtime str2time $_->{"Start"};
-        $output .= "$time - ";
-        $time = strftime "%R", localtime str2time $_->{"End"};
-        $output .= $time;
-        $output .= sprintf " %-28s ", $_->{'Location'}?$_->{'Location'}:"";
-        $output .= $_->{'Subject'} . "\n";
+        $output .= sprintf "%s - %s %-28s %s\n",
+            strftime("%a %b %d %R", localtime str2time $_->{"Start"}),
+            strftime("%R", localtime str2time $_->{"End"}),
+            $_->{'Location'},
+            $_->{'Subject'};
         $num++;
     }
 
     $output .= "\n" if $num;
-    $output;
+    return $output;
 }
