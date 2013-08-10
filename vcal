@@ -48,7 +48,7 @@ print "  Where: $location\n";
 print "  Organizer: $organizer\n\n";
 print "  Attendees:\n    ", join("\n    ", @attendees), "\n";
 print "-" x 72, "\n";
-print "  $description\n";
+print "  $description\n" if $description;
 
 # this nicely formats a name and email address
 sub fix_name {
