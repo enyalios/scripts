@@ -7,30 +7,17 @@
 # Normal authentication no longer works.  Now you need a kerberos ticket.
 # Please make sure the contents of your /etc/krb5.conf contain the following:
 # [libdefaults]
-#     default_realm = AD.UILLINOIS.EDU
 #     ticket_lifetime = 5d
-# 
+#     dns_lookup_realm = false
+#     dns_lookup_kdc = true
+#
 # [realms]
 #     AD.UILLINOIS.EDU = {
-#         kdc = udc01.ad.uillinois.edu
-#         kdc = udc02.ad.uillinois.edu
-#         kdc = udc03.ad.uillinois.edu
-#         kdc = udc04.ad.uillinois.edu
-#         kdc = udc05.ad.uillinois.edu
-#         kdc = udc06.ad.uillinois.edu
-#         kdc = cdc01.ad.uillinois.edu
-#         kdc = cdc02.ad.uillinois.edu
-#         kdc = exchws.illinois.edu
-#         kdc = imap.illinois.edu
+#         kdc = kerberos.illinois.edu
+#         admin_server = kerberos.illinois.edu
+#         master_kdc = kerberos.illinois.edu
 #         default_domain = ad.uillinois.edu
 #     }
-# 
-# 
-# [domain_realm]
-#     .illinois.edu = AD.UILLINOIS.EDU
-#     illinois.edu = AD.UILLINOIS.EDU
-#     .ad.uillinois.edu = AD.UILLINOIS.EDU
-#     ad.uillinois.edu = AD.UILLINOIS.EDU
 #
 #
 # ...and you must have the following line in your /etc/hosts file.  I have no
