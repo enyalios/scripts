@@ -61,6 +61,7 @@ sub fix_name {
     } else {
         $name = $parts[0];
     }
+    return $name if $name eq $address;
     return "$name ($address)";
 }
 
