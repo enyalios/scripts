@@ -2,18 +2,19 @@
 
 use strict;
 #use warnings;
-use LWP::Simple;
 use Data::Dumper;
-use MIME::Base64;
-use Term::ReadKey;
+use Date::Parse; # from dev-perl/TimeDate
+use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
+use LWP::Simple; # from dev-perl/libwww-perl
+use MIME::Base64; 
+use MIME::Words qw(decode_mimewords); # from dev-perl/MIME-tools
+use Mail::IMAPClient; # from dev-perl/Mail-IMAPClient
+use POSIX;
+use SOAP::Lite maptype=>{}; # from dev-perl/SOAP-Lite
+use SOAP::Transport::HTTP; # from dev-perl/SOAP-Lite
 use Term::ANSIColor;
 use Term::Cap;
-use POSIX;
-
-# these are for exchange
-use SOAP::Lite maptype=>{};
-use SOAP::Transport::HTTP;
-use Date::Parse; # from dev-perl/TimeDate
+use Term::ReadKey; # from dev-perl/TermReadKey
 
 # set up some variables
 my $user = "guder";
@@ -35,6 +36,9 @@ my $ua = LWP::UserAgent->new;
 my $r = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi');
 my $auth = MIME::Base64::encode("$user:$pass");
 $r->header(Authorization => "Basic $auth");
+
+my $imap = &connect_to_imap();
+
 while(1) {
     ($width, $height, undef, undef) = GetTerminalSize();
     $buffer = "";
@@ -159,6 +163,7 @@ sub check_jabber {
 
         s/[\s\S]*\n(M?S|MI .* 000 You have joined as |MR .* 000 <$user> ).*\n//;
         s/^MI .* 000 .* has (left|joined)\n//mg;
+        s/^S[ON_] .* 000 .*\n//mg;
         s/^M. /$name /mg;
         my $date = strftime "%Y%m%d", localtime;
         if($_ !~ /^cites-smg /) {
@@ -170,11 +175,6 @@ sub check_jabber {
             output("\n") if /^cites-smg $date/m;
         }
     }
-}
-
-sub check_email {
-    my $emails = join "", `imapls -n`;
-    output("$emails\n") if $emails;
 }
 
 sub check_calendar {
@@ -247,4 +247,131 @@ sub exchange_cal {
 
     $output .= "\n" if $num;
     return $output;
+}
+
+sub check_email {
+    my $now = strftime "%s", localtime;
+    # figure out what we are searching for
+    my @search = ("UNSEEN");
+    # @search = ("ALL");
+    # @search = ("FLAGGED");
+    # @search = ('OR', 'OR', 'TO', $imap->Quote($opts{s}), 
+    #     'FROM', $imap->Quote($opts{s}),
+    #     'SUBJECT', $imap->Quote($opts{s})) if $opts{s};
+
+    # get a list of all folders
+    my @folders = $imap->folders();
+    for(@folders) {
+        my @emails;
+        # skip some special cases
+        next if /^\[Gmail\]\/(All Mail|Spam|Starred|Sent Mail|Important)$/;
+        # open the folder read-only
+        $imap->examine($_);
+        # list unread messages
+        my $msgs = $imap->search(@search);
+        next unless $msgs && @{$msgs};
+        # print out a folder header
+        output("* $_(" . scalar @{$msgs} . ")\n");
+        my $headers = $imap->parse_headers($msgs, "Date", "From", "Subject");
+        my $flags = $imap->flags($msgs);
+        for(keys %{$headers}) {
+            my $epoch = &get_epoch($headers->{$_}->{Date}->[0]);
+            push @emails, {
+                epoch => $epoch,
+                date => &format_date($epoch, $now),
+                from => &format_from($headers->{$_}->{From}->[0]),
+                subject => &format_subject($headers->{$_}->{Subject}->[0]),
+                flags => &format_flags($flags->{$_}),
+            }
+        }
+
+        # print everything out nicely sorted by date
+        for(sort { $a->{epoch} <=> $b->{epoch} } @emails) {
+            output(sprintf "  %-2s %-11s  %-23.23s  %-s\n", $_->{flags}, $_->{date}, $_->{from}, $_->{subject});
+        }
+        output("\n") if @emails;
+
+    }
+}
+
+sub connect_to_imap {
+    # grab authentication info
+    my ($host, $user, $pass) = ("imap.illinois.edu:993", "guder\@illinois.edu", $pass);
+
+    # open an ssl socket since gmail is over ssl
+    my $sock = IO::Socket::SSL->new(
+        SSL_verify_mode => SSL_VERIFY_PEER,
+        SSL_ca_path => '/etc/ssl/certs',
+        PeerHost => $host) or die "socket(): $@";
+    my $greeting = <$sock>;
+    die "problems logging in: $greeting" unless $greeting =~ ' OK ';
+
+    # use the socket and our credentials to open an imap connection
+    my $imap = Mail::IMAPClient->new(
+        RawSocket => $sock,
+        User      => $user,
+        Password  => $pass,
+    ) or die "Cannot imap: $@";
+
+    # connect and login
+    $imap->State($imap->Connected);
+    $imap->login() or die "cannot login: $@\n";
+    print "could not authenticate\n" unless $imap->IsAuthenticated();
+    return $imap;
+}
+
+sub get_epoch {
+    my $epoch = str2time $_[0];
+    $epoch ||= 0;
+    return $epoch;
+}
+
+sub format_date {
+    # format a date nicely
+    my $date;
+    my $epoch = $_[0];
+    my $now = $_[1];
+    if(($now - $epoch) < 60*60) {
+        my $amount = ($now - $epoch) / 60;
+        $date = sprintf "%2d min%s ago", $amount, $amount>=2?"s":" ";
+    } elsif(($now - $epoch) < 60*60*24) {
+        my $amount = ($now - $epoch) / 60 / 60;
+        $date = sprintf "%2d hr%s  ago", $amount, $amount>=2?"s":" ";
+    } elsif(($now - $epoch) < 60*60*24*7) {
+        my $amount = ($now - $epoch) / 60 / 60 / 24;
+        $date = sprintf "%2d day%s ago", $amount, $amount>=2?"s":" ";
+    } else {
+        $date = strftime "%b %d %Y", localtime $epoch;
+    }
+    return $date;
+}
+
+sub format_from {
+    # format a from field nicely
+    my $from = $_[0] || "";
+    $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+    $from =~ s/\n//g;
+    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    return $from;
+}
+
+sub format_subject {
+    # format a subject field nicely
+    my $subject = $_[0] || "";
+    $subject =~ s/\n//g;
+    $subject =~ s/\t+/ /g;
+    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
+    return $subject;
+}
+
+sub format_flags {
+    # get info on the message flags
+    my %flags;
+    # we're passed an array of flags, stuff it into a hash for easy querying
+    $flags{$_} = 1 for @{$_[0]};
+    my $flag_string = sprintf "%s%s",
+        exists($flags{"\\Seen"})?" ":"N",
+        exists($flags{"\\Flagged"})?"!":" ";
+    return $flag_string;
 }
