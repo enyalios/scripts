@@ -29,7 +29,10 @@ $end = "$1:$2" if $text =~ /^DTEND;.*?:.*?T(..)(..)/m;
 if($text =~ /^DESCRIPTION;.*?:(.*)$/m) {
     $description = $1;
     $description =~ s/\\n/\n/g;
+    $description =~ s/\\,/,/g;
     $description =~ s/\x{e2}\x{80}\x{99}/'/g;
+    $description =~ s/\x{e2}\x{80}\x{a2}/o/g;
+    $description =~ s/\x{e2}\x{80}\x{93}/-/g;
 }
 $recurring = &recurring_string($1, $2, $3) if $text =~ /^RRULE:FREQ=(.*?);INTERVAL=(\d+);BYDAY=(..);WKST=..$/m;
     
@@ -52,7 +55,9 @@ print "  $description\n" if $description;
 
 # this nicely formats a name and email address
 sub fix_name {
-    $_[0] =~ /^CN=(.*):MAILTO:(.*)$/;
+    my $string = $_[0];
+    $string =~ s/;SENT-BY="MAILTO:.*?":/:/;
+    $string =~ /^CN=(.*):MAILTO:(.*)$/;
     my ($name, $address) = ($1, $2);
     $name =~ s/"(.*)"/$1/;
     my @parts = split ", ", $name, 2;
@@ -91,4 +96,3 @@ sub recurring_string {
     }
     return "Every $interval$day from";
 }
-    
