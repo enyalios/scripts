@@ -19,6 +19,7 @@
         // some sites have the next and previous button reversed
         var invert = 0;
         if(window.location.href.search(/www\.fmylife\.com/) > -1) { invert = 1; }
+        if(window.location.href.search(/www\.cracked\.com/) > -1) { invert = 1; }
         if((e.keyCode == 222 && !invert) || (e.keyCode == 188 && invert)) {
             // pressed ctrl + '
             var el = document.querySelector("[rel='prev']");
