@@ -73,6 +73,8 @@ sub fix_name {
 # this nicely formats a string describing a recurring event
 sub recurring_string {
     my ($freq, $interval, $day) = @_;
+    #print "freq: $freq\ninterval: $interval\nday: $day\n";
+    $freq =~ s/;.*$//;
     my %days = qw(
     MO Monday
     TU Tuesday
