@@ -5,9 +5,11 @@
 # below carefully.
 #
 # Normal authentication no longer works.  Now you need a kerberos ticket.
-# Please make sure the contents of your /etc/krb5.conf contain the following:
+# Set this variable using "export KRB5_CONFIG=$HOME/.krb5.conf" and then
+# please make sure the contents of your ~/krb5.conf contain the following:
 # [libdefaults]
 #     ticket_lifetime = 5d
+#     default_realm = AD.UILLINOIS.EDU
 #
 # [realms]
 #     AD.UILLINOIS.EDU = {
