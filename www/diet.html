@@ -1,0 +1,326 @@
+<html>
+    <head>
+        <title>Super Spiffy Health Thingy!</title>
+        <style>
+            .section {
+                border: 1px solid black;
+                width: 400px;
+                margin: 10px;
+                border-radius: 15px;
+                padding: 5px;
+                background-color: #ddf;
+            }
+            .header {
+                position: relative;
+                top: -20px;
+                left: 30px;
+                background-color: #fff;
+                padding: 5px;
+                margin-bottom: -20px;
+                border-radius: 5px;
+            }
+            hr {
+                height: 1px;
+                border-width: 0;
+                background-color: #999;
+                width: 200px;
+            }
+            .formula {
+                color: #292;
+                padding: 5px 20px;
+            }
+            input {
+                width: 70px;
+                border: 1px solid black;
+            }
+            .ans {
+                color: #228;
+                font-weight: bold;
+                font-family: arial;
+            }
+            .category {
+                color: #228;
+                font-size: 10pt;
+            } 
+        </style>
+        <script language="JavaScript" type="text/javascript">
+            <!--
+            function calc() {
+                // get variables from the form fields
+                var height_inches = document.forms[0].elements["height_inches"].value;
+                var height_cms = document.forms[0].elements["height_cms"].value;
+                var weight_lbs = document.forms[0].elements["weight_lbs"].value;
+                var weight_kgs = document.forms[0].elements["weight_kgs"].value;
+                var age = document.forms[0].elements["age"].value;
+                var gender = get_radio("gender");
+                var usual_lbs = document.forms[0].elements["usual_lbs"].value;
+                var usual_kgs = document.forms[0].elements["usual_kgs"].value;
+                var burns = document.forms[0].elements["burns"].checked;
+                var trauma = document.forms[0].elements["trauma"].checked;
+
+                // ideal bodyweight
+                var ideal_lbs = "?";
+                if(gender == "male") {
+                    ideal_lbs = round(106 + 6*(height_inches - 60));
+                } else if(gender == "female") {
+                    ideal_lbs = round(100 + 5*(height_inches - 60));
+                }
+                var ideal_kgs = round(ideal_lbs / 2.205);
+                document.getElementById("ideal").innerHTML = ideal_lbs + " lbs, " + ideal_kgs + " kg";
+
+                // percent of ideal bodyweight
+                var ideal_percent = round(weight_kgs / ideal_kgs * 100);
+                document.getElementById("ideal_percent").innerHTML = ideal_percent + "%";
+
+                // ideal bodyweight category
+                var ideal_category = "";
+                if(ideal_percent < 70) {
+                    ideal_category = "Severe Depletion";
+                } else if(ideal_percent < 80) {
+                    ideal_category = "Moderate Depletion";
+                } else if(ideal_percent < 90) {
+                    ideal_category = "Mild Depletion";
+                } else if(ideal_percent < 110) {
+                    ideal_category = "Normal";
+                } else if(ideal_percent < 120) {
+                    ideal_category = "Overweight";
+                } else if(ideal_percent < 130) {
+                    ideal_category = "Obesity Class 1";
+                } else if(ideal_percent < 150) {
+                    ideal_category = "Obesity Class 2";
+                } else {
+                    ideal_category = "Morbid Obesity Class 3";
+                }
+                document.getElementById("ideal_category").innerHTML = ideal_category;
+
+                // adjusted bodyweight
+                var adjusted_lbs = weight_lbs;
+                var adjusted_kgs = weight_kgs;
+                if(ideal_percent >= 120) {
+                    adjusted_lbs = round(((weight_lbs - ideal_lbs) * 0.25) + parseFloat(ideal_lbs));
+                    adjusted_kgs = round(adjusted_lbs / 2.205);
+                    document.getElementById("adjusted").innerHTML = adjusted_lbs + " lbs, " + adjusted_kgs + " kg";
+                } else {
+                    document.getElementById("adjusted").innerHTML = "-";
+                }
+
+                // body mass index
+                var bmi = round(weight_kgs / height_cms / height_cms * 100 * 100);
+                document.getElementById("bmi").innerHTML = bmi;
+
+                // bmi category
+                var bmi_category = "";
+                if(bmi < 16) {
+                    bmi_category = "Severely Underweight";
+                } else if(bmi < 18.6) {
+                    bmi_category = "Underweight";
+                } else if(bmi < 25) {
+                    bmi_category = "Normal";
+                } else if(bmi < 30) {
+                    bmi_category = "Overweight";
+                } else if(bmi < 40) {
+                    bmi_category = "Obese";
+                } else {
+                    bmi_category = "Morbidly Obese";
+                }
+                document.getElementById("bmi_category").innerHTML = bmi_category;
+
+                // percent usual bodyweight
+                var percent_usual = round(weight_kgs / usual_kgs * 100);
+                document.getElementById("percent_usual").innerHTML = percent_usual + "%";
+
+                // percent usual bodyweight category
+                var usual_category = "";
+                if(percent_usual < 75) {
+                    usual_category = "Severe Depletion";
+                } else if(percent_usual < 85) {
+                    usual_category = "Moderate Depletion";
+                } else if(percent_usual <= 95) {
+                    usual_category = "Mild Depletion";
+                }
+                document.getElementById("usual_category").innerHTML = usual_category;
+
+                // mifflin
+                var mifflin = "?";
+                if(gender == "male") {
+                    mifflin = round(10*adjusted_kgs + 6.25*height_cms - 5*age + 5);
+                } else if(gender == "female") {
+                    mifflin = round(10*adjusted_kgs + 6.25*height_cms - 5*age - 161);
+                }
+                var string = "x1.0 = "+ mifflin + " Calories<br />";
+                string = string + "x1.2 = " + round(parseFloat(mifflin)*1.2) + " Calories<br />";
+                string = string + "x1.4 = " + round(parseFloat(mifflin)*1.4) + " Calories<br />";
+                string = string + "x1.6 = " + round(parseFloat(mifflin)*1.6) + " Calories";
+                document.getElementById("mifflin").innerHTML = string; 
+
+                // ireton-jones
+                var ij = "?";
+                if(gender == "male") {
+                    ij = round(1784 - 11*age + 5*weight_kgs + 244);
+                } else if (gender == "female") {
+                    ij = round(1784 - 11*age + 5*weight_kgs);
+                }
+                if(trauma == true) { ij = parseFloat(ij) + 239; }
+                if(burns == true) { ij = parseFloat(ij) + 804; }
+                document.getElementById("ij").innerHTML = ij + " Calories";
+            }
+
+            function get_radio(x) {
+                var elements = document.getElementsByName(x);
+                for (i=0; i < elements.length; i++) {
+                    if(elements[i].checked == true) {
+                        return elements[i].value;
+                    }
+                }
+            }
+
+            function round(x) {
+                return parseFloat(x).toFixed(1);
+            }
+
+            function update(source, dest, factor) {
+                document.forms[0].elements[dest].value = round(document.forms[0].elements[source].value * factor);
+                calc();
+            }
+
+            window.onload = calc;
+            //-->
+        </script>
+    </head>
+    <body>
+        <br/>
+        <form>
+            <!-- input section -->
+            <div class="section">
+                <div class="header" style="width:47px;">Input</div>
+                <table>
+                    <tr>
+                        <td>Height</td>
+                        <td><input type="text" name="height_inches" onchange="update('height_inches', 'height_cms', 2.54)" />inches</td>
+                        <td><input type="text" name="height_cms" onchange="update('height_cms', 'height_inches', 1/2.54)" />cm</td>
+                    </tr>
+                    <tr>
+                        <td>Weight</td>
+                        <td><input type="text" name="weight_lbs" onchange="update('weight_lbs', 'weight_kgs', 1/2.205)" />lbs</td>
+                        <td><input type="text" name="weight_kgs" onchange="update('weight_kgs', 'weight_lbs', 2.205)" />kg</td>
+                    </tr>
+                    <tr>
+                        <td>Age</td>
+                        <td><input type="text" name="age" onchange="calc()" />years</td>
+                    </tr>
+                    <tr>
+                        <td>Gender</td>
+                        <td><input type="radio" name="gender" value="male" onchange="calc()" />Male</td>
+                        <td><input type="radio" name="gender" value="female" onchange="calc()" />Female</td>
+                    </tr>
+                    <tr>
+                        <td>Usual Bodyweight</td>
+                        <td><input type="text" name="usual_lbs" onchange="update('usual_lbs', 'usual_kgs', 0.4536)" />lbs</td>
+                        <td><input type="text" name="usual_kgs" onchange="update('usual_kgs', 'usual_lbs', 2.205)" />kg</td>
+                    </tr>
+                    <tr>
+                        <td>Other</td>
+                        <td><input type="checkbox" name="trauma" onchange="calc()" />Trauma</td>
+                        <td><input type="checkbox" name="burns" onchange="calc()" />Burns</td>
+                    </tr>
+                </table>
+            </div>
+        </form>
+        <br/>
+        <!-- output section -->
+        <div class="section">
+            <div class="header" style="width:60px">Output</div>
+            <table>
+                <tr>
+                    <td>Ideal Body Weight</td>
+                    <td><div id="ideal" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">
+                        men: 106 + (6 lbs per inch over 5ft)<br />
+                        women: 100 + (5 lbs per inch over 5ft)</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><hr></td>
+                </tr>
+                <tr>
+                    <td>Percent of Ideal</td>
+                    <td><div id="ideal_percent" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td><div id="ideal_category" class="category">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">weight / ideal * 100</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><hr></td>
+                </tr>
+                <tr>
+                    <td>Adjusted Body Weight</td>
+                    <td><div id="adjusted" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">(actual - ideal) * .25 + ideal</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><hr></td>
+                </tr>
+                <tr>
+                    <td>Body Mass Index</td>
+                    <td><div id="bmi" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td><div id="bmi_category" class="category">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">weight (kg) / (height (m))^2</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><hr></td>
+                </tr>
+                <tr>
+                    <td>Percent Usual Bodyweight</td>
+                    <td><div id="percent_usual" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td><div id="usual_category" class="category">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">actual / usual * 100</td>
+                </tr>
+            </table>
+        </div>
+        <br/>
+        <!-- calorie needs section -->
+        <div class="section" style="width:550px;">
+            <div class="header" style="width:120px">Energy Needs</div>
+            <table>
+                <tr>
+                    <td>Mifflin</td>
+                    <td><div id="mifflin" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">
+                        male: 10*adjusted (kg) + 6.25*height (cm) - 5*age + 5<br />
+                        female: 10*adjusted (kg) + 6.25*height (cm) - 5*age - 161</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><hr></td>
+                </tr>
+                <tr>
+                    <td>Ireton-Jones</td>
+                    <td><div id="ij" class="ans">?</div></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="formula">
+                        always use actual body weight<br />
+                        1784 - 11*age + 5*weight (kg) + 244*gender (M=1,F=0) + 239*trauma (1 or 0) + 804*burns (1 or 0)</td>
+                </tr>
+            </table>
+        </div>
+    </body>
+</html>

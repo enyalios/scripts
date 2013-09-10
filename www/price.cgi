@@ -53,9 +53,9 @@ Content-Type: text/html
         <h3><a href="http://classic.magictraders.com/cgi-bin/query.cgi?list=magic&amp;target=$string&amp;field=0&amp;operator=re">magictraders.com</a></h3>
         <pre>$magic_traders</pre>
         <h3><a href="http://cardshark.com/Search.aspx?qu=$string">cardshark.com</a></h3>
-        <pre id="cs">Loading...</pre>
+        <pre id="cs">Loading... <img src=\"/spin.gif\"></pre>
         <h3><a href="http://sales.starcitygames.com/spoiler/display.php?name=$string&amp;namematch=AND&amp;foil=nofoil&amp;for=no">starcitygames.com</a></h3>
-        <pre id="ssg">Loading...</pre>
+        <pre id="ssg">Loading... <img src=\"/spin.gif\"></pre>
         <br />
         Search Again:<br />
         <form method="get" name="prices"><input type="text" name="query" /></form>

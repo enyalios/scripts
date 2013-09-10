@@ -13,12 +13,15 @@ print "Content-Type: text/html\n\n";
 my %file = ( "p"  => "oracle",
              "c"  => "oracle",
              "cg" => "oracle",
+             "bl" => "oracle",
              "m"  => "movies.list",
              "n"  => "movies.list",
              "pl" => "perl.list",
-             "t"  => "tv.list" );
+             "t"  => "tv.list",
+             "s"  => "starcraft.list",
+             "mc" => "minecraft.list" );
 
-if($query =~ /^(p|c|cg|m|n|t|pl) (.+)/i) { # complete magic cards, movie titles, and tv shows
+if($query =~ /^(p|c|cg|m|n|t|pl|s|mc|bl) (.+)/i) { # complete magic cards, movie titles, and tv shows, starcraft units, minecraft wiki pages
     my ($prefix, $search) = ($1, $2);
     $prefix =~ y/A-Z/a-z/;
     exit unless length $search > 2;
