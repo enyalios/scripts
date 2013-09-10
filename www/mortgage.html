@@ -1,0 +1,125 @@
+<html>
+    <head>
+        <title>mortgage calculator</title>
+        <style>
+            table {
+                border-collapse: collapse;
+            }
+            .schedule {
+                border: 1px solid black;
+                padding: 2px;
+                text-align: right;
+            }
+            input {
+                width: 70;
+            }
+            .odd {
+                background-color: #ddf;
+            }
+        </style>
+        <script language="JavaScript" type="text/javascript">
+            <!--
+            function calculate() {
+                var principal = document.forms[0].elements["principal"].value; 
+                var rate = document.forms[0].elements["rate"].value; 
+                var months = document.forms[0].elements["years"].value * 12; 
+                var additional_every = document.forms[0].elements["additional_every"].value; 
+                var additional_once = document.forms[0].elements["additional_once"].value; 
+                var additional_once_month = document.forms[0].elements["additional_once_month"].value; 
+                var monthly_rate = rate / 100 / 12;
+                var factor = Math.pow(1+monthly_rate, months);
+                var payment = principal * monthly_rate * factor / (factor - 1);
+                payment = roundup(payment);
+                document.getElementById("payment").innerHTML = "Monthly Payment: $" + commaify(payment);
+
+                payment = parseFloat(payment) + parseFloat(additional_every);
+
+                var month = 0;
+                var total_interest = 0;
+
+                var table_data = "";
+                table_data += "<tr>";
+                table_data += "  <th class=\"schedule\">Month</th>";
+                table_data += "  <th class=\"schedule\">Payment</th>";
+                table_data += "  <th class=\"schedule\">Interest</th>";
+                table_data += "  <th class=\"schedule\">Principal Paid</th>";
+                table_data += "  <th class=\"schedule\">Total Interest</th>";
+                table_data += "  <th class=\"schedule\">Principal Left</th>";
+                table_data += "</tr>";
+
+                while(month < months && principal > .5) {
+                    month++;
+                    var color = "odd";
+                    if(month % 2 == 0) { color = "even"; }
+                    var extra = 0;
+                    if(month == additional_once_month) { extra = additional_once; }
+                    var interest = round(principal * monthly_rate);
+                    total_interest = round(parseFloat(total_interest) + parseFloat(interest));
+                    principal = round(parseFloat(principal) + parseFloat(interest) - parseFloat(payment) - parseFloat(extra));
+                    table_data += "<tr>";
+                    table_data += "  <td class=\"schedule " + color + "\">" + month + "</td>";
+                    table_data += "  <td class=\"schedule " + color + "\">" + (parseFloat(payment) + parseFloat(extra)) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + "\">" + interest + "</td>";
+                    table_data += "  <td class=\"schedule " + color + "\">" + round(parseFloat(payment) + parseFloat(extra) - parseFloat(interest)) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + "\">" + commaify(total_interest) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + "\">$" + commaify(principal) + "</td>";
+                }
+                document.getElementById("schedule").innerHTML = table_data;
+
+                document.getElementById("interest").innerHTML = "Total Interest: $" + commaify(total_interest);
+                document.getElementById("actual_months").innerHTML = "You will be paid off in: " + month + " months";
+            }
+
+            function round(x) {
+                return parseFloat(Math.round(x*100)/100).toFixed(2);
+            }
+
+            function roundup(x) {
+                return parseFloat(Math.ceil(x*100)/100).toFixed(2);
+            }
+
+            function commaify(x) {
+                return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+
+            /*function updaterate() {
+                document.forms[0].elements["rate"].value = document.forms[0].elements["slider"].value;
+            }*/
+
+            window.onload = calculate;
+            //-->
+        </script>
+    </head>
+    <body>
+        <form>
+            <table>
+                <tr>
+                    <td>Principal</td>
+                    <td><input type="text" name="principal" value="200800" onchange="calculate()" /></td>
+                </tr>
+                <tr>
+                    <td>Rate</td>
+                    <td><input type="text" name="rate" value="4.0" onchange="calculate()" /></td>
+                </tr>
+                <tr>
+                    <td>Years</td>
+                    <td><input type="text" name="years" value="30" onchange="calculate()" /></td>
+                </tr>
+            </table>
+            <!--<input type="range" name="slider" min="0" max="10" name="slider" onchange="updaterate()" />-->
+            <br />
+            Add an additional payment of 
+            <input type="text" name="additional_every" value="0" onchange="calculate()" /> 
+            to your payment every month.<br />
+            Add an additional payment of 
+            <input type="text" name="additional_once" value="0" onchange="calculate()" /> 
+            to your payment once, on month 
+            <input type="text" name="additional_once_month" value="1" onchange="calculate()" />.<br />
+        </form>
+        <div id="payment"></div>
+        <div id="interest"></div>
+        <div id="actual_months"></div>
+        <br />
+        <table id="schedule" class="schedule"></table>
+    </body>
+</html>
