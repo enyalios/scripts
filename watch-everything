@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-#use warnings;
+use warnings;
 use Data::Dumper;
 use Date::Parse; # from dev-perl/TimeDate
 use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
@@ -32,11 +32,13 @@ END { &fix_term }
 sub fix_term { print "\e[?25h"; }
 print "\e[?25l" if $delay;
 
+# set up the request for getting monitoring info
 my $ua = LWP::UserAgent->new;
 my $r = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi');
 my $auth = MIME::Base64::encode("$user:$pass");
 $r->header(Authorization => "Basic $auth");
 
+# open the imap connection that we'll be using
 my $imap = &connect_to_imap();
 
 while(1) {
@@ -192,8 +194,16 @@ sub exchange_cal {
     my $output;
     my $now = strftime("%s", localtime);
     my $tz = "-06:00";
+    # this craziness is all to make it look at the next 2 business days
+    my $range = 2;
+    my $day_of_week = strftime("%w", localtime);
+    if($day_of_week >= 4) {
+        $range = 4;
+    } elsif($day_of_week == 0) {
+        $range = 3;
+    }
     my $start = strftime("%F", localtime) . 'T00:00:00' . $tz;
-    my $end   = strftime("%F", localtime($now + 24*60*60*7)) . 'T00:00:00' . $tz;
+    my $end   = strftime("%F", localtime($now + 24*60*60*$range)) . 'T00:00:00' . $tz;
 
     my $service = SOAP::Lite
     ->service("https://exchws.illinois.edu/ews/Services.wsdl")
