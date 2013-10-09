@@ -109,12 +109,17 @@ sub watts {
 }
 
 sub network {
-    my $network = `network-status`;
-    chomp $network;
-    my $color = "";
-    $color = "ff8000" if $network =~ /^Connecting to /;
-    $color = "ff2a2a" if $network eq "No wireless networks found";
-    return &json("network", $network, $color);
+    return unless -x "/sbin/iwconfig";
+    my ($device, $essid);
+    my @iwconfig = split "\n\n", join "", `/sbin/iwconfig 2>/dev/null`;
+    for(@iwconfig) {
+        ($device, $essid) = /^([^ ]+).*ESSID:"([^"]*)"/;
+    }
+    return &json("network", "No wireless networks found", "ff2a2a") unless defined $essid;
+    my $ifconfig = join "", `/bin/ifconfig $device`;
+    (my $ip) = $ifconfig =~ /inet ([0-9.]*)/;
+    return &json("network", "Connecting to $essid", "ff8000") if $ip eq "";
+    return &json("network", $essid);
 }
 
 $| = 1;
