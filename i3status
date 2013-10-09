@@ -5,6 +5,8 @@ use warnings;
 use LWP::Simple;
 use POSIX qw(strftime);
 
+my $count = 0;
+
 sub read_file {
     open FILE, "<", $_[0];
     my $retval = <FILE>;
@@ -20,13 +22,21 @@ sub write_file {
 }
 
 sub json {
+    my $sep_width = 21;
+    my $sep = "";
+    if($_[0] eq "battery" && $_[1] =~ /^Discharging/) {
+        $sep_width = 0;
+        $sep = ',"separator": false';
+        $_[1] .= ", ";
+    }
     my $string = "{";
     $string .= '"name": "' . $_[0] . '",';
     $string .= '"full_text": "' . $_[1] . '",';
     if(defined $_[2] && $_[2] ne "") {
         $string .= '"color": "#' . $_[2] . '",'
     }
-    $string .= '"separator_block_width": 21';
+    $string .= '"separator_block_width": ' . $sep_width;
+    $string .= $sep;
     $string .= '}';
     return $string;
 }
@@ -78,7 +88,7 @@ sub battery {
     if(/^Discharging /) {
         $color = "";
         (my $percent) = / (\d+)%/;
-        if($percent <= 5 && time%2) { $color = "000000"; }
+        if($percent <= 5 && $count%2) { $color = "000000"; }
         elsif($percent <= 5)  { $color = "ff0000"; }
         elsif($percent <= 10) { $color = "ff0000"; }
         elsif($percent <= 15) { $color = "ff2200"; }
@@ -124,7 +134,7 @@ sub network {
 
 $| = 1;
 print "{\"version\":1}\n[\n";
-while(1) {
+while(++$count) {
     print "[", join(",", &network(), &weather(), &battery(), &watts(), &load(), &date()), "],\n";
 #    print join(" | ", &weather, &load, &date), "\n";
     sleep 1;
