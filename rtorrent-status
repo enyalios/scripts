@@ -8,6 +8,7 @@ use Data::Dumper;
 use Frontier::RPC2;
 
 $Frontier::RPC2::scalars{'i8'} = 1;
+my $bar_width = 40;
 
 =cut
 print send_request("system.listMethods", ());
@@ -38,13 +39,15 @@ for(@torrents) {
         push @complete_torrents, sprintf "  Completed %s (%d MB)\n", $name, $bytes_total/1024/1024;
     } else {
         my $proportion_done = $bytes_done / $bytes_total;
-        push @incomplete_torrents, sprintf "  Downloading %s (%d/%d MB)\n  %5.1f%% [%s>%s] %.1fK/s down, %.1fK/s up\n\n",
+        my $bar = int($bar_width*$proportion_done);
+        push @incomplete_torrents, sprintf "  Downloading %s (%d/%d MB)\n  %5.1f%% [%s%s%s] %.1fK/s down, %.1fK/s up\n\n",
         $name,
         $bytes_done / 1024 / 1024,
         $bytes_total / 1024 / 1024,
         $proportion_done * 100, 
-        "=" x (40*$proportion_done),
-        " " x (40*(1-$proportion_done)),
+        "=" x $bar,
+        $bytes_done>0?">":" ",
+        " " x ($bar_width-$bar),
         $down_rate,
         $up_rate;
     }
