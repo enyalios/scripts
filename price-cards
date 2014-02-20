@@ -3,18 +3,29 @@
 use strict;
 use warnings;
 use Getopt::Std;
+use LWP::UserAgent;
+use IPC::Open2;
 
 my %opts;
 getopts('ufv', \%opts);
 my $type = $opts{f}?"-foils":"";
 my $debug = $opts{v}?1:0;
 
+sub get {
+    my $url = $_[0];
+    my $ua = LWP::UserAgent->new;
+    # act like mozilla since ssg hates LWP
+    $ua->agent("Mozilla/5.0 (X11; Linux x86_64; rv:25.0) Gecko/20100101 Firefox/25.0");
+    my $response = $ua->get($url);
+    return undef unless $response->is_success;
+    $response->content;
+}
+
 if($opts{u}) {
-    require LWP::Simple;
     print "updating price data...\n" if -t STDOUT;
 
     for("", "-foils") {
-        my $data = LWP::Simple::get("http://classic.magictraders.com/cgi-bin/query.cgi?list=magic$_&target=.&field=0&operator=re");
+        my $data = get("http://classic.magictraders.com/cgi-bin/query.cgi?list=magic$_&target=.&field=0&operator=re");
         $data =~ s/^.*<PRE>\n//s;
         $data =~ s/\n *<\/PRE>\n.*$//s;
         open(OUTPUT, ">$ENV{HOME}/magic/prices$_") or die "couldnt open output file\n";
@@ -29,7 +40,6 @@ open(FILE, "<$ENV{HOME}/magic/prices$type") or die "couldnt open prices file\n";
 my @prices = <FILE>;
 
 if(@ARGV) { # they gave us arguments to search for
-    require LWP::Simple;
     my $page;
     # print out magic traders prices
     print "### MagicTraders\n";
@@ -41,7 +51,7 @@ if(@ARGV) { # they gave us arguments to search for
     # fetch and print cardshark prices
     # theres no easy way to search for foils on cardshark, so skip it
     unless($opts{f}) {
-        $page = LWP::Simple::get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
+        $page = get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
         if(defined $page) {
             print "### CardShark\n";
             if($page =~ /CardShark\.com - Search for cards/) { # multiple results
@@ -63,7 +73,7 @@ if(@ARGV) { # they gave us arguments to search for
     my $foil = $opts{f}?"foil":"nofoil";
     my $ssg_url = "http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100";
     print "URL: $ssg_url\n" if $debug;
-    $page = LWP::Simple::get($ssg_url);
+    $page = get($ssg_url);
     if(defined $page) {
         my (%cards, $name, $set);
         my %code_to_digit;
@@ -97,13 +107,14 @@ if(@ARGV) { # they gave us arguments to search for
         my $background = $1 if $page =~ /background-image:url\((.*?)\)/;
         $background = "http:" . $background unless $background =~ m!^http://!;
         my $digits = "";
-        while(1) {
+        my $i = 10;
+        while($i--) {
             print "doing the OCR loop\nbackground: $background\n" if $debug;
             $digits = &background_image_to_string($background);
             if($digits ne "") {
                 last;
             } else {
-                $page = LWP::Simple::get($ssg_url);
+                $page = get($ssg_url);
                 $background = $1 if $page =~ /background-image:url\((.*?)\)/;
                 $background = "http:" . $background unless $background =~ m!^http://!;
             }
@@ -169,7 +180,16 @@ if(@ARGV) { # they gave us arguments to search for
 
 sub background_image_to_string {
     my $background = $_[0];
-    my @lines = `GET "$background" | pngtopnm | gocr -C 0-9.`;
+    #my @lines = `GET "$background" | pngtopnm | gocr -C 0-9.`;
+    my $image = get($background);
+    return "" unless $image;
+    my $pid = open2(*READER, *WRITER, 'pngtopnm | gocr -C 0-9.');
+    print WRITER $image;
+    close WRITER;
+    my @lines = <READER>;
+    close READER;
+    waitpid($pid, 0);
+
     for(@lines){ tr/ //d; chomp; }
     print "string1:  ", $lines[0], "\nstring2:  ", $lines[1], "\n" if $debug;
     my (@digits, %seen_digit);
