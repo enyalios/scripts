@@ -35,21 +35,14 @@ if [[ -e ~/.mcabber ]]; then
 fi
 
 # minecraft players
-if [[ -e ~/minecraft/server.log ]]; then
-    cat ~/minecraft/server.log | perl -ne '
-    $crashed = 1
-        if(/^.*?\[SEVERE\] Unexpected exception$/);
-    $crashed = 0
-        if(/^.*?\[INFO\] Starting Minecraft server/);
+if [[ -e ~/minecraft/logs/latest.log ]]; then
+    pgrep -f minecraft_server.jar >/dev/null || echo -e 'Minecraft server not running!\n'
+    cat ~/minecraft/logs/latest.log | perl -ne '
     $active{$1} = 1 
-        if(/^.*?\[INFO\] (.*?) ?\[.*?\] logged in.*$/);
+        if(/^.*?\/INFO\]: (.*?) joined the game$/);
     delete $active{$1} 
-        if(/^.*?\[INFO\] (.*?) lost connection:.*$/);
+        if(/^.*?\/INFO\]: (.*?) left the game$/);
     END { 
-        if($crashed) {
-            print "the minecraft server seems broken\n\n";
-            exit;
-        }
         if(%active) { 
             print "minecraft players:\n";
             print "  $_\n" for sort keys %active;
@@ -61,3 +54,6 @@ fi
 if [[ -S ~/.rtorrent.socket ]] && ps -C rtorrent &> /dev/null; then
     ~/bin/rtorrent-status
 fi
+
+streams=$(for i in koyuki0 itshafu day9tv mtgradio; do GET "http://api.justin.tv/api/stream/list.json?channel=$i" | grep -q '"stream_type":"live"' && echo -e "  twitch.tv/$i"; done)
+[[ "$streams" != "" ]] && echo -e "Currently Streaming on TwitchTV:\n$streams\n"
