@@ -1,0 +1,5 @@
+CREATE TABLE "user" (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, key TEXT UNIQUE);
+CREATE TABLE "state" (user_id INTEGER, channel_id INTEGER, episode_id INTEGER, resume INTEGER, watched INTEGER, PRIMARY KEY (user_id, channel_id, episode_id));
+CREATE TABLE "episode" (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER, title TEXT, link TEXT, summary TEXT, date INTEGER, file TEXT, length INTEGER);
+CREATE TABLE "subscribe" (user_id INTEGER, channel_id INTEGER, PRIMARY KEY (user_id, channel_id));
+CREATE TABLE "channel" (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, rss TEXT UNIQUE, link TEXT, summary TEXT);

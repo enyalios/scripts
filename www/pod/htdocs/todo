@@ -1,0 +1,7 @@
+reorganize worker.cgi to make it more consistant
+make the login screen look prettier
+make some links change color rather than underline when hover so there isnt a strange space underlined next to an icon
+move the checkbox next to each channel on the subscribe page up so the description can take up the full width
+make a button to play the next episode you havent listened to if you dont have one to resume
+make a button on the listen page to save and pause
+make the section start unfolded if you are only subscribed to 1 channel
