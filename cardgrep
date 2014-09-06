@@ -16,9 +16,118 @@
 use strict;
 use warnings;
 use Getopt::Std;
+use LWP::Simple;
 
 # tweak this depending on where you want to store your data
 my $data_file = "$ENV{HOME}/magic/oracle";
+my $type_re = qr/\b(Land|Creature|Instant|Sorcery|Planeswalker|Enchantment|Artifact|Scheme|Plane|Vanguard|Conspiracy|Phenomenon)\b/;
+my $url = "http://www.yawgatog.com/resources/oracle/";
+my %rarities = (
+    C => "Common",
+    U => "Uncommon",
+    R => "Rare",
+    M => "Mythic Rare",
+    L => "Land",
+    S => "Special",
+);
+my %sets = (
+    A     => "Limited Edition Alpha",
+    B     => "Limited Edition Beta",
+    U     => "Unlimited Edition",
+    RV    => "Revised Edition",
+    "4E"  => "Fourth Edition",
+    "5E"  => "Fifth Edition",
+    "6E"  => "Classic Sixth Edition",
+    "7E"  => "Seventh Edition",
+    "8ED" => "Eighth Edition",
+    "9ED" => "Ninth Edition",
+    "10E" => "Tenth Edition",
+    M10   => "Magic 2010",
+    M11   => "Magic 2011",
+    M12   => "Magic 2012",
+    M13   => "Magic 2013",
+    M14   => "Magic 2014 Core Set",
+    M15   => "Magic 2015 Core Set",
+
+    AN    => "Arabian Nights",
+    AQ    => "Antiquities",
+    LE    => "Legends",
+    DK    => "The Dark",
+    FE    => "Fallen Empires",
+    HL    => "Homelands",
+    IA    => "Ice Age",
+    AI    => "Alliances",
+    CSP   => "Coldsnap",
+    MI    => "Mirage",
+    VI    => "Visions",
+    WL    => "Weatherlight",
+    TE    => "Tempest",
+    ST    => "Stronghold",
+    EX    => "Exodus",
+    US    => "Urza's Saga",
+    UL    => "Urza's Legacy",
+    UD    => "Urza's Destiny",
+    MM    => "Mercadian Masques",
+    NE    => "Nemesis",
+    PR    => "Prophecy",
+    IN    => "Invasion",
+    PS    => "Planeshift",
+    AP    => "Apocalypse",
+    OD    => "Odyssey",
+    TOR   => "Torment",
+    JUD   => "Judgment",
+    ONS   => "Onslaught",
+    LGN   => "Legions",
+    SCG   => "Scourge",
+    MRD   => "Mirrodin",
+    DST   => "Darksteel",
+    "5DN" => "Fifth Dawn",
+    CHK   => "Champions of Kamigawa",
+    BOK   => "Betrayers of Kamigawa",
+    SOK   => "Saviors of Kamigawa",
+    RAV   => "Ravnica: City of Guilds",
+    GPT   => "Guildpact",
+    DIS   => "Dissension",
+    TSP   => "Time Spiral",
+    PLC   => "Planar Chaos",
+    FUT   => "Future Sight",
+    LRW   => "Lorwyn",
+    MOR   => "Morningtide",
+    SHM   => "Shadowmoor",
+    EVE   => "Eventide",
+    ALA   => "Shards of Alara",
+    CON   => "Conflux",
+    ARB   => "Alara Reborn",
+    ZEN   => "Zendikar",
+    WWK   => "Worldwake",
+    ROE   => "Rise of the Eldrazi",
+    SOM   => "Scars of Mirrodin",
+    MBS   => "Mirrodin Besieged",
+    NPH   => "New Phyrexia",
+    ISD   => "Innistrad",
+    DKA   => "Dark Ascension",
+    AVR   => "Avacyn Restored",
+    RTR   => "Return to Ravnica",
+    GTC   => "Gatecrash",
+    DGM   => "Dragon's Maze",
+    THS   => "Theros",
+    BNG   => "Born of the Gods",
+    JOU   => "Journey into Nyx",
+
+    P1    => "Portal",
+    P2    => "Portal Second Age",
+    P3K   => "Portal Three Kingdoms",
+    S99   => "Starter 1999",
+    S00   => "Starter 2000",
+    HOP   => "Planechase",
+    PC2   => "Planechase 2012 Edition",
+    CMD   => "Commander",
+    C13   => "Commander 2013 Edition",
+    CNS   => "Conspiracy",
+    CH    => "Chronicles",
+    ARC   => "Archenemy",
+    PROMO => "Promo set for Gatherer",
+);
 
 # make it read in 1 card at a time
 $/ = "\n\n";
@@ -28,53 +137,46 @@ my $num_cards = "0";
 
 # this part is when you want to update the datafile
 if($opts{u}) {
-    require LWP::Simple;
     print "updating card data...\n";
 
-    # grab the full spoiler from wizards
-    my $data = LWP::Simple::get("http://gatherer.wizards.com/Pages/Search/Default.aspx?output=spoiler&method=text&action=advanced&name=+![idspispopd]");
+    my $all_sets_url = get $url;
+    $all_sets_url = $1 if $all_sets_url =~ /<a href="(.*?)">all sets/i;
+    my $cards = `wget -qO - "$url$all_sets_url" | funzip`;
+    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
+    # split whenever you have 2 blank lines before either a line with a character or the end of the string
+    for(split /\n\n(?:(?=.)|$)/, $cards) {
+        #print "<<$_>>\n\n";
+        # the negative one tells it not to ignore empty fields
+        my @fields = split /\n/, $_, -1;
+        my $name = shift @fields;
+        my ($type, $cost, $sets, $size, $loyal);
+        if($fields[0] =~ /$type_re/) {
+            $type = shift @fields;
+        } elsif($fields[1] =~ /$type_re/) {
+            $cost = shift @fields;
+            $type = shift @fields;
+        } else {
+            print "Can't find a card type for '$name'.\n";
+        }
+        $size = shift @fields if $type =~ /Creature/;
+        $loyal = shift @fields if $type =~ /Planeswalker/;
+        $sets = pop @fields;
+        if(defined $sets) {
+            $sets = join ", ", map { &translate_set($_) } split ", ", $sets;
+        }
 
-    # and format it nicely
-    for($data) {
-        s/^.*?<div class="textspoiler">\s*<table>//s; # strip off the junk at the top
-        s/<\/table>.*?$//s; # strip off the junk at the bottom
-        s/^\s+//mg; # moosh everything together
-        s/\r\n//g; # more mooshing
-        s/<\/tr>/<\/tr>\n/g; # add line breaks in the right places
-        s/^<br \/>\n//mg; # remove random extra blank lines
-        s/<.*?>//g; # remove all the markup crap
-        
-        # something like this will add the converted mana cost to each block of card data
-        #for(/^Cost: *(.*)$/mg) {
-        #     my $cost = $_;
-        #    my $cmc = 0;
-        #    $cost =~ y/X//d;
-        #    while($cost =~ s/\(2\/[WUBRG]\)//) { $cmc += 2 }; 
-        #    $cmc += $1 if $cost =~ s/(\d+)//;
-        #    while($cost =~ s/\([WUBRG]\/[WUBRGP]\)//) { $cmc++ };
-        #    $cmc += length($1) if $cost =~ s/([WUBRG]+)//;
-        #    print "CMC:         $cmc\n";
-        #}
-
-        s/^ *(Name|Cost|Color|Type|Pow\/Tgh|Rules Text|Set\/Rarity|(?!$)):? */sprintf "%-13.13s", ($1 ne "")?"$1:":""/meg;
-        # do some voodoo to have everything indented correctly
-        s/\xC3\x86/AE/g; # change junk to AE
-        s/ *\xE2\x80\x94 */ - /g; # change junk to ' - '
-        s/{S}i}?/{S}/g; # tweak snow mana
+        print OUTPUT "Name:        $name\n";
+        print OUTPUT "Cost:        $cost\n" if defined $cost;
+        print OUTPUT "Type:        $type\n";
+        print OUTPUT "Pow/Tgh:     $size\n" if defined $size;
+        print OUTPUT "Loyalty:     $loyal\n" if defined $loyal;
+        print OUTPUT "Rules Text:  ", join "\n             ", @fields;
+        print OUTPUT "\n";
+        print OUTPUT "Set/Rarity:  $sets\n" if defined $sets;
+        print OUTPUT "\n";
     }
 
     # and then save it permanently to the data file
-    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
-    print OUTPUT $data;
-    close OUTPUT;
-
-    # stupid hack because i cant get 2 of the regexs above to work for some reason
-    open OUTPUT, "<$data_file" or die "cant open output file '$data_file': $!\n";
-    $data = join "", <OUTPUT>;
-    close OUTPUT;
-    for($data) { s/\xC3\x86/AE/g; s/ *\xE2\x80\x94 */ - /g; s/\xC3\xB6/o/g; }
-    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
-    print OUTPUT $data;
     close OUTPUT;
 
     exit;
@@ -112,3 +214,12 @@ close INPUT;
 #print STDERR "\n" if $opts{n};
 #print {$opts{n}?*STDERR:*STDOUT} scalar keys %cards, " card(s) returned\n\n";
 print $num_cards, " card(s) returned\n\n" unless $opts{n};
+
+sub translate_set {
+    my ($set, $rarity) = split "-", $_[0];
+    print "Can't find a rarity for '$rarity'.\n" unless defined $rarities{$rarity};
+    $rarity = $rarities{$rarity} if defined $rarities{$rarity};
+    print "Can't find a set for '$set'.\n" unless defined $sets{$set};
+    $set = $sets{$set} if defined $sets{$set};
+    return "$set $rarity";
+}
