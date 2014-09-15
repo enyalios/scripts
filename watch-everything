@@ -247,6 +247,8 @@ sub exchange_cal {
 
     my $num = 0;
     foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
+        # truncate subject so lines dont wrap
+        $_->{'Subject'} = substr($_->{'Subject'}, 0, $width - 54);
         $output .= sprintf "%s - %s %-28s %s\n",
             strftime("%a %b %d %R", localtime str2time $_->{"Start"}),
             strftime("%R", localtime str2time $_->{"End"}),
@@ -271,10 +273,12 @@ sub check_email {
 
     # get a list of all folders
     my @folders = $imap->folders();
+    my $count = 0;
     for(@folders) {
         my @emails;
         # skip some special cases
         next if /^\[Gmail\]\/(All Mail|Spam|Starred|Sent Mail|Important)$/;
+        next if /^Deleted Items$/;
         # open the folder read-only
         $imap->examine($_);
         # list unread messages
@@ -292,16 +296,16 @@ sub check_email {
                 from => &format_from($headers->{$_}->{From}->[0]),
                 subject => &format_subject($headers->{$_}->{Subject}->[0]),
                 flags => &format_flags($flags->{$_}),
-            }
+            };
+            $count++;
         }
 
         # print everything out nicely sorted by date
         for(sort { $a->{epoch} <=> $b->{epoch} } @emails) {
             output(sprintf "  %-2s %-11s  %-23.23s  %-s\n", $_->{flags}, $_->{date}, $_->{from}, $_->{subject});
         }
-        output("\n") if @emails;
-
     }
+    output("\n") if $count;
 }
 
 sub connect_to_imap {
