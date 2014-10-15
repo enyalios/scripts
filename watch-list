@@ -55,5 +55,5 @@ if [[ -S ~/.rtorrent.socket ]] && ps -C rtorrent &> /dev/null; then
     ~/bin/rtorrent-status
 fi
 
-streams=$(for i in koyuki0 itshafu day9tv mtgradio; do GET "http://api.justin.tv/api/stream/list.json?channel=$i" | grep -q '"stream_type":"live"' && echo -e "  twitch.tv/$i"; done)
+streams=$(GET 'https://api.twitch.tv/kraken/streams?channel=day9tv,itshafu,mtgradio,koyuki0' | perl -ne 'print "  $_\n" for /"url":"http:\/\/www.(twitch.tv\/.*?)"/g')
 [[ "$streams" != "" ]] && echo -e "Currently Streaming on TwitchTV:\n$streams\n"
