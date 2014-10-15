@@ -113,6 +113,7 @@ my %sets = (
     THS   => "Theros",
     BNG   => "Born of the Gods",
     JOU   => "Journey into Nyx",
+    KTK   => "Khans of Tarkir",
 
     P1    => "Portal",
     P2    => "Portal Second Age",
@@ -130,7 +131,6 @@ my %sets = (
 );
 
 # make it read in 1 card at a time
-$/ = "\n\n";
 my %opts;
 getopts('nu', \%opts);
 my $num_cards = "0";
@@ -181,10 +181,21 @@ if($opts{u}) {
 
     exit;
 }
+ 
+# if there are no regexs as args use stdin as a list of card names
+if(@ARGV == 0) {
+    my @names = <STDIN>;
+    chomp(@names);
+    @names = map { "\Q$_\E" } @names;
+    my $regex = "^name: *(" . join("|", @names) . ")\$";
+    push @ARGV, $regex;
+}
 
+$/ = "\n\n";
 open INPUT, "<$data_file" or die "cant find input file\n";
 
 CARD: while(<INPUT>) {
+
     # skip to the next card unless it agrees with all regexs
     # regexs that start with '!' are negated
     for my $arg (@ARGV) { 
