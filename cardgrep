@@ -124,6 +124,7 @@ my %sets = (
     PC2   => "Planechase 2012 Edition",
     CMD   => "Commander",
     C13   => "Commander 2013 Edition",
+    C14   => "Commander 2014",
     CNS   => "Conspiracy",
     CH    => "Chronicles",
     ARC   => "Archenemy",
