@@ -10,6 +10,7 @@
 # [libdefaults]
 #     ticket_lifetime = 5d
 #     default_realm = AD.UILLINOIS.EDU
+#     rdns = false
 #
 # [realms]
 #     AD.UILLINOIS.EDU = {
@@ -20,10 +21,6 @@
 #     }
 #
 #
-# ...and you must have the following line in your /etc/hosts file.  I have no
-# clue why.
-# 192.17.45.235 exchws.illinois.edu
-# 
 # Finally, your NetID must match the name you are logged into your workstation
 # as, or you'll need to change line 55 below.
 
