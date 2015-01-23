@@ -106,6 +106,7 @@ sub battery {
 
 sub watts {
     my $batt_dir = "/sys/class/power_supply/BAT0";
+    return unless -d $batt_dir;
     return unless &read_file("$batt_dir/status") eq "Discharging";
     my $watts;
     if(-e "$batt_dir/power_now") {
