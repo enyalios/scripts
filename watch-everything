@@ -15,6 +15,7 @@ use SOAP::Transport::HTTP; # from dev-perl/SOAP-Lite
 use Term::ANSIColor;
 use Term::Cap;
 use Term::ReadKey; # from dev-perl/TermReadKey
+use File::Find;
 
 # set up some variables
 my $user = "guder";
@@ -50,6 +51,7 @@ while(1) {
     &check_email();
     &check_irc();
     &check_jabber();
+    &check_pidgin();
 
     # bail if we're not a daemon, since we already printed everything
     last unless $delay;
@@ -388,4 +390,26 @@ sub format_flags {
         exists($flags{"\\Seen"})?" ":"N",
         exists($flags{"\\Flagged"})?"!":" ";
     return $flag_string;
+}
+
+sub check_pidgin {
+    my @files;
+    File::Find::find({wanted => sub { push @files, $File::Find::name if -f $_ }}, "$ENV{HOME}/.purple/logs/");
+    for(sort @files) {
+        undef $/;
+        open FILE, "<$_" or die "could not open pidgin log file '$_': $!\n";
+        my $content = <FILE>;
+        close FILE;
+        next if $content =~ /<\/body><\/html>$/;
+        $content =~ s/<title>.*?<\/title>//g;
+        $content =~ s/<.*?>//g;
+        $content =~ s/^.*\n\([^)]*\) $user: [^\n]*\n//s;
+        if(/\.chat\/[^\/]*$/) { # this is a chat room
+            $content =~ s/^.* (left|entered) the room\.\n//mg;
+        }
+        $content =~ s/&apos;/'/g;
+        $content =~ s/&quot;/"/g;
+        $content =~ s/\n+/\n/g;
+        output("$content\n") if $content;
+    }
 }
