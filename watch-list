@@ -55,5 +55,6 @@ if [[ -S ~/.rtorrent.socket ]] && ps -C rtorrent &> /dev/null; then
     ~/bin/rtorrent-status
 fi
 
-streams=$(GET 'https://api.twitch.tv/kraken/streams?channel=day9tv,itshafu,mtgradio,koyuki0,shotgunlotus,randybuehler' | perl -ne 'print "  $_\n" for /"url":"http:\/\/www.(twitch.tv\/.*?)"/g')
+twitch_list=$(GET 'https://api.twitch.tv/kraken/users/endratic/follows/channels' | perl -MJSON -MData::Dumper -e 'undef $/; $tree = decode_json(<>); print join ",", map { $_->{channel}->{name} } @{$tree->{follows}}')
+streams=$(GET "https://api.twitch.tv/kraken/streams?channel=$twitch_list" | perl -ne 'print "  $_\n" for /"url":"http:\/\/www.(twitch.tv\/.*?)"/g')
 [[ "$streams" != "" ]] && echo -e "Currently Streaming on TwitchTV:\n$streams\n"
