@@ -17,6 +17,10 @@ use Term::Cap;
 use Term::ReadKey; # from dev-perl/TermReadKey
 use File::Find;
 
+# supress stupid warnings from the SOAP::Lite module
+#$SIG{'__WARN__'} = sub { warn $_[0] unless (caller eq "SOAP::Schema"); };
+$SIG{'__WARN__'} = sub {};
+
 # set up some variables
 my $user = "guder";
 my $delay = 0;
@@ -36,8 +40,10 @@ print "\e[?25l" if $delay;
 # set up the request for getting monitoring info
 my $ua = LWP::UserAgent->new;
 my $r = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi');
+my $rall = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi?hostgroup=all&style=detail&servicestatustypes=28&hoststatustypes=15'); # this is for when im the ticket monkey on mondays
 my $auth = MIME::Base64::encode("$user:$pass");
 $r->header(Authorization => "Basic $auth");
+$rall->header(Authorization => "Basic $auth");
 
 # open the imap connection that we'll be using
 my $imap = &connect_to_imap();
@@ -114,7 +120,13 @@ sub colorize {
 }
 
 sub check_nagios {
-    my $content = $ua->request($r)->{_content};
+    my $content;
+    if(-e "$ENV{HOME}/monkey" || (localtime())[6] == 1) {
+        # if its monday or im covering ticket monkey duty
+        $content = $ua->request($rall)->{_content};
+    } else {
+        $content = $ua->request($r)->{_content};
+    }
     # strip off the html
     $content =~ s/.*<\/?html>.*\n//g;
 
@@ -251,6 +263,7 @@ sub exchange_cal {
     foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
         # truncate subject so lines dont wrap
         $_->{'Subject'} = substr($_->{'Subject'}, 0, $width - 54);
+        $_->{'Location'} = "" unless defined $_->{'Location'};
         $output .= sprintf "%s - %s %-28s %s\n",
             strftime("%a %b %d %R", localtime str2time $_->{"Start"}),
             strftime("%R", localtime str2time $_->{"End"}),
@@ -368,6 +381,7 @@ sub format_from {
     $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
     $from =~ s/\n//g;
     $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    $from = "$2 $1" if $from =~ /^(.*?), (.*)$/;
     return $from;
 }
 
