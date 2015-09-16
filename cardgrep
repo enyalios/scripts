@@ -48,6 +48,7 @@ my %sets = (
     M13   => "Magic 2013",
     M14   => "Magic 2014 Core Set",
     M15   => "Magic 2015 Core Set",
+    ORI   => "Magic Origins",
 
     AN    => "Arabian Nights",
     AQ    => "Antiquities",
@@ -114,6 +115,8 @@ my %sets = (
     BNG   => "Born of the Gods",
     JOU   => "Journey into Nyx",
     KTK   => "Khans of Tarkir",
+    FRF   => "Fate Reforged",
+    DTK   => "Dragons of Tarkir",
 
     P1    => "Portal",
     P2    => "Portal Second Age",
