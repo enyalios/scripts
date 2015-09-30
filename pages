@@ -23,10 +23,11 @@ $dir = glob "$ENV{HOME}/.mozilla/seamonkey/*.default" if $opt_s;
 $file = "$dir/prefs.js";
 $file = "$dir/sessionstore.js" if -e "$dir/sessionstore.js";
 $file = "$dir/sessionstore.json" if -e "$dir/sessionstore.json";
+$file = "$dir/sessionstore-backups/recovery.bak" if -e "$dir/sessionstore-backups/recovery.bak";
 
 die unless open(INPUT, "<$file");
 
-if($file =~ /^$dir\/sessionstore.js(on)?$/) { 
+if($file =~ /sessionstore/) { 
     require JSON;
     my $input = join "", <INPUT>;
     close INPUT;
