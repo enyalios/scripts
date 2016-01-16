@@ -27,6 +27,7 @@ my $deint       = "";
 my $pretend     = "";
 my $noise       = "";
 my $width       = "640";
+my $height      = "";
 my $keep        = "0";
 my @infiles     = ();
 my $temp_dir    = ".";
@@ -229,6 +230,16 @@ sub get_crop {
     }
 }
 
+sub get_aspect {
+    my $output = qx/MPLAYER_VERBOSE=0 mplayer @dvd_device @infiles -vo null -ao null -frames 1 2>\/dev\/null/;
+    $output =~ /^VO: \[null\] (\d+)x\d+ => (\d+)x\d+ Planar YV12  \[zoom\]$/m or die "couldnt find aspect\n";
+    my $stretch = $2/$1;
+    my @num = split /[:=]/, $crop;
+    #print "$output\n$1 $2 $stretch $crop $num[2] $num[1]\n";
+    $height = $num[2]*$width/$num[1]/$stretch;
+    $height = int($height/16+.5)*16;
+}
+
 sub get_chapters {
     return unless (@chapters && !$chapters[1]);
     
@@ -267,8 +278,8 @@ sub audio_pass {
             $ogg = "$temp_dir/audio-$pid.ogg";
             $pcm = "$temp_dir/audio-$pid.pcm";
         }
-        my_system(qw"mplayer -vo null -vc dummy -ao", "pcm:file=$pcm",
-            @infiles, @$aid, @opts, @dvd_device);
+        my_system(qw"mplayer -benchmark -vo null -vc null -ao",
+            "pcm:fast:file=$pcm", @infiles, @$aid, @opts, @dvd_device);
         my_system(qw(oggenc -b 96 -o), $ogg, $pcm);
 
         push @oggs,$ogg;
@@ -335,7 +346,7 @@ sub video1_pass {
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5), 
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
         "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}", 
-        "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device, 
+        "-vf", "${deint}${crop}${noise}scale=$width:$height", @dvd_device, 
         @opts, @sid, @fps, @{$aid[0]});
 }
 
@@ -347,7 +358,7 @@ sub video2_pass {
     my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5),
         @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
         "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
-        "-vf", "${deint}${crop}${noise}scale=$width:-10", @dvd_device,
+        "-vf", "${deint}${crop}${noise}scale=$width:$height", @dvd_device,
         @opts, @sid, @fps, @{$aid[0]});
 }
 
@@ -419,6 +430,7 @@ sub copy_dvd {
 parse_args();
 copy_dvd() if $copy;
 get_crop();
+get_aspect();
 get_chapters();
 audio_pass();
 video1_pass();
