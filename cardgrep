@@ -29,8 +29,11 @@ my %rarities = (
     M => "Mythic Rare",
     L => "Land",
     S => "Special",
+    P => "Avatar",
+    B => "Special",
 );
 my %sets = (
+    # base/core set editions
     A     => "Limited Edition Alpha",
     B     => "Limited Edition Beta",
     U     => "Unlimited Edition",
@@ -50,6 +53,7 @@ my %sets = (
     M15   => "Magic 2015 Core Set",
     ORI   => "Magic Origins",
 
+    # expansion sets
     AN    => "Arabian Nights",
     AQ    => "Antiquities",
     LE    => "Legends",
@@ -117,7 +121,16 @@ my %sets = (
     KTK   => "Khans of Tarkir",
     FRF   => "Fate Reforged",
     DTK   => "Dragons of Tarkir",
+    BFZ   => "Battle for Zendikar",
+    OGW   => "Oath of the Gatewatch",
+    EXP   => "Zendikar Expeditions",
+    SOI   => "Shadows over Innistrad",
+    W16   => "Welcome 2016",
+    EMN   => "Eldritch Moon",
+    KLD   => "Kaladesh",
+    AER   => "Aether Revolt",
 
+    # compilations/reprint sets
     P1    => "Portal",
     P2    => "Portal Second Age",
     P3K   => "Portal Three Kingdoms",
@@ -132,6 +145,60 @@ my %sets = (
     CH    => "Chronicles",
     ARC   => "Archenemy",
     PROMO => "Promo set for Gatherer",
+    MMA   => "Modern Masters",
+    MM2   => "Modern Masters 2015 Edition",
+    EMA   => "Eternal Masters",
+    EVG   => "Duel Decks: Elves vs. Goblins",
+    DD2   => "Duel Decks: Jace vs. Chandra",
+    DDC   => "Duel Decks: Divine vs. Demonic",
+    DDD   => "Duel Decks: Garruk vs. Liliana",
+    DDE   => "Duel Decks: Phyrexia vs. the Coalition",
+    DDF   => "Duel Decks: Elspeth vs. Tezzeret",
+    DDG   => "Duel Decks: Knights vs. Dragons",
+    DDH   => "Duel Decks: Ajani vs. Nicol Bolas",
+    DDI   => "Duel Decks: Venser vs. Koth",
+    DDJ   => "Duel Decks: Izzet vs. Golgari",
+    DDK   => "Duel Decks: Sorin vs. Tibalt",
+    DDL   => "Duel Decks: Heroes vs. Monsters",
+    DDM   => "Duel Decks: Jace vs. Vraska",
+    DDN   => "Duel Decks: Speed vs. Cunning",
+    DDO   => "Duel Decks: Elspeth vs. Kiora",
+    DDP   => "Duel Decks: Zendikar vs. Eldrazi",
+    DDQ   => "Duel Decks: Blessed vs. Cursed",
+    DRB   => "From the Vault: Dragons",
+    V09   => "From the Vault: Exiled",
+    V10   => "From the Vault: Relics",
+    V11   => "From the Vault: Legends",
+    V12   => "From the Vault: Realms",
+    V13   => "From the Vault: Twenty",
+    V14   => "From the Vault: Annihilation",
+    V15   => "From the Vault: Angels",
+    H09   => "Premium Deck Series: Slivers",
+    PD2   => "Premium Deck Series: Fire and Lightning",
+    PD3   => "Premium Deck Series: Graveborn",
+
+    # non-standard-legal sets
+    C15   => "Commander 2015",
+
+    # introductory sets
+
+    # sets not legal for tournament play
+    ASTRAL => "Astral",
+    UG    => "Unglued",
+    UNH   => "Unhinged",
+    VAN1  => "Vanguard",
+    VAN2  => "Vanguard",
+    VAN3  => "Vanguard",
+    VAN4  => "Vanguard",
+    MOL   => "Vanguard",
+
+
+    # magic: the gathering online exclusive sets
+    MED   => "Masters Edition",
+    ME2   => "Masters Edition II",
+    ME3   => "Masters Edition III",
+    ME4   => "Masters Edition IV",
+    VMA   => "Vintage Masters",
 );
 
 # make it read in 1 card at a time
@@ -156,7 +223,7 @@ if($opts{u}) {
         my ($type, $cost, $sets, $size, $loyal);
         if($fields[0] =~ /$type_re/) {
             $type = shift @fields;
-        } elsif($fields[1] =~ /$type_re/) {
+        } elsif($fields[1] =~ /$type_re/ || $fields[-1] =~ /\b(UG|ASTRAL)\b/ || $name =~ /^(Atinlay Igpay|Old Fogey)$/) {
             $cost = shift @fields;
             $type = shift @fields;
         } else {
