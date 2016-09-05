@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use POSIX "strftime";
+
+my $hd = "hdhomerun_config";
+my $device = 10181051;
+my $record_dir = "/mnt/media/incoming/recorded/";
+
+sub find_channel {
+    my $channel = $_[0];
+    die "Please provide a channel.\n" unless defined $channel;
+    open my $channel_file, "<$ENV{HOME}/doc/channels.txt" or die "Could not open channel file: $!\n";
+    my $channel_num;
+    while(<$channel_file>) {
+        $channel_num = $1 if /^SCANNING: \d+ \(us-bcast:(\d+)\)$/;
+        return ($channel_num,$1) if /^PROGRAM (\d+): \Q$channel\E /;
+    }
+    die "Could not find channel $channel.\n";
+}
+
+sub find_free_tuner {
+    for(0..1) {
+        return $_ if `$hd $device get /tuner$_/target` eq "none\n";
+    }
+    die "Could not find a free tuner.\n";
+}
+
+sub change_channel {
+    my ($tuner, $channel, $program) = @_;
+    system("$hd $device set /tuner$tuner/channel $channel");
+    system("$hd $device set /tuner$tuner/program $program");
+}
+
+sub get_timestamp {
+    return strftime "%Y-%m-%d_%H%M", localtime time;
+}
+
+sub record {
+    my $channel = $_[0];
+    my $tuner = find_free_tuner();
+    change_channel($tuner, find_channel($channel));
+    chdir $record_dir or die "Could not cd: $!\n";
+    exec("$hd $device save /tuner$tuner " . get_timestamp() . "_channel_$channel.mpeg");
+}
+
+# if we get a second argument fork and sleep so we can kill the record after the time is up
+if(defined $ARGV[1]) {
+    my $duration = $ARGV[1];
+    die "Recording duration not numeric: $duration\n" unless $duration =~ /^\d+$/;
+    my $pid = fork();
+    die "couldnt fork\n" unless defined $pid;
+    if($pid) {
+        # parent process
+        sleep $duration * 60;
+        kill "TERM", $pid;
+        exit;
+    }
+}
+
+# child process
+record($ARGV[0]);
