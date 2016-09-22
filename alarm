@@ -52,7 +52,7 @@ sub play_music {
 
 sub set_volume_and_unmute { 
     system "amixer set PCM 60% > /dev/null";
-    system "amixer -c 29 set Console unmute > /dev/null"
+    system "echo unmute > /proc/acpi/ibm/volume"
     #&volume_cmd("level 14\n");
     #&volume_cmd("up\n") while &is_muted;
 }
