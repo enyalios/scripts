@@ -40,7 +40,10 @@ for(@torrents) {
     } else {
         my $proportion_done = $bytes_done / $bytes_total;
         my $bar = int($bar_width*$proportion_done);
-        push @incomplete_torrents, sprintf "  Downloading %s (%d/%d MB)\n  %5.1f%% [%s%s%s] %.1fK/s down, %.1fK/s up\n\n",
+        my $color = 0;
+        $color = 1 if $down_rate + $up_rate > 0;
+        $color = 0 unless -t STDOUT;
+        push @incomplete_torrents, sprintf "  Downloading %s (%d/%d MB)\n  %5.1f%% [%s%s%s] %s%.1fK/s down, %.1fK/s up\e[0m\n\n",
         $name,
         $bytes_done / 1024 / 1024,
         $bytes_total / 1024 / 1024,
@@ -48,6 +51,7 @@ for(@torrents) {
         "=" x $bar,
         $bytes_done>0?">":" ",
         " " x ($bar_width-$bar),
+        $color?"\e[32m":"",
         $down_rate,
         $up_rate;
     }
