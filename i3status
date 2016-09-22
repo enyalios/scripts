@@ -4,7 +4,12 @@ use strict;
 use warnings;
 use LWP::Simple;
 use POSIX qw(strftime);
+use JSON;
 
+my %click_commands = (
+    "date"    => "xterm -e 'date; echo; cal -3; read'",
+    "weather" => "firefox-bin -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
+);
 my $count = 0;
 
 sub read_file {
@@ -51,7 +56,7 @@ sub weather {
         &write_file("$ENV{HOME}/.weather", "$cond $temp");
     }
     my $string = read_file("$ENV{HOME}/.weather");
-    $string = "" if length $string > 50;
+    $string = "???" if(length $string > 50 || length $string < 6);
     my $color = "";
     $color = "8888ff" if $string =~ /snow/i;
     return &json("weather", $string, $color);
@@ -78,7 +83,7 @@ sub date {
 
 sub battery {
     return unless -x "/usr/bin/acpi";
-    my $_ = `acpi`;
+    $_ = `acpi`;
     chomp;
     s/^.*?: //;
     s/^(Charg.*?%).*$/$1/;
@@ -126,6 +131,7 @@ sub network {
     for(@iwconfig) {
         ($device, $essid) = /^([^ ]+).*ESSID:"([^"]*)"/;
     }
+    return unless defined $device;
     return &json("network", "No wireless networks found", "ff2a2a") unless defined $essid;
     my $ifconfig = join "", `/bin/ifconfig $device`;
     (my $ip) = $ifconfig =~ /inet ([0-9.]*)/;
@@ -134,9 +140,34 @@ sub network {
 }
 
 $| = 1;
-print "{\"version\":1}\n[\n";
-while(++$count) {
-    print "[", join(",", &network(), &weather(), &battery(), &watts(), &load(), &date()), "],\n";
-#    print join(" | ", &weather, &load, &date), "\n";
-    sleep 1;
+print "{\"version\":1,\"click_events\":true}\n[\n";
+#print "{\"version\":1}\n[\n";
+my $pid = fork();
+die "couldnt fork\n" unless defined $pid;
+if($pid) {
+    # parent
+    close STDIN;
+    while(++$count) {
+        print "[", join(",", &network(), &weather(), &battery(), &watts(), &load(), &date()), "],\n";
+        #print join(" | ", &weather, &load, &date), "\n";
+        sleep 1;
+    }
+} else {
+    # child
+    close STDOUT;
+    open my $log, ">$ENV{HOME}/.i3/i3status.log" or die "couldnt open log: $!\n";
+    # autoflush the $log filehandle
+    select((select($log), $|=1)[0]);
+    while(my $line = <STDIN>) {
+        if($line =~ /^,?{/) {
+            $line =~ s/^,//;
+            my $tree = decode_json $line;
+            print $log "click event: name=$tree->{name}, button=$tree->{button}\n";
+            my $command = $click_commands{$tree->{name}};
+            if(defined $command) {
+                print $log "executing command \"$command\"\n";
+                system("$command &");
+            }
+        }
+    }
 }
