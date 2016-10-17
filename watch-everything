@@ -40,10 +40,8 @@ print "\e[?25l" if $delay;
 # set up the request for getting monitoring info
 my $ua = LWP::UserAgent->new;
 my $r = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi');
-my $rall = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi?hostgroup=all&style=detail&servicestatustypes=28&hoststatustypes=15'); # this is for when im the ticket monkey on mondays
 my $auth = MIME::Base64::encode("$user:$pass");
 $r->header(Authorization => "Basic $auth");
-$rall->header(Authorization => "Basic $auth");
 
 # open the imap connection that we'll be using
 my $imap = &connect_to_imap();
@@ -80,12 +78,15 @@ sub output {
 }
 
 sub get_password {
-    print "$user\'s AD password: ";
-    ReadMode('noecho');
-    my $pw = ReadLine(0);
-    ReadMode('normal');
+#     print "$user\'s AD password: ";
+#     ReadMode('noecho');
+#     my $pw = ReadLine(0);
+#     ReadMode('normal');
+#     chomp $pw;
+#     print "\n";
+#     return $pw;
+    my $pw = `gpg -qd ~/.pw/password.gpg`;
     chomp $pw;
-    print "\n";
     return $pw;
 }
 
@@ -121,12 +122,7 @@ sub colorize {
 
 sub check_nagios {
     my $content;
-    if(-e "$ENV{HOME}/monkey" || (localtime())[6] == 1) {
-        # if its monday or im covering ticket monkey duty
-        $content = $ua->request($rall)->{_content};
-    } else {
-        $content = $ua->request($r)->{_content};
-    }
+    $content = $ua->request($r)->{_content};
     # strip off the html
     $content =~ s/.*<\/?html>.*\n//g;
 
@@ -204,7 +200,7 @@ sub check_calendar {
 sub exchange_cal {
 
     # renew our kerberos ticket
-    system(qw"kinit -R");
+    #system(qw"kinit -R");
     my $output;
     my $now = strftime("%s", localtime);
     my $tz = "-06:00";
@@ -225,6 +221,26 @@ sub exchange_cal {
     ->encodingStyle('')
     ->ns("http://schemas.microsoft.com/exchange/services/2006/types",'t')
     ->default_ns("http://schemas.microsoft.com/exchange/services/2006/messages");
+
+    # over-ride method to handle authentication
+    sub SOAP::Schema::access
+    {
+        my $self = shift->new;
+        my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
+
+        my $req = HTTP::Request->new(GET => $url);
+
+        # this is why it's over-ridden
+        $req->authorization_basic("$user\@illinois.edu", $pass);
+
+        my $resp = $self->useragent->request($req);
+        $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
+    }
+
+    # and get_basic_credentials for the service calls,
+    # if they require authentication
+    sub SOAP::Transport::HTTP::Client::get_basic_credentials
+    { return "$user\@illinois.edu" => $pass; }
 
     my $response = $service->call(
         SOAP::Data->name('FindItem')
@@ -277,6 +293,9 @@ sub exchange_cal {
 }
 
 sub check_email {
+    # try to reconnect if exchange disconnected us
+    $imap = &connect_to_imap() unless $imap->State($imap->Connected);
+
     my $now = strftime "%s", localtime;
     # figure out what we are searching for
     my @search = ("UNSEEN");
