@@ -27,6 +27,7 @@
 use strict;
 use warnings;
 
+use lib "$ENV{HOME}/.cpan/myperl/lib/";
 #use SOAP::Lite (+trace => 'debug', maptype => {});
 use SOAP::Lite maptype=>{};
 use SOAP::Transport::HTTP;
@@ -36,16 +37,16 @@ use Term::ReadKey;
 use GSSAPI; # from dev-perl/GSSAPI
 use LWP::Authen::Negotiate; # perl -MCPAN -e 'install LWP::Authen::Negotiate'
 
-my $login=$ENV{USER};
+my $login="guder\@illinois.edu";
 # get the users password
-#print "$login\'s AD password: ";
-#ReadMode('noecho');
-#my $pw = ReadLine(0);
-#ReadMode('normal');
-#chomp $pw;
-#print "\n";
-# the password stuff no longer works, now you need a krb ticket
-system("klist -l >/dev/null || kinit $login\@AD.UILLINOIS.EDU");
+print "$login\'s AD password: ";
+ReadMode('noecho');
+my $pw = ReadLine(0);
+ReadMode('normal');
+chomp $pw;
+print "\n";
+# we used to use a krb ticket, because the password stuff didn't work
+#system("klist -l >/dev/null || kinit $login\@AD.UILLINOIS.EDU");
 
 my $now = strftime("%s", localtime);
 my $tz = "-06:00";
@@ -61,24 +62,24 @@ my $service = SOAP::Lite
     ->default_ns("http://schemas.microsoft.com/exchange/services/2006/messages");
 
 # over-ride method to handle authentication
-# sub SOAP::Schema::access
-# {
-#     my $self = shift->new;
-#     my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
-# 
-#     my $req = HTTP::Request->new(GET => $url);
-# 
-#     # this is why it's over-ridden
-#     $req->authorization_basic($login, $pw);
-# 
-#     my $resp = $self->useragent->request($req);
-#     $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
-# }
+sub SOAP::Schema::access
+{
+    my $self = shift->new;
+    my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
+
+    my $req = HTTP::Request->new(GET => $url);
+
+    # this is why it's over-ridden
+    $req->authorization_basic($login, $pw);
+
+    my $resp = $self->useragent->request($req);
+    $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
+}
 
 # and get_basic_credentials for the service calls,
 # if they require authentication
-# sub SOAP::Transport::HTTP::Client::get_basic_credentials
-# { return $login => $pw; }
+sub SOAP::Transport::HTTP::Client::get_basic_credentials
+{ return $login => $pw; }
 
 my $response = $service->call(
     SOAP::Data->name('FindItem')
