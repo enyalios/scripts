@@ -344,22 +344,15 @@ sub check_email {
 
 sub connect_to_imap {
     # grab authentication info
-    my ($host, $user, $pass) = ("imap.illinois.edu:993", "guder\@illinois.edu", $pass);
-
-    # open an ssl socket since gmail is over ssl
-    my $sock = IO::Socket::SSL->new(
-        SSL_verify_mode => SSL_VERIFY_PEER,
-        SSL_ca_path => '/etc/ssl/certs',
-        PeerHost => $host) or die "socket(): $@";
-    my $greeting = <$sock>;
-    die "problems logging in: $greeting" unless $greeting =~ ' OK ';
+    my ($host, $user, $pass) = ("imap.illinois.edu:143", "guder\@illinois.edu", $pass);
 
     # use the socket and our credentials to open an imap connection
     my $imap = Mail::IMAPClient->new(
-        RawSocket => $sock,
-        User      => $user,
-        Password  => $pass,
+        Server    => $host,
     ) or die "Cannot imap: $@";
+    $imap->starttls(SSL_verify_mode => 0) or die "starttls failed: $@\n";
+    $imap->User($user);
+    $imap->Password($pass);
 
     # connect and login
     $imap->State($imap->Connected);
