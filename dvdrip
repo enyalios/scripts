@@ -20,7 +20,7 @@ my @aid         = ();
 my $bitrate     = "";
 my $crop        = "";
 my $size        = "";
-my @dvd_device  = ("-dvd-device", "/dev/dvd");
+my @dvd_device  = ();
 my @sid         = ("-forcedsubsonly");
 my $outfile     = "movie-$pid.mkv";
 my $deint       = "";
@@ -36,6 +36,8 @@ my @chapters    = ();
 my @opts        = ();
 my @oggs        = ();
 my $copy        = 0;
+my $ffmpeg      = 0;
+my $dumpfile    = "";
 
 # this is a nice usage message that will get printed if anything goes wrong
 sub print_help {
@@ -49,6 +51,7 @@ Options:
   --bitrate     -b <n>            bitrate in kbits
   --crop        -c [<n:n:n:n>]    crop region (omit region to auto-detect)
   --dvd-device  -d <path>         dvd device
+  --ffmpeg      -f                use ffmpeg instead of mencoder
   --keep        -k                do not delete temp files when done
   --deinterlace -l                deinterlace video stream
   --denoise     -n                denoise video stream
@@ -79,7 +82,8 @@ sub parse_args {
             (@ARGV && $ARGV[0] =~ /^\d+:\d+:\d+:\d+$/)?shift @ARGV:"autodetect" },
         'chapters|r'     => sub { @chapters = ("--chapters",
                                 (@ARGV && -r $ARGV[0]?shift @ARGV:"")) },
-        'dvd-device|d=s' => sub { $dvd_device[1] = $_[1] },
+        'dvd-device|d=s' => sub { @dvd_device = ("-dvd-device", $_[1]) },
+        'ffmpeg|f'       => \$ffmpeg,
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
         'deinterlace|l'  => sub { $deint = "pp=fd,"; 
@@ -97,6 +101,9 @@ sub parse_args {
                                       $bail++; }
                                       #@fps = qw(-ofps 24000/1001) 
                                       #if $_[0] =~ m#^dvd://\d+$#;
+                                  if($_[0] =~ m#^dvd://\d+$# && @dvd_device == 0) {
+                                      @dvd_device = ("-dvd-device", "/dev/dvd");
+                                  }
                                   push @infiles, $_[0]; }
     );
     
@@ -121,7 +128,7 @@ sub parse_args {
     print "# size         = $size\n" if $size;
     print "# width        = $width\n";
     print "# crop         = $crop\n" if $crop;
-    print "# dvd-device   = $dvd_device[1]\n" if $dvd_device[1] ne "/dev/dvd";
+    print "# dvd-device   = $dvd_device[1]\n" if @dvd_device;
     print "# aid          = ",(join ",",map { $_->[1] } @aid),"\n" if (@aid);
     print "# sid          = $sid[1]\n" if $sid[0] eq "-sid";
     print "# chapter-file = ", $chapters[1] || "grab from dvd", "\n" if @chapters;
@@ -234,10 +241,14 @@ sub get_aspect {
     my $output = qx/MPLAYER_VERBOSE=0 mplayer @dvd_device @infiles -vo null -ao null -frames 1 2>\/dev\/null/;
     $output =~ /^VO: \[null\] (\d+)x\d+ => (\d+)x\d+ Planar YV12  \[zoom\]$/m or die "couldnt find aspect\n";
     my $stretch = $2/$1;
-    my @num = split /[:=]/, $crop;
-    #print "$output\n$1 $2 $stretch $crop $num[2] $num[1]\n";
-    $height = $num[2]*$width/$num[1]/$stretch;
-    $height = int($height/16+.5)*16;
+    if($crop ne "") {
+        my @num = split /[:=]/, $crop;
+        #print "$output\n$1 $2 $stretch $crop $num[2] $num[1]\n";
+        $height = $num[2]*$width/$num[1]/$stretch;
+        $height = int($height/16+.5)*16;
+    } else {
+        $height = -10;
+    }
 }
 
 sub get_chapters {
@@ -278,9 +289,14 @@ sub audio_pass {
             $ogg = "$temp_dir/audio-$pid.ogg";
             $pcm = "$temp_dir/audio-$pid.pcm";
         }
-        my_system(qw"mplayer -benchmark -vo null -vc null -ao",
-            "pcm:fast:file=$pcm", @infiles, @$aid, @opts, @dvd_device);
-        my_system(qw(oggenc -b 96 -o), $ogg, $pcm);
+        if($ffmpeg) {
+            my $hex = sprintf("0x%X", $aid->[1]);
+            my_system("ffmpeg", "-i", @infiles, "-map",  "i:".$hex, qw"-vn -b:a 96k -c:a libvorbis", $ogg);
+        } else {
+            my_system(qw"mplayer -benchmark -vo null -vc null -ao",
+                "pcm:fast:file=$pcm", @infiles, @$aid, @opts, @dvd_device);
+            my_system(qw(oggenc -b 96 -o), $ogg, $pcm);
+        }
 
         push @oggs,$ogg;
     }
@@ -343,11 +359,17 @@ sub audio_pass {
 # 16 since that makes the video codec happy.
 sub video1_pass {
     print "\n### Encoding first pass...\n";
-    my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5), 
-        @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
-        "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}", 
-        "-vf", "${deint}${crop}${noise}scale=$width:$height", @dvd_device, 
-        @opts, @sid, @fps, @{$aid[0]});
+    my $filters = "${deint}${crop}${noise}scale=$width:$height";
+    if($ffmpeg) {
+        my_system("ffmpeg", "-i", @infiles, qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
+            $filters, "-passlogfile", "$temp_dir/ffmpeg2pass-$pid",
+            qw"-pass 1 -f avi -y /dev/null");
+    } else {
+        my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5), 
+            @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o", 
+            "/dev/null", "-x264encopts", "pass=1:bitrate=${bitrate}", 
+            "-vf", $filters, @dvd_device, @opts, @sid, @fps, @{$aid[0]});
+    }
 }
 
 # this is all basically the exact same thing as the first video pass except we
@@ -355,11 +377,17 @@ sub video1_pass {
 # turbo option because of this.
 sub video2_pass {
     print "\n### Encoding second pass...\n";
-    my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5),
-        @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
-        "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
-        "-vf", "${deint}${crop}${noise}scale=$width:$height", @dvd_device,
-        @opts, @sid, @fps, @{$aid[0]});
+    my $filters = "${deint}${crop}${noise}scale=$width:$height";
+    if($ffmpeg) {
+        my_system("ffmpeg", "-i", @infiles, qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
+            $filters, "-passlogfile", "$temp_dir/ffmpeg2pass-$pid",
+            qw"-pass 2 -f avi -y", "$temp_dir/video-$pid.avi");
+    } else {
+        my_system(qw(mencoder -oac pcm -ovc x264 -zoom -msglevel statusline=5),
+            @infiles, "-passlogfile", "$temp_dir/divx2pass-$pid.log", "-o",
+            "$temp_dir/video-$pid.avi", "-x264encopts", "pass=2:bitrate=${bitrate}", 
+            "-vf", $filters, @dvd_device, @opts, @sid, @fps, @{$aid[0]});
+    }
 }
 
 # here we are mixing the audio stream from the ogg file with the video stream
@@ -393,8 +421,13 @@ sub rm_tmp {
         }
     }
     unless($keep) {
-        unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/divx2pass-$pid.log.mbtree", 
-            "$temp_dir/video-$pid.avi", "$temp_dir/chapters-$pid";
+        if($ffmpeg) {
+            unlink "$temp_dir/ffmpeg2pass-$pid-0.log", "$temp_dir/ffmpeg2pass-$pid-0.log.mbtree"; 
+        } else {
+            unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/divx2pass-$pid.log.mbtree";
+        }
+        unlink "$temp_dir/video-$pid.avi", "$temp_dir/chapters-$pid";
+        unlink "$temp_dir/$dumpfile" if $dumpfile ne "";
         for (@oggs) {
             unlink $_;
             s/\.ogg$/\.pcm/;
@@ -427,11 +460,19 @@ sub copy_dvd {
     $dvd_device[1] = $copy_output;
 }
 
+sub dump_stream {
+    $dumpfile = "stream-$pid.dump";
+    my_system("mplayer", @dvd_device, @infiles, "-dumpstream", "-dumpfile", "$temp_dir/$dumpfile");
+    @dvd_device = ();
+    @infiles = ("$temp_dir/$dumpfile");
+}
+
 parse_args();
 copy_dvd() if $copy;
 get_crop();
 get_aspect();
 get_chapters();
+dump_stream() if $ffmpeg;
 audio_pass();
 video1_pass();
 video2_pass();
