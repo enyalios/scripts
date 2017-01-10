@@ -27,7 +27,6 @@
 use strict;
 use warnings;
 
-use lib "$ENV{HOME}/.cpan/myperl/lib/";
 #use SOAP::Lite (+trace => 'debug', maptype => {});
 use SOAP::Lite maptype=>{};
 use SOAP::Transport::HTTP;
