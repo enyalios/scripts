@@ -291,7 +291,8 @@ sub audio_pass {
         }
         if($ffmpeg) {
             my $hex = sprintf("0x%X", $aid->[1]);
-            my_system("ffmpeg", "-i", @infiles, "-map",  "i:".$hex, qw"-vn -b:a 96k -c:a libvorbis", $ogg);
+            my_system("ffmpeg", "-hide_banner", "-i", @infiles, "-map",
+                "i:".$hex, qw"-vn -b:a 96k -c:a libvorbis", $ogg);
         } else {
             my_system(qw"mplayer -benchmark -vo null -vc null -ao",
                 "pcm:fast:file=$pcm", @infiles, @$aid, @opts, @dvd_device);
@@ -361,7 +362,8 @@ sub video1_pass {
     print "\n### Encoding first pass...\n";
     my $filters = "${deint}${crop}${noise}scale=$width:$height";
     if($ffmpeg) {
-        my_system("ffmpeg", "-i", @infiles, qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
+        my_system("ffmpeg", "-hide_banner", "-i", @infiles,
+            qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
             $filters, "-passlogfile", "$temp_dir/ffmpeg2pass-$pid",
             qw"-pass 1 -f avi -y /dev/null");
     } else {
@@ -379,7 +381,8 @@ sub video2_pass {
     print "\n### Encoding second pass...\n";
     my $filters = "${deint}${crop}${noise}scale=$width:$height";
     if($ffmpeg) {
-        my_system("ffmpeg", "-i", @infiles, qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
+        my_system("ffmpeg", "-hide_banner", "-i", @infiles,
+            qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
             $filters, "-passlogfile", "$temp_dir/ffmpeg2pass-$pid",
             qw"-pass 2 -f avi -y", "$temp_dir/video-$pid.avi");
     } else {
