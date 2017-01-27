@@ -5,7 +5,7 @@ use warnings;
 
 my $device = $ARGV[0] || "/dev/dvd";
 my (@chapters, @lengths, $title);
-my @info = `/usr/bin/midentify -dvd-device $device dvd://1`;
+my @info = `midentify -dvd-device $device dvd://1`;
 die "no dvd found\n" if $info[0] eq "ID_EXIT=EOF\n";
 for(@info) {
     $chapters[$1] = $2 if /^ID_DVD_TITLE_(\d+)_CHAPTERS=(\d+)$/;
