@@ -86,7 +86,7 @@ sub parse_args {
         'ffmpeg|f'       => \$ffmpeg,
         'help|h'         => sub { print_help() },
         'keep|k'         => \$keep,
-        'deinterlace|l'  => sub { $deint = "pp=fd,"; 
+        'deinterlace|l'  => sub { $deint = "yadif,"; 
                                   @fps = qw(-ofps 24000/1001); },
         'denoise|n'      => sub { $noise = "hqdn3d," },
         'outfile|o=s'    => \$outfile,
@@ -239,7 +239,7 @@ sub get_crop {
 
 sub get_aspect {
     my $output = qx/MPLAYER_VERBOSE=0 mplayer @dvd_device @infiles -vo null -ao null -frames 1 2>\/dev\/null/;
-    $output =~ /^VO: \[null\] (\d+)x\d+ => (\d+)x\d+ Planar YV12  \[zoom\]$/m or die "couldnt find aspect\n";
+    $output =~ /^VO: \[null\] (\d+)x\d+ => (\d+)x\d+ Planar YV12/m or die "couldnt find aspect\n";
     my $stretch = $2/$1;
     if($crop ne "") {
         my @num = split /[:=]/, $crop;
@@ -291,7 +291,7 @@ sub audio_pass {
         }
         if($ffmpeg) {
             my $hex = sprintf("0x%X", $aid->[1]);
-            my_system("ffmpeg", "-hide_banner", "-i", @infiles, "-map",
+            my_system(qw"ffmpeg -v error -stats -i", @infiles, "-map",
                 "i:".$hex, qw"-vn -b:a 96k -c:a libvorbis", $ogg);
         } else {
             my_system(qw"mplayer -benchmark -vo null -vc null -ao",
@@ -359,10 +359,11 @@ sub audio_pass {
 # maintain the aspect ratio but to round the height to the nearest multiple of
 # 16 since that makes the video codec happy.
 sub video1_pass {
-    print "\n### Encoding first pass...\n";
+    print "\n" unless $ffmpeg;
+    print "### Encoding first pass...\n";
     my $filters = "${deint}${crop}${noise}scale=$width:$height";
     if($ffmpeg) {
-        my_system("ffmpeg", "-hide_banner", "-i", @infiles,
+        my_system(qw"ffmpeg -v error -stats -i", @infiles,
             qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
             $filters, "-passlogfile", "$temp_dir/ffmpeg2pass-$pid",
             qw"-pass 1 -f avi -y /dev/null");
@@ -378,10 +379,11 @@ sub video1_pass {
 # actually write out a file instead of just generating a log and we skip the
 # turbo option because of this.
 sub video2_pass {
-    print "\n### Encoding second pass...\n";
+    print "\n" unless $ffmpeg;
+    print "### Encoding second pass...\n";
     my $filters = "${deint}${crop}${noise}scale=$width:$height";
     if($ffmpeg) {
-        my_system("ffmpeg", "-hide_banner", "-i", @infiles,
+        my_system(qw"ffmpeg -v error -stats -i", @infiles,
             qw"-an -c:v libx264 -preset:v veryslow -b:v", "${bitrate}k", "-filter:v",
             $filters, "-passlogfile", "$temp_dir/ffmpeg2pass-$pid",
             qw"-pass 2 -f avi -y", "$temp_dir/video-$pid.avi");
@@ -399,7 +401,8 @@ sub video2_pass {
 # allow mplayer to keep the audio and video in sync).  the default-language
 # option is just so that it knows the audio is english.
 sub mux_pass {
-    print "\n### Muxing audio and video...\n";
+    print "\n" unless $ffmpeg;
+    print "### Muxing audio and video...\n";
     my_system(qw(mkvmerge --engage allow_avc_in_vfw_mode --default-language 
         eng -o), "$outfile", "-A", "$temp_dir/video-$pid.avi", 
         @oggs, @chapters);
@@ -444,7 +447,7 @@ sub rm_tmp {
 sub find_program {
     my ($program) = @_;
 
-    system("which $program &> /dev/null") == 0
+    which($program)
         or die "Cannot find program '$program' in your path.\n";
 }
 
@@ -453,9 +456,9 @@ sub copy_dvd {
     my $copy_output = $outfile;
     $copy_output =~ s/\.mkv$/.iso/;
     # for some reason the copy doesnt work unless we do a quick mplayer read first
-    system("echo q | mplayer -dvd-device $dvd_device[1] dvd://1 &> /dev/null") unless $pretend;
+    system("echo q | mplayer -dvd-device $dvd_device[1] dvd://1 > /dev/null 2>&1") unless $pretend;
     print "\n### Copying DVD to hard drive...\n";
-    if(system("which ddrescue &> /dev/null") == 0) {
+    if(which("ddrescue")) {
         my_system("ddrescue", "-nv", $dvd_device[1], $copy_output);
     } else {
         my_system("dd", "if=$dvd_device[1]", "of=$copy_output");
@@ -468,6 +471,14 @@ sub dump_stream {
     my_system("mplayer", @dvd_device, @infiles, "-dumpstream", "-dumpfile", "$temp_dir/$dumpfile");
     @dvd_device = ();
     @infiles = ("$temp_dir/$dumpfile");
+}
+
+sub which {
+    my $prog = $_[0];
+    for(split ":", $ENV{PATH}) {
+        return "$_/$prog" if -e "$_/$prog";
+    }
+    return undef;
 }
 
 parse_args();
