@@ -473,6 +473,7 @@ sub copy_dvd {
 
 sub dump_stream {
     $dumpfile = "stream-$pid.dump";
+    print "### Dumping video stream...\n";
     my_system("mplayer", @dvd_device, @infiles, "-dumpstream", "-dumpfile", "$temp_dir/$dumpfile");
     @dvd_device = ();
     @infiles = ("$temp_dir/$dumpfile");
