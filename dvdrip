@@ -238,16 +238,21 @@ sub get_crop {
 }
 
 sub get_aspect {
+    if($crop eq "") {
+        $height = -10;
+        return;
+    }
     my $output = qx/MPLAYER_VERBOSE=0 mplayer @dvd_device @infiles -vo null -ao null -frames 1 2>\/dev\/null/;
     $output =~ /^VO: \[null\] (\d+)x\d+ => (\d+)x\d+ Planar YV12/m or die "couldnt find aspect\n";
     my $stretch = $2/$1;
-    if($crop ne "") {
+    if($pretend && $crop eq "\${crop_region},") {
+        print 'video_height=$(perl -e \'@num = split /[:=]/, "\'$crop_region\'"; $height = $num[2]*', $width, '/$num[1]/', $stretch, '; print int($height/16+.5)*16, "\n"\')', "\n\n";
+        $height = "\${video_height}";
+    } else {
         my @num = split /[:=]/, $crop;
         #print "$output\n$1 $2 $stretch $crop $num[2] $num[1]\n";
         $height = $num[2]*$width/$num[1]/$stretch;
         $height = int($height/16+.5)*16;
-    } else {
-        $height = -10;
     }
 }
 
@@ -497,8 +502,8 @@ rm_tmp();
     
 TODO:
 
-do some testing on the new deinterlacing method
 make dvdrip work on multiple input files
-fix the frames per second bug that causes the passes to have different numbers of frames
+make subtitles work with ffmpeg encoding
+default output width to input width
 
 =cut
