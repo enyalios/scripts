@@ -38,5 +38,5 @@ my $copy = "";
 $copy = "-y " if $device =~ m!^/dev/!;
 print "\n";
 # print out the command for easy copy pasting
-print "/mnt/media/incoming/dvdrip/; dvdrip -a 128 -b 900 -c dvd://$guess -r -o $title.mkv $copy-d $device\n";
-print "/mnt/media/incoming/dvdrip/; dvdrip -a 128 -b 600 -c dvd://$guess -r -o $title.mkv $copy-d $device -w 720 -f\n";
+print "/mnt/dvdrip/; dvdrip -a 128 -b 900 -c dvd://$guess -r -o $title.mkv $copy-d $device\n";
+print "/mnt/dvdrip/; dvdrip -a 128 -b 600 -c dvd://$guess -r -o $title.mkv $copy-d $device -w 720 -f\n";
