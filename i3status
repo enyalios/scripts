@@ -5,28 +5,40 @@ use warnings;
 use LWP::Simple;
 use POSIX qw(strftime);
 use JSON;
+use Socket;
 
+my $SIOCGIFADDR = 0x8915;
+my $SIOCGIWESSID = 0x8B1B;
+my $benchmark = 0;
+$benchmark = 1 if defined $ARGV[0] && $ARGV[0] eq "-benchmark";
 my %click_commands = (
     "date"    => "xterm -e 'date; echo; cal -3; read'",
     "weather" => "firefox-bin -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
 );
 my $count = 0;
+my $output = "json";
+$output = "text" if -t *STDIN;
 
 sub read_file {
-    open FILE, "<", $_[0];
-    my $retval = <FILE>;
-    close FILE;
+    my $retval;
+    open my $fh, "<", $_[0] or die "couldnt open $_[0]: $!\n";
+    {
+        local $/;
+        $retval = <$fh>;
+    }
+    close $fh or die "couldnt close $_[0]: $!\n";
     chomp $retval;
     return $retval;
 }
 
 sub write_file {
-    open FILE, ">", $_[0];
-    print FILE $_[1];
-    close FILE;
+    open my $fh, ">", $_[0] or die "couldnt open $_[0]: $!\n";
+    print $fh $_[1];
+    close $fh or die "couldnt close $_[0]: $!\n";
 }
 
 sub json {
+    return $_[1] unless $output eq "json";
     my $sep_width = 21;
     my $sep = "";
     if($_[0] eq "battery" && $_[1] =~ /^Discharging/) {
@@ -46,20 +58,71 @@ sub json {
     return $string;
 }
 
+sub format_time {
+    my $sec = $_[0];
+    return sprintf "%02d:%02d:%02d", $sec/60/60, int($sec/60)%60, $sec%60;
+}
+
+sub create_socket {
+    socket(my $socket, PF_INET, SOCK_DGRAM, 0) || return undef;
+    return $socket;
+}
+
+sub get_ip {
+    my ($iface, $socket) = @_;
+    my $buf = pack('a256', $iface);
+    if(ioctl($socket, $SIOCGIFADDR, $buf) && (my @address = unpack('x20 C4', $buf))) {
+        return join('.', @address);
+    }
+    return undef;
+}
+
+sub get_essid {
+    my ($iface, $socket) = @_;
+    my $ssid_buff = "0"x32;
+    my $ssid_info = pack("a16pSS", $iface, $ssid_buff, 32 , 0);
+    ioctl($socket, $SIOCGIWESSID, $ssid_info) || return undef;
+    my ($if,           # interface name
+        $ssid_pointer, # ssid pointer
+        $ssid_length,  # ssid length
+        $ssid_flags    # ssid flag
+    ) = unpack("a16pSS", $ssid_info);
+    return undef unless $ssid_length;
+    return substr($ssid_pointer, 0, $ssid_length);
+}
+
+sub find_wireless_device {
+    for(sort glob "/sys/class/net/*/wireless") {
+        return $1 if m{^/sys/class/net/(.*)/wireless$};
+    }
+    return undef;
+}
+
+sub get_battery_data {
+    my $battery_file = "/sys/class/power_supply/BAT0/uevent";
+    return undef unless -e $battery_file;
+    my %info;
+    for(split "\n",  read_file("$battery_file")) {
+        my ($key, $value) = split "=", $_, 2;
+        $info{$key} = $value;
+    }
+    return \%info;
+}
+
 sub weather {
     my (@stat) = stat "$ENV{HOME}/.weather";
-    # file is more than 50 bytes or more than 15 minutes old
+    # file is <6 bytes, >50 bytes, or more than 15 minutes old
     if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 15*60) {
-        $_ = get "http://m.wund.com/cgi-bin/findweather/getForecast?&query=" . &read_file("$ENV{HOME}/.zipcode");
+        $_ = get "http://m.wund.com/cgi-bin/findweather/getForecast?&query=" . read_file("$ENV{HOME}/.zipcode");
         my ($temp) = /<td>Temperature.*?<b>(.*?)<\/b>/s;
         my ($cond) = /<td>Conditions.*?<b>(.*?)<\/b>/s;
-        &write_file("$ENV{HOME}/.weather", "$cond $temp");
+        write_file("$ENV{HOME}/.weather", "$cond $temp");
     }
     my $string = read_file("$ENV{HOME}/.weather");
     $string = "???" if(length $string > 50 || length $string < 6);
     my $color = "";
     $color = "8888ff" if $string =~ /snow/i;
-    return &json("weather", $string, $color);
+    return json("weather", $string, $color);
 }
 
 sub load {
@@ -74,25 +137,30 @@ sub load {
     elsif($string >= .37) { $color = "ffc322"; }
     elsif($string >= .25) { $color = "ffff44"; }
     elsif($string >= .12) { $color = "ffffa1"; }
-    return &json("load", $string, $color);
+    return json("load", $string, $color);
 }
 
 sub date {
-    return &json("date", strftime("%-m/%-d %T", localtime()));
+    return json("date", strftime("%-m/%-d %T", localtime()));
 }
 
 sub battery {
-    return unless -x "/usr/bin/acpi";
-    $_ = `acpi`;
-    chomp;
-    s/^.*?: //;
-    s/^(Charg.*?%).*$/$1/;
-    s/Unknown/Full/;
-    y/,//d;
+    my $battery = $_[0];
+    return unless defined $battery;
+    my $status = $battery->{POWER_SUPPLY_STATUS};
+    $status = "Full" if $status eq "Unknown";
+    my $percent = $battery->{POWER_SUPPLY_CAPACITY};
+    my $text = "$status $percent%";
+    if($status eq "Discharging") {
+        my $charge = $battery->{POWER_SUPPLY_CHARGE_NOW};
+        my $current = $battery->{POWER_SUPPLY_CURRENT_NOW};
+        my $seconds = 0;
+        $seconds = $charge/$current*60*60 if $current;
+        my $remaining = format_time($seconds);
+        $text .= " $remaining remaining";
+    }
     my $color = "";
-    if(/^Discharging /) {
-        $color = "";
-        (my $percent) = / (\d+)%/;
+    if($status eq "Discharging") {
         if($percent <= 5 && $count%2) { $color = "000000"; }
         elsif($percent <= 5)  { $color = "ff0000"; }
         elsif($percent <= 10) { $color = "ff0000"; }
@@ -106,51 +174,56 @@ sub battery {
         elsif($percent <= 60) { $color = "bbffbb"; }
         elsif($percent <= 80) { $color = "ddffdd"; }
     }
-    return &json("battery", $_, $color);
+    return json("battery", $text, $color);
 }
 
 sub watts {
-    my $batt_dir = "/sys/class/power_supply/BAT0";
-    return unless -d $batt_dir;
-    return unless &read_file("$batt_dir/status") eq "Discharging";
+    my $battery = $_[0];
+    return unless defined $battery;
+    return unless $battery->{POWER_SUPPLY_STATUS} eq "Discharging";
     my $watts;
-    if(-e "$batt_dir/power_now") {
-        $watts = &read_file("$batt_dir/power_now");
+    if(defined $battery->{POWER_SUPPLY_POWER_NOW}) {
+        $watts = $battery->{POWER_SUPPLY_POWER_NOW};
+        # power now is in microWatts
         $watts = sprintf "%.2f", $watts/1000000;
-    } elsif(-e "$batt_dir/current_now") {
-        $watts = &read_file("$batt_dir/current_now");
-        $watts = sprintf "%.2f", $watts/100000;
+    } elsif(defined $battery->{POWER_SUPPLY_CURRENT_NOW}) {
+        $watts = $battery->{POWER_SUPPLY_CURRENT_NOW}*$battery->{POWER_SUPPLY_VOLTAGE_NOW};
+        # these are in microAmps and microVolts, respectively
+        $watts = sprintf "%.2f", $watts/1000000000000;
+    } else {
+        return;
     }
-    return &json("watts", "$watts W");
+    return json("watts", "$watts W");
 }
 
 sub network {
-    return unless -x "/sbin/iwconfig";
-    my ($device, $essid);
-    my @iwconfig = split "\n\n", join "", `/sbin/iwconfig 2>/dev/null`;
-    for(@iwconfig) {
-        ($device, $essid) = /^([^ ]+).*ESSID:"([^"]*)"/;
-    }
-    return unless defined $device;
-    return &json("network", "No wireless networks found", "ff2a2a") unless defined $essid;
-    my $ifconfig = join "", `/bin/ifconfig $device`;
-    (my $ip) = $ifconfig =~ /inet ([0-9.]*)/;
-    return &json("network", "Connecting to $essid", "ff8000") if $ip eq "";
-    return &json("network", $essid);
+    my $dev = find_wireless_device();
+    return unless defined $dev;
+    my $socket = create_socket();
+    my $essid = get_essid($dev, $socket);
+    return json("network", "No wireless networks found", "ff2a2a") unless defined $essid;
+    my $ip = get_ip($dev, $socket);
+    return json("network", "Connecting to $essid", "ff8000") unless defined $ip;
+    return json("network", $essid);
 }
 
 $| = 1;
-print "{\"version\":1,\"click_events\":true}\n[\n";
-#print "{\"version\":1}\n[\n";
+print "{\"version\":1,\"click_events\":true}\n[\n" if $output eq "json";
 my $pid = fork();
 die "couldnt fork\n" unless defined $pid;
 if($pid) {
     # parent
     close STDIN;
+    my $sep = ($output eq "json")?",":" | ";
     while(++$count) {
-        print "[", join(",", &network(), &weather(), &battery(), &watts(), &load(), &date()), "],\n";
-        #print join(" | ", &weather, &load, &date), "\n";
-        sleep 1;
+        print "[" if $output eq "json";
+        my $battery = get_battery_data();
+        my $string = join($sep, network(), weather(), battery($battery), watts($battery), load(), date());
+        print $string unless $benchmark;
+        print "]," if $output eq "json";
+        print "\n" unless $benchmark;
+        sleep 1 unless $benchmark;
+        exit if $benchmark && $count >= 10000;
     }
 } else {
     # child
