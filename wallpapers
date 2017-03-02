@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use LWP::Simple;
+use XML::Simple;
+use Digest::MD5 qw(md5_hex);
+
+sub read_file {
+    my $file = shift;
+    open my $fh, $file or die;
+    return join "", <$fh>
+}
+
+my $wallpaper_dir = "$ENV{HOME}/.wallpapers";
+mkdir $wallpaper_dir unless -d $wallpaper_dir;
+mkdir "$wallpaper_dir/good" unless -d "$wallpaper_dir/good";
+chdir $wallpaper_dir;
+
+my $sub = "earthporn";
+my $content = get "https://www.reddit.com/r/$sub.rss";
+my $tree = XMLin($content);
+
+# delete images older than 1 week
+for(<good/*>) {
+    next unless -M $_ > 7;
+    my $path = readlink $_;
+    unlink "good/$path", $_;
+}
+
+# get images
+for(keys %{$tree->{entry}}) {
+	my $html = $tree->{entry}->{$_}->{content}->{content};
+    if($html =~ /<a href="([^"]*)">\[link\]<\/a>/) {
+        my $url = $1;
+        $url =~ s/&amp;/&/g;
+        $url .= ".jpg" if $url =~ /^http:\/\/imgur\.com\/\w+$/;
+        my $file = $url;
+        $file =~ s/\/$//;
+        $file =~ s/^.*\///;
+        next if $file eq "";
+        mirror($url, $file);
+    }
+}
+
+# make links to ones that seem like jpegs
+for(<*>) {
+    next unless -f $_;
+    open(my $fh, "-|", "file", "-b", $_) or die "could not open $_\n";
+    my $type = <$fh>;
+    next unless $type =~ /^(\w+) image data,/;
+    my $ext = $1;
+    $ext =~ y/A-Z/a-z/;
+    my $md5 = md5_hex(read_file($_));
+    my $link = "good/$md5.$ext";
+    next if -e $link;
+    symlink "../$_", $link;
+}
+
+=cut
+TODO
+
+delete files that arent images after a week as well
