@@ -11,10 +11,13 @@ my $SIOCGIFADDR = 0x8915;
 my $SIOCGIWESSID = 0x8B1B;
 my $benchmark = 0;
 $benchmark = 1 if defined $ARGV[0] && $ARGV[0] eq "-benchmark";
-my %click_commands = (
+my $click_commands = {
     "date"    => "xterm -e 'date; echo; cal -3; read'",
-    "weather" => "firefox-bin -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
-);
+    "weather" => {
+        1 => "firefox-bin -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
+        3 => "firefox-bin -new-tab 'https://radar.weather.gov/Conus/Loop/centgrtlakes_loop.gif'",
+    },
+};
 my $count = 0;
 my $output = "json";
 $output = "text" if -t *STDIN;
@@ -235,8 +238,10 @@ if($pid) {
         if($line =~ /^,?{/) {
             $line =~ s/^,//;
             my $tree = decode_json $line;
-            print $log "click event: name=$tree->{name}, button=$tree->{button}\n";
-            my $command = $click_commands{$tree->{name}};
+            my ($button, $name) = ($tree->{button}, $tree->{name});
+            print $log "click event: name=$name, button=$button\n";
+            my $command = $click_commands->{$name};
+            $command = $command->{$button} if ref $command eq "HASH";
             if(defined $command) {
                 print $log "executing command \"$command\"\n";
                 system("$command &");
