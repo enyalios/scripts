@@ -39,7 +39,7 @@ print "\e[?25l" if $delay;
 
 # set up the request for getting monitoring info
 my $ua = LWP::UserAgent->new;
-my $r = HTTP::Request->new(GET => 'https://smgmon.cites.illinois.edu/nagios/cgi-bin/short-details.cgi');
+my $r = HTTP::Request->new(GET => 'https://nagios.security.ncsa.illinois.edu/nagios/cgi-bin/text-status.cgi');
 my $auth = MIME::Base64::encode("$user:$pass");
 $r->header(Authorization => "Basic $auth");
 
@@ -50,12 +50,14 @@ while(1) {
     ($width, $height, undef, undef) = GetTerminalSize();
     $buffer = "";
 
+    &check_vpn();
+    &check_krb_ticket();
     &check_nagios();
     &check_calendar();
     &check_email();
     &check_irc();
-    &check_jabber();
-    &check_pidgin();
+    #&check_jabber();
+    #&check_pidgin();
 
     # bail if we're not a daemon, since we already printed everything
     last unless $delay;
@@ -138,10 +140,10 @@ sub check_nagios {
     }
     
     # dont show ntp probes if there are more than 2 down
-    if($content =~ s/\bntp\b/ntp/g > 2) {
-        my $count = ($content =~ s/.*\bntp\b.*\n//g);
-        $content .= "There are $count ntp probes down.\n";
-    }
+    #if($content =~ s/\bntp\b/ntp/g > 2) {
+    #    my $count = ($content =~ s/.*\bntp\b.*\n//g);
+    #    $content .= "There are $count ntp probes down.\n";
+    #}
 
     # truncate the lines so they dont wrap
     $content =~ s/^(.{1,$width}).*$/$1/gm;
@@ -150,7 +152,7 @@ sub check_nagios {
 
 sub check_irc {
     for(glob "$ENV{HOME}/.irssi/logs/*/*.log") {
-        undef $/;
+        local $/ = undef;
         open LOG, "<$_" or die "couldnt open $_: $!\n";
         $_ = <LOG>;
         close LOG;
@@ -308,7 +310,7 @@ sub check_email {
     # get a list of all folders
     my @folders = $imap->folders();
     my $count = 0;
-    for(@folders) {
+    for(sort @folders) {
         my @emails;
         # skip some special cases
         next if /^\[Gmail\]\/(All Mail|Spam|Starred|Sent Mail|Important)$/;
@@ -438,4 +440,13 @@ sub check_pidgin {
         $content =~ s/\n+/\n/g;
         output("$content\n") if $content;
     }
+}
+
+sub check_vpn {
+    system("ps -C openvpn > /dev/null") and output(color("RED") . "OpenVPN not running!\n\n" . color("RESET"));
+}
+
+sub check_krb_ticket {
+    my @tickets = grep { /^guder\@NCSA\.EDU/ && !/\(Expired\)/ } qx/klist -l/;
+    output(color("RED") . "Kerberos ticket expired!\n\n" . color("RESET")) unless @tickets;
 }
