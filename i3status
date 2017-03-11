@@ -113,12 +113,15 @@ sub get_battery_data {
 }
 
 sub weather {
+    my $api = "15c3972ca958c237";
     my (@stat) = stat "$ENV{HOME}/.weather";
     # file is <6 bytes, >50 bytes, or more than 15 minutes old
     if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 15*60) {
-        $_ = get "http://m.wund.com/cgi-bin/findweather/getForecast?&query=" . read_file("$ENV{HOME}/.zipcode");
-        my ($temp) = /<td>Temperature.*?<b>(.*?)<\/b>/s;
-        my ($cond) = /<td>Conditions.*?<b>(.*?)<\/b>/s;
+        my $zip = read_file("$ENV{HOME}/.zipcode");
+        $_ = get "http://api.wunderground.com/api/$api/conditions/q/$zip.json";
+        my $tree = decode_json($_);
+        my $temp = $tree->{current_observation}->{temp_f};
+        my $cond = $tree->{current_observation}->{weather};
         write_file("$ENV{HOME}/.weather", "$cond $temp");
     }
     my $string = read_file("$ENV{HOME}/.weather");
