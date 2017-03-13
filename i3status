@@ -119,10 +119,17 @@ sub weather {
     if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 15*60) {
         my $zip = read_file("$ENV{HOME}/.zipcode");
         $_ = get "http://api.wunderground.com/api/$api/conditions/q/$zip.json";
-        my $tree = decode_json($_);
-        my $temp = $tree->{current_observation}->{temp_f};
-        my $cond = $tree->{current_observation}->{weather};
-        write_file("$ENV{HOME}/.weather", "$cond $temp");
+        my $tree;
+        my $weather = "";
+        eval { $tree = decode_json($_); };
+        if($@) {
+            warn $@;
+        } else {
+            $weather = sprintf "%s %.1f",
+                $tree->{current_observation}->{weather},
+                $tree->{current_observation}->{temp_f};
+        }
+        write_file("$ENV{HOME}/.weather", $weather);
     }
     my $string = read_file("$ENV{HOME}/.weather");
     $string = "???" if(length $string > 50 || length $string < 6);
