@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Scalar::Util qw(looks_like_number);
+
+sub factorial {
+    my $arg = shift;
+    die "'$arg' is not a positive integer!\n" unless $arg =~ /^\d+$/;
+    my $accum = 1;
+    $accum *= $_ for 1..$arg;
+    return $accum;
+}
+
+my @stack;
+
+while(@ARGV) {
+    my $arg = shift;
+    if(looks_like_number($arg)) {
+        push @stack, $arg;
+    } elsif($arg eq '+') {
+        push @stack, pop(@stack) + pop(@stack);
+    } elsif($arg eq '-') {
+        my $a = pop @stack;
+        my $b = pop @stack;
+        push @stack, $b - $a;
+    } elsif($arg eq '*') {
+        push @stack, pop(@stack) * pop(@stack);
+    } elsif($arg eq '/') {
+        my $a = pop @stack;
+        my $b = pop @stack;
+        push @stack, $b / $a;
+    } elsif($arg eq '^') {
+        my $a = pop @stack;
+        my $b = pop @stack;
+        push @stack, $b ** $a;
+    } elsif($arg eq '!') {
+        push @stack, factorial(pop @stack);
+    } elsif($arg eq '%') {
+        my $a = pop @stack;
+        my $b = pop @stack;
+        push @stack, $b % $a;
+    } elsif($arg eq 'pi') {
+        pop @stack;
+        push @stack, 3.14159265358979;
+    } elsif($arg eq 'sin') {
+        push @stack, sin(pop @stack); 
+    } elsif($arg eq 'cos') {
+        push @stack, cos(pop @stack); 
+    } elsif($arg eq 'tan') {
+        my $a = pop @stack;
+        push @stack, sin($a) / cos($a); 
+    } elsif($arg eq 'e') {
+        pop @stack;
+        push @stack, exp 1;
+    } elsif($arg eq 'ln') {
+        push @stack, log pop @stack;
+    } elsif($arg eq 'log') {
+        push @stack, log(pop @stack) / log(10);
+    } else {
+        die "I don't know what to do with '$arg'\n";
+    }
+}
+
+print "Warning: stack has more than 1 element!\n" if @stack > 1;
+print "@stack\n";
