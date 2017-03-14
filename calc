@@ -41,7 +41,6 @@ while(@ARGV) {
         my $b = pop @stack;
         push @stack, $b % $a;
     } elsif($arg eq 'pi') {
-        pop @stack;
         push @stack, 3.14159265358979;
     } elsif($arg eq 'sin') {
         push @stack, sin(pop @stack); 
@@ -51,7 +50,6 @@ while(@ARGV) {
         my $a = pop @stack;
         push @stack, sin($a) / cos($a); 
     } elsif($arg eq 'e') {
-        pop @stack;
         push @stack, exp 1;
     } elsif($arg eq 'ln') {
         push @stack, log pop @stack;
