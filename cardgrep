@@ -157,8 +157,12 @@ if($opts{u}) {
         $card{cost} //= "";
         $card{cost} =~ s/\{([WUBRGXC\d]+)\}/$1/g;
         $card{text} =~ s/\{?(CHAOS)\}?/{$1}/g;
+        $card{cmc} //= "";
+        $card{cid} //= "";
         print OUTPUT "Name:        $card{name}\n";
         print OUTPUT "Cost:        $card{cost}\n" unless $card{cost} eq "";
+        print OUTPUT "CMC:         $card{cmc}\n";
+        print OUTPUT "CID:         $card{cid}\n";
         print OUTPUT "Type:        $card{type}\n";
         print OUTPUT "Pow/Tgh:     $card{size}\n" if defined $card{size};
         print OUTPUT "Loyalty:     $card{loyal}\n" if defined $card{loyal};
@@ -166,7 +170,6 @@ if($opts{u}) {
         print OUTPUT "\n";
         print OUTPUT "Set/Rarity:  ", join ", ", uniq map { $_->[1] } sort { $a->[0] cmp $b->[0] } @{$card{set}};
         print OUTPUT "\n\n";
-
     }
 
     # and then save it permanently to the data file
@@ -205,6 +208,7 @@ CARD: while(<INPUT>) {
         # then either print out the card name
         print "$1\n" if /^Name: +(.*)$/m;
     } else {
+        s/^(CMC|CID): .*\n//mg;
         # or print out the whole card, this craziness wraps the lines to 80 columns
         1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m;
         print;
