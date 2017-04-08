@@ -20,186 +20,54 @@ use LWP::Simple;
 
 # tweak this depending on where you want to store your data
 my $data_file = "$ENV{HOME}/magic/oracle";
-my $type_re = qr/\b(Land|Creature|Instant|Sorcery|Planeswalker|Enchantment|Artifact|Scheme|Plane|Vanguard|Conspiracy|Phenomenon)\b/;
-my $url = "http://www.yawgatog.com/resources/oracle/";
-my %rarities = (
-    C => "Common",
-    U => "Uncommon",
-    R => "Rare",
-    M => "Mythic Rare",
-    L => "Land",
-    S => "Special",
-    P => "Avatar",
-    B => "Special",
+my $url = "https://mtgjson.com/json/AllSets.json.zip";
+
+my %trans = (
+    "\xE2\x80\x94" => "--",
+    "\xE2\x80\xA2" => "-",
+    "\xE2\x88\x92" => "-",
+    "\xE2\x80\x98" => "'",
+    "\xE2\x80\x99" => "'",
+    "\xE2\x88\x9E" => "infinity",
+    "\xC3\xBA" => "u",
+    "\xC3\xA0" => "a",
+    "\xC3\xA1" => "a",
+    "\xC3\xA2" => "a",
+    "\xC3\xB6" => "o",
+    "\xC3\xBB" => "u",
+    "\xC3\xA9" => "e",
+    "\xC2\xBD" => ".5",
+    "\xC2\xAE" => "(R)",
+    "\xC3\xAD" => "i",
 );
-my %sets = (
-    # base/core set editions
-    A     => "Limited Edition Alpha",
-    B     => "Limited Edition Beta",
-    U     => "Unlimited Edition",
-    RV    => "Revised Edition",
-    "4E"  => "Fourth Edition",
-    "5E"  => "Fifth Edition",
-    "6E"  => "Classic Sixth Edition",
-    "7E"  => "Seventh Edition",
-    "8ED" => "Eighth Edition",
-    "9ED" => "Ninth Edition",
-    "10E" => "Tenth Edition",
-    M10   => "Magic 2010",
-    M11   => "Magic 2011",
-    M12   => "Magic 2012",
-    M13   => "Magic 2013",
-    M14   => "Magic 2014 Core Set",
-    M15   => "Magic 2015 Core Set",
-    ORI   => "Magic Origins",
 
-    # expansion sets
-    AN    => "Arabian Nights",
-    AQ    => "Antiquities",
-    LE    => "Legends",
-    DK    => "The Dark",
-    FE    => "Fallen Empires",
-    HL    => "Homelands",
-    IA    => "Ice Age",
-    AI    => "Alliances",
-    CSP   => "Coldsnap",
-    MI    => "Mirage",
-    VI    => "Visions",
-    WL    => "Weatherlight",
-    TE    => "Tempest",
-    ST    => "Stronghold",
-    EX    => "Exodus",
-    US    => "Urza's Saga",
-    UL    => "Urza's Legacy",
-    UD    => "Urza's Destiny",
-    MM    => "Mercadian Masques",
-    NE    => "Nemesis",
-    PR    => "Prophecy",
-    IN    => "Invasion",
-    PS    => "Planeshift",
-    AP    => "Apocalypse",
-    OD    => "Odyssey",
-    TOR   => "Torment",
-    JUD   => "Judgment",
-    ONS   => "Onslaught",
-    LGN   => "Legions",
-    SCG   => "Scourge",
-    MRD   => "Mirrodin",
-    DST   => "Darksteel",
-    "5DN" => "Fifth Dawn",
-    CHK   => "Champions of Kamigawa",
-    BOK   => "Betrayers of Kamigawa",
-    SOK   => "Saviors of Kamigawa",
-    RAV   => "Ravnica: City of Guilds",
-    GPT   => "Guildpact",
-    DIS   => "Dissension",
-    TSP   => "Time Spiral",
-    PLC   => "Planar Chaos",
-    FUT   => "Future Sight",
-    LRW   => "Lorwyn",
-    MOR   => "Morningtide",
-    SHM   => "Shadowmoor",
-    EVE   => "Eventide",
-    ALA   => "Shards of Alara",
-    CON   => "Conflux",
-    ARB   => "Alara Reborn",
-    ZEN   => "Zendikar",
-    WWK   => "Worldwake",
-    ROE   => "Rise of the Eldrazi",
-    SOM   => "Scars of Mirrodin",
-    MBS   => "Mirrodin Besieged",
-    NPH   => "New Phyrexia",
-    ISD   => "Innistrad",
-    DKA   => "Dark Ascension",
-    AVR   => "Avacyn Restored",
-    RTR   => "Return to Ravnica",
-    GTC   => "Gatecrash",
-    DGM   => "Dragon's Maze",
-    THS   => "Theros",
-    BNG   => "Born of the Gods",
-    JOU   => "Journey into Nyx",
-    KTK   => "Khans of Tarkir",
-    FRF   => "Fate Reforged",
-    DTK   => "Dragons of Tarkir",
-    BFZ   => "Battle for Zendikar",
-    OGW   => "Oath of the Gatewatch",
-    EXP   => "Zendikar Expeditions",
-    SOI   => "Shadows over Innistrad",
-    W16   => "Welcome 2016",
-    EMN   => "Eldritch Moon",
-    KLD   => "Kaladesh",
-    AER   => "Aether Revolt",
+sub uniq {
+    my %seen;
+    return grep { !$seen{$_}++ } @_;
+}
 
-    # compilations/reprint sets
-    P1    => "Portal",
-    P2    => "Portal Second Age",
-    P3K   => "Portal Three Kingdoms",
-    S99   => "Starter 1999",
-    S00   => "Starter 2000",
-    HOP   => "Planechase",
-    PC2   => "Planechase 2012 Edition",
-    CMD   => "Commander",
-    C13   => "Commander 2013 Edition",
-    C14   => "Commander 2014",
-    CNS   => "Conspiracy",
-    CH    => "Chronicles",
-    ARC   => "Archenemy",
-    PROMO => "Promo set for Gatherer",
-    MMA   => "Modern Masters",
-    MM2   => "Modern Masters 2015 Edition",
-    EMA   => "Eternal Masters",
-    EVG   => "Duel Decks: Elves vs. Goblins",
-    DD2   => "Duel Decks: Jace vs. Chandra",
-    DDC   => "Duel Decks: Divine vs. Demonic",
-    DDD   => "Duel Decks: Garruk vs. Liliana",
-    DDE   => "Duel Decks: Phyrexia vs. the Coalition",
-    DDF   => "Duel Decks: Elspeth vs. Tezzeret",
-    DDG   => "Duel Decks: Knights vs. Dragons",
-    DDH   => "Duel Decks: Ajani vs. Nicol Bolas",
-    DDI   => "Duel Decks: Venser vs. Koth",
-    DDJ   => "Duel Decks: Izzet vs. Golgari",
-    DDK   => "Duel Decks: Sorin vs. Tibalt",
-    DDL   => "Duel Decks: Heroes vs. Monsters",
-    DDM   => "Duel Decks: Jace vs. Vraska",
-    DDN   => "Duel Decks: Speed vs. Cunning",
-    DDO   => "Duel Decks: Elspeth vs. Kiora",
-    DDP   => "Duel Decks: Zendikar vs. Eldrazi",
-    DDQ   => "Duel Decks: Blessed vs. Cursed",
-    DRB   => "From the Vault: Dragons",
-    V09   => "From the Vault: Exiled",
-    V10   => "From the Vault: Relics",
-    V11   => "From the Vault: Legends",
-    V12   => "From the Vault: Realms",
-    V13   => "From the Vault: Twenty",
-    V14   => "From the Vault: Annihilation",
-    V15   => "From the Vault: Angels",
-    H09   => "Premium Deck Series: Slivers",
-    PD2   => "Premium Deck Series: Fire and Lightning",
-    PD3   => "Premium Deck Series: Graveborn",
+sub colors_to_string {
+    my $string = "";
+    my %colors = qw(
+        White W
+        Blue  U
+        Black B
+        Red   R
+        Green G
+    );
+    $string .= $colors{$_} for @_;
+    return $string;
+}
 
-    # non-standard-legal sets
-    C15   => "Commander 2015",
+sub cost_to_colors {
+    my $string = "";
+    return "" unless length $_[0];
+    for(split //, "WUBRG") {
+        $string .= $_ if $_[0] =~ /$_/i;
+    }
+    return $string;
+}
 
-    # introductory sets
-
-    # sets not legal for tournament play
-    ASTRAL => "Astral",
-    UG    => "Unglued",
-    UNH   => "Unhinged",
-    VAN1  => "Vanguard",
-    VAN2  => "Vanguard",
-    VAN3  => "Vanguard",
-    VAN4  => "Vanguard",
-    MOL   => "Vanguard",
-
-
-    # magic: the gathering online exclusive sets
-    MED   => "Masters Edition",
-    ME2   => "Masters Edition II",
-    ME3   => "Masters Edition III",
-    ME4   => "Masters Edition IV",
-    VMA   => "Vintage Masters",
-);
 
 # make it read in 1 card at a time
 my %opts;
@@ -210,41 +78,95 @@ my $num_cards = "0";
 if($opts{u}) {
     print "updating card data...\n";
 
-    my $all_sets_url = get $url;
-    $all_sets_url = $1 if $all_sets_url =~ /<a href="(.*?)">all sets/i;
-    my $cards = `wget -qO - "$url$all_sets_url" | funzip`;
-    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
-    # split whenever you have 2 blank lines before either a line with a character or the end of the string
-    for(split /\n\n(?:(?=.)|$)/, $cards) {
-        #print "<<$_>>\n\n";
-        # the negative one tells it not to ignore empty fields
-        my @fields = split /\n/, $_, -1;
-        my $name = shift @fields;
-        my ($type, $cost, $sets, $size, $loyal);
-        if($fields[0] =~ /$type_re/) {
-            $type = shift @fields;
-        } elsif($fields[1] =~ /$type_re/ || $fields[-1] =~ /\b(UG|ASTRAL)\b/ || $name =~ /^(Atinlay Igpay|Old Fogey)$/) {
-            $cost = shift @fields;
-            $type = shift @fields;
-        } else {
-            print "Can't find a card type for '$name'.\n";
+    require JSON;
+    my (%code_to_set, %cards);
+    my $blob = join "", `wget -qO - "$url" | funzip`;
+    while(my ($key, $value) = each %trans) {
+        $blob =~ s/$key/$value/g;
+    }
+    my $tree = JSON::decode_json($blob);
+    for my $set_code (keys %$tree) {
+        my $set_name = $tree->{$set_code}->{name};
+        my $set_release = $tree->{$set_code}->{releaseDate};
+        for my $card (@{$tree->{$set_code}->{cards}}) {
+            next if $card->{layout} eq "token";
+            my $name = $card->{name};
+            $cards{$name}{name} = $name;
+            $cards{$name}{cost} = $card->{manaCost};
+            $cards{$name}{type} = $card->{type};
+            if(defined $card->{power}) {
+                $cards{$name}{size}  = $card->{power} . "/" . $card->{toughness};
+            }
+            $cards{$name}{text} = $card->{text};
+            push @{$cards{$name}{set}}, [ $set_release, $set_name . " " . $card->{rarity} ];
+            $cards{$name}{cmc}  = $card->{cmc};
+            $cards{$name}{cid}  = join "", sort @{$card->{colorIdentity}} if defined $card->{colorIdentity};
+            $cards{$name}{loyal} = $card->{loyalty};
+            $cards{$name}{extras} = undef;
+            if(defined $card->{colors} && (colors_to_string(@{$card->{colors}}) ne cost_to_colors($card->{manaCost}))) {
+                push @{$cards{$name}{extras}}, join("/", @{$card->{colors}}) . " color indicator.";
+            }
+            if($card->{layout} eq "vanguard") {
+                my $hand = $card->{hand};
+                my $life = $card->{life};
+                $hand = "+$hand" if $hand >= 0;
+                $life = "+$life" if $life >= 0;
+                $cards{$name}{text} = "$hand cards / $life life\n" . $cards{$name}{text};
+            }
+            if(defined $card->{names}) {
+                if($card->{layout} eq "split") {
+                    push @{$cards{$name}{extras}}, "This is half of the split card " . join(" // ", @{$card->{names}}) . ".";
+                } elsif($card->{layout} eq "double-faced") {
+                    if($card->{names}->[0] eq $name) {
+                        push @{$cards{$name}{extras}}, "Front face. Transforms into " . $card->{names}->[1] . ".";
+                    } else {
+                        push @{$cards{$name}{extras}}, "Back face. Transforms into " . $card->{names}->[0] . ".";
+                    }
+                } elsif($card->{layout} eq "flip") {
+                    if($card->{names}->[0] eq $name) {
+                        push @{$cards{$name}{extras}}, "Flips into " . $card->{names}->[1] . ".";
+                    } else {
+                        push @{$cards{$name}{extras}}, "Flips from " . $card->{names}->[0] . ".";
+                    }
+                } elsif($card->{layout} eq "meld") {
+                    if($card->{names}->[0] eq $name) {
+                        push @{$cards{$name}{extras}}, "Melds with " . $card->{names}->[1] . " into " . $card->{names}->[2] . ".";
+                    } elsif($card->{names}->[1] eq $name) {
+                        push @{$cards{$name}{extras}}, "Melds with " . $card->{names}->[0] . " into " . $card->{names}->[2] . ".";
+                    } else {
+                        push @{$cards{$name}{extras}}, "Melds from " . $card->{names}->[0] . " and " . $card->{names}->[1] . ".";
+                    }
+                } else {
+                    push @{$cards{$name}{extras}}, "Related to " .
+                    join(", ", grep { $_ ne $name } @{$card->{names}}), ".";
+                }
+            }
         }
-        $size = shift @fields if $type =~ /Creature/;
-        $loyal = shift @fields if $type =~ /Planeswalker/;
-        $sets = pop @fields;
-        if(defined $sets) {
-            $sets = join ", ", map { &translate_set($_) } split ", ", $sets;
-        }
+    }
 
-        print OUTPUT "Name:        $name\n";
-        print OUTPUT "Cost:        $cost\n" if defined $cost;
-        print OUTPUT "Type:        $type\n";
-        print OUTPUT "Pow/Tgh:     $size\n" if defined $size;
-        print OUTPUT "Loyalty:     $loyal\n" if defined $loyal;
-        print OUTPUT "Rules Text:  ", join "\n             ", @fields;
+    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
+
+    for(sort keys %cards) {
+        my %card = %{$cards{$_}};
+        $card{text} //= "";
+        if($card{extras}) {
+            $card{text} .= "\n" if $card{text};
+            $card{text} .= "[" . join(" ", @{$card{extras}}) . "]";
+        }
+        $card{text} =~ s/\n/\n             /g;
+        $card{cost} //= "";
+        $card{cost} =~ s/\{([WUBRGXC\d]+)\}/$1/g;
+        $card{text} =~ s/\{?(CHAOS)\}?/{$1}/g;
+        print OUTPUT "Name:        $card{name}\n";
+        print OUTPUT "Cost:        $card{cost}\n" unless $card{cost} eq "";
+        print OUTPUT "Type:        $card{type}\n";
+        print OUTPUT "Pow/Tgh:     $card{size}\n" if defined $card{size};
+        print OUTPUT "Loyalty:     $card{loyal}\n" if defined $card{loyal};
+        print OUTPUT "Rules Text:  $card{text}";
         print OUTPUT "\n";
-        print OUTPUT "Set/Rarity:  $sets\n" if defined $sets;
-        print OUTPUT "\n";
+        print OUTPUT "Set/Rarity:  ", join ", ", uniq map { $_->[1] } sort { $a->[0] cmp $b->[0] } @{$card{set}};
+        print OUTPUT "\n\n";
+
     }
 
     # and then save it permanently to the data file
@@ -296,12 +218,3 @@ close INPUT;
 #print STDERR "\n" if $opts{n};
 #print {$opts{n}?*STDERR:*STDOUT} scalar keys %cards, " card(s) returned\n\n";
 print $num_cards, " card(s) returned\n\n" unless $opts{n};
-
-sub translate_set {
-    my ($set, $rarity) = split "-", $_[0];
-    print "Can't find a rarity for '$rarity'.\n" unless defined $rarities{$rarity};
-    $rarity = $rarities{$rarity} if defined $rarities{$rarity};
-    print "Can't find a set for '$set'.\n" unless defined $sets{$set};
-    $set = $sets{$set} if defined $sets{$set};
-    return "$set $rarity";
-}
