@@ -51,8 +51,9 @@ if [[ -e ~/minecraft/logs/latest.log ]]; then
     }'
 fi
 
-twitch_list=$(GET 'https://api.twitch.tv/kraken/users/endratic/follows/channels' | perl -MJSON -MData::Dumper -e 'undef $/; $tree = decode_json(<>); print join ",", map { $_->{channel}->{name} } @{$tree->{follows}}')
-streams=$(GET "https://api.twitch.tv/kraken/streams?channel=$twitch_list" | perl -ne 'print "  $_\n" for /"url":"https:\/\/www.(twitch.tv\/.*?)"/g')
+client_id="qiyedssqg04jffi1rtb18w1bajyp98"
+twitch_list=$(GET "https://api.twitch.tv/kraken/users/endratic/follows/channels?client_id=$client_id" | perl -MJSON -MData::Dumper -e 'undef $/; $tree = decode_json(<>); print join ",", map { $_->{channel}->{name} } @{$tree->{follows}}')
+streams=$(GET "https://api.twitch.tv/kraken/streams?client_id=$client_id&channel=$twitch_list" | perl -ne 'print "  $_\n" for /"url":"https:\/\/www.(twitch.tv\/.*?)"/g')
 [[ "$streams" != "" ]] && echo -e "Currently Streaming on TwitchTV:\n$streams\n"
 
 if [[ -S ~/.rtorrent.socket ]] && ps -C rtorrent &> /dev/null; then
