@@ -50,7 +50,8 @@ while(1) {
     ($width, $height, undef, undef) = GetTerminalSize();
     $buffer = "";
 
-    &check_vpn();
+    &check_process("openvpn");
+    &check_process("imapfilter");
     &check_krb_ticket();
     &check_nagios();
     &check_calendar();
@@ -124,7 +125,8 @@ sub colorize {
 
 sub check_nagios {
     my $content;
-    $content = $ua->request($r)->{_content};
+    #$content = $ua->request($r)->{_content};
+    $content = join "", `curl --negotiate -su: 'https://nagios.security.ncsa.illinois.edu/nagios/cgi-bin/text-status.cgi'`;
     # strip off the html
     $content =~ s/.*<\/?html>.*\n//g;
 
@@ -394,7 +396,7 @@ sub format_from {
     my $from = $_[0] || "";
     $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
     $from =~ s/\n//g;
-    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-?8|windows-1252)\?/i);
     $from = "$2 $1" if $from =~ /^(.*?), (.*)$/;
     return $from;
 }
@@ -404,7 +406,7 @@ sub format_subject {
     my $subject = $_[0] || "";
     $subject =~ s/\n//g;
     $subject =~ s/\t+/ /g;
-    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-?8|windows-1252)\?/i);
     substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
     return $subject;
 }
@@ -442,8 +444,9 @@ sub check_pidgin {
     }
 }
 
-sub check_vpn {
-    system("ps -C openvpn > /dev/null") and output(color("RED") . "OpenVPN not running!\n\n" . color("RESET"));
+sub check_process {
+    my $proc = shift;
+    system("ps -C $proc > /dev/null") and output(color("RED") . "$proc not running!\n\n" . color("RESET"));
 }
 
 sub check_krb_ticket {
