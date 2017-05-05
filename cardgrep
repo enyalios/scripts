@@ -71,7 +71,11 @@ sub cost_to_colors {
 
 # make it read in 1 card at a time
 my %opts;
-getopts('nu', \%opts);
+getopts('anuw', \%opts);
+# a - show all fields
+# n - output names only
+# u - update card database
+# w - disable line wrapping
 my $num_cards = "0";
 
 # this part is when you want to update the datafile
@@ -80,7 +84,7 @@ if($opts{u}) {
 
     require JSON;
     my (%code_to_set, %cards);
-    my $blob = join "", `wget -qO - "$url" | funzip`;
+    my $blob = join "", `wget -O - "$url" | funzip`;
     while(my ($key, $value) = each %trans) {
         $blob =~ s/$key/$value/g;
     }
@@ -99,8 +103,9 @@ if($opts{u}) {
             }
             $cards{$name}{text} = $card->{text};
             push @{$cards{$name}{set}}, [ $set_release, $set_name . " " . $card->{rarity} ];
+            push @{$cards{$name}{setlist}}, $set_name unless $tree->{$set_code}->{onlineOnly};
             $cards{$name}{cmc}  = $card->{cmc};
-            $cards{$name}{cid}  = join "", sort @{$card->{colorIdentity}} if defined $card->{colorIdentity};
+            $cards{$name}{cid}  = join "", @{$card->{colorIdentity}} if defined $card->{colorIdentity};
             $cards{$name}{loyal} = $card->{loyalty};
             $cards{$name}{extras} = undef;
             if(defined $card->{colors} && (colors_to_string(@{$card->{colors}}) ne cost_to_colors($card->{manaCost}))) {
@@ -145,6 +150,7 @@ if($opts{u}) {
     }
 
     open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
+    open my $by_set, ">$ENV{HOME}/magic/by_set.txt" or die;
 
     for(sort keys %cards) {
         my %card = %{$cards{$_}};
@@ -170,10 +176,13 @@ if($opts{u}) {
         print OUTPUT "\n";
         print OUTPUT "Set/Rarity:  ", join ", ", uniq map { $_->[1] } sort { $a->[0] cmp $b->[0] } @{$card{set}};
         print OUTPUT "\n\n";
+        # make a file that lists which set each card is in
+        print $by_set "$card{name}|$_\n" for @{$card{setlist}};
     }
 
     # and then save it permanently to the data file
     close OUTPUT;
+    close $by_set;
 
     exit;
 }
@@ -208,9 +217,11 @@ CARD: while(<INPUT>) {
         # then either print out the card name
         print "$1\n" if /^Name: +(.*)$/m;
     } else {
-        s/^(CMC|CID): .*\n//mg;
+        s/^(CMC|CID): .*\n//mg unless $opts{a};
         # or print out the whole card, this craziness wraps the lines to 80 columns
-        1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m;
+        unless($opts{w}) {
+            1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m
+        }
         print;
     }
 }
