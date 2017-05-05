@@ -2,254 +2,127 @@
 
 use strict;
 use warnings;
+use LWP::Simple;
+use XML::Simple;
 use Getopt::Std;
-use LWP::UserAgent;
-use IPC::Open2;
 
+my $file = "$ENV{HOME}/magic/by_set.txt";
 my %opts;
-getopts('ufv', \%opts);
-my $type = $opts{f}?"-foils":"";
-my $debug = $opts{v}?1:0;
+getopts("elw", \%opts);
+# e - exact search
+# l - lowest price only
+my $search = join " ", @ARGV;
 
-sub get {
-    my $url = $_[0];
-    my $ua = LWP::UserAgent->new;
-    # act like mozilla since ssg hates LWP
-    $ua->agent("Mozilla/5.0 (X11; Linux x86_64; rv:25.0) Gecko/20100101 Firefox/25.0");
-    my $response = $ua->get($url);
-    return undef unless $response->is_success;
-    $response->content;
-}
+my %trans = (
+    "Modern Masters 2015 Edition" => "Modern Masters 2015",
+    "Modern Masters 2017 Edition" => "Modern Masters 2017",
+    "Magic 2010" => "Magic 2010 (M10)",
+    "Magic 2011" => "Magic 2011 (M11)",
+    "Magic 2012" => "Magic 2012 (M12)",
+    "Magic 2013" => "Magic 2013 (M13)",
+    "Magic 2014 Core Set" => "Magic 2014 (M14)",
+    "Magic 2015 Core Set" => "Magic 2015 (M15)",
+    "Limited Edition Alpha" => "Alpha Edition",
+    "Limited Edition Beta" => "Beta Edition",
+    "Time Spiral \"Timeshifted\"" => "Timeshifted",
+    "Prerelease Events" => "Prerelease Cards",
+    "Launch Parties" => "Launch Party %26 Release Event Promos",
+    "Release Events" => "Launch Party %26 Release Event Promos",
+    "Planechase 2012 Edition" => "Planechase 2012",
+    "Friday Night Magic" => "FNM Promos",
+    "Media Inserts" => "Media Promos",
+    "15th Anniversary" => "Media Promos",
+    "Dragon Con" => "Media Promos",
+    "Magic Game Day" => "Game Day Promos",
+    "Seventh Edition" => "7th Edition",
+    "Eighth Edition" => "8th Edition",
+    "Ninth Edition" => "9th Edition",
+    "Tenth Edition" => "10th Edition",
+    "Judge Gift Program" => "Judge Promos",
+    "International Collector's Edition" => "International Edition",
+    "Deckmasters" => "Deckmasters Garfield vs Finkel",
+    "Grand Prix" => "Grand Prix Promos",
+    "Ravnica: City of Guilds" => "Ravnica",
+    "Magic: The Gathering-Commander" => "Commander",
+    "Duel Decks Anthology, Divine vs. Demonic" => "Duel Decks: Divine vs. Demonic",
+    "Magic: The Gathering--Conspiracy" => "Conspiracy",
+    "Commander 2013 Edition" => "Commander 2013",
+    "Wizards Play Network" => "WPN %26 Gateway Promos",
+    "Gateway" => "WPN %26 Gateway Promos",
+    "Summer of Magic" => "WPN %26 Gateway Promos",
+    "Super Series" => "JSS/MSS Promos",
+    "Duel Decks Anthology, Jace vs. Chandra" => "Duel Decks: Anthology",
+    "Duel Decks Anthology, Elves vs. Goblins" => "Duel Decks: Anthology",
+    "Duel Decks Anthology, Garruk vs. Liliana" => "Duel Decks: Anthology",
+    "From the Vault: Annihilation (2014)" => "From the Vault: Annihilation",
+    "Coldsnap Theme Decks" => "Coldsnap Theme Deck Reprints",
+    "Pro Tour" => "Pro Tour Promos",
+    "Modern Event Deck 2014" => "Magic Modern Event Deck",
+    "Arena League" => "Arena Promos",
+    "Clash Pack" => "Unique and Miscellaneous Promos",
+    "Worlds" => "Judge Promos",
+    "World Magic Cup Qualifiers" => "WMCQ Promo Cards",
+    "Two-Headed Giant Tournament" => "Arena Promos",
+    "Happy Holidays" => "Special Occasion",
+    "Champs and States" => "Champs Promos",
+);
 
-if($opts{u}) {
-    print "updating price data...\n" if -t STDOUT;
+printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n", qw"Card Set Avg Low High Foil" unless $opts{l};
 
-    for("", "-foils") {
-        my $data = get("http://classic.magictraders.com/cgi-bin/query.cgi?list=magic$_&target=.&field=0&operator=re");
-        $data =~ s/^.*<PRE>\n//s;
-        $data =~ s/\n *<\/PRE>\n.*$//s;
-        open(OUTPUT, ">$ENV{HOME}/magic/prices$_") or die "couldnt open output file\n";
-        print OUTPUT $data;
-        close OUTPUT;
+open my $fh, "<$file" or die;
+
+my $lowest;
+while(<$fh>) {
+    if($opts{e} || $opts{l}) {
+        next unless /^\Q$search\E\|/mi;
+    } else {
+        next unless /\Q$search\E.*\|/i;
     }
-
-    exit;
-}
-
-open(FILE, "<$ENV{HOME}/magic/prices$type") or die "couldnt open prices file\n";
-my @prices = <FILE>;
-
-if(@ARGV) { # they gave us arguments to search for
-    my $page;
-    # print out magic traders prices
-    print "### MagicTraders\n";
-    LINE: for(@prices) {
-        for my $regex (@ARGV) { next LINE unless /$regex/i; }
-        print;
+    chomp;
+    my ($name, $set) = split /\|/, $_, 2;
+    $set = $trans{$set} if defined $trans{$set};
+    my $extra = "";
+    $extra .= " (IE)" if $set eq "International Edition";
+    $extra .= " (CE)" if $set eq "Collector's Edition";
+    if($set eq "Vanguard") {
+        next if $name =~ / Avatar$/;
+        $name .= " (Oversize)";
     }
+    my $content = get "http://partner.tcgplayer.com/x3/phl.asmx/p?pk=GATHPRICE&s=$set&p=$name$extra";
+    my $tree = XMLin $content;
 
-    # fetch and print cardshark prices
-    # theres no easy way to search for foils on cardshark, so skip it
-    unless($opts{f}) {
-        $page = get("http://cardshark.com/Search.aspx?qu=" . join(' ', @ARGV));
-        if(defined $page) {
-            print "### CardShark\n";
-            if($page =~ /CardShark\.com - Search for cards/) { # multiple results
-                while($page =~  m!<a href="/Magic-the-Gathering/.*?">(.*?)</a></font></td><td><font color="Black"><a href="/Buy/Magic-the-Gathering/Find-Cards/.*?">(.*?)</a></font></td><td><font color="Black">.*?</font></td><td><font color="Black">.*?</font></td><td><font color="Black">(.*?)</font>!ig) {
-                    my ($name, $set, $price) = ($1, $2, $3);
-                    $price = "??" if $price eq "&nbsp;";
-                    printf "%-30s %-30s %6s\n", $name, $set, $price;
-                }
-            } else { # returned a single card page
-                my ($name, $set) = ($page =~ m!<span id="[^"]*_lblCardName" class="heading">(.*?)</span>.*?<span id="[^"]*_lblCardSet">(.*?)</span>!s);
-                my ($price) = ($page =~ m!<tr class="tableViewRow" valign="top">\s*<td>(?:<font color="Black">)?\$([\d.]+)(?:</font>)?</td>!);
-                $price = "??" if $price eq "&nbsp;";
-                printf "%-30s %-30s %6s\n", $name, $set, $price;
-            }
-        }
+    my $price = $tree->{product}->{avgprice};
+    if(defined $price && $price != 0 && (!defined $lowest || $price < $lowest)) {
+        $lowest = $price;
     }
-
-    # get star city games price data
-    my $foil = $opts{f}?"foil":"nofoil";
-    my $ssg_url = "http://sales.starcitygames.com/spoiler/display.php?name=" . join(" ", @ARGV) . "&namematch=AND&foil=$foil&for=no&display=4&numpage=100";
-    print "URL: $ssg_url\n" if $debug;
-    $page = get($ssg_url);
-    if(defined $page) {
-        my (%cards, $name, $set);
-        my %code_to_digit;
-#         my %offset_to_digit = qw(
-#             66px   0    49.5pt 0    5.52em 0
-#             0px    1    0pt    1    0em    1
-#             7px    2    5pt    2    0.6em  2
-#             14px   3    10.5pt 3    1.15em 3
-#             21px   4    16pt   4    1.79em 4
-#             28px   5    21pt   5    2.35em 5
-#             35px   6    26pt   6    2.9em  6
-#             42px   7    32pt   7    3.47em 7
-#             49px   8    37pt   8    4.2em  8
-#             56px   9    42pt   9    4.7em  9
-#             63px   .    47.5pt .    5.25em .
-#         );
-        my %offset_to_digit = qw(
-            0px    0
-            7px    1
-            14px   2
-            21px   3
-            28px   4
-            35px   5
-            42px   6
-            49px   7
-            56px   8
-            63px   9
-            66px   10
-        );
-
-        my $background = $1 if $page =~ /background-image:url\((.*?)\)/;
-        $background = "http:" . $background unless $background =~ m!^http://!;
-        my $digits = "";
-        my $i = 10;
-        while($i--) {
-            print "doing the OCR loop\nbackground: $background\n" if $debug;
-            $digits = &background_image_to_string($background);
-            if($digits ne "") {
-                last;
-            } else {
-                $page = get($ssg_url);
-                $background = $1 if $page =~ /background-image:url\((.*?)\)/;
-                $background = "http:" . $background unless $background =~ m!^http://!;
-            }
-        }
-
-        # find the offset for each code and convert them to the correct digit
-        while($page =~ /\.(......) \{background-position:-?([\d.]+(pt|px|em))/g) {
-            print "code: $1\t$2\n" if $debug;
-            $code_to_digit{$1} = (exists $offset_to_digit{$2})?$offset_to_digit{$2}:"?";
-        }
-
-        for(split /<tr class="deckdbbody2?.*?">/, $page) {
-            my ($price_line, $price, $count_line, $count, @cells);
-            @cells = /<td class="deckdbbody2?.*?"(?: nowrap="nowrap")?>(.*?)<\/td>/sg;
-            next unless @cells;
-            if($cells[0] =~ /\n\s*(.*?)<\/a>/) {
-                $name = $1;
-                $set = $cells[1];
-                $set =~ s/<.*?>//g;
-                s/&amp;/&/g for $name, $set;
-            }
-            next if $name =~ /\(Not Tournament Legal\)/;
-            next if $set =~ /Rarities & Misprints/;
-            for($cells[8] =~ /<div class="(.*?)">/g) {
-                for(split " ", $_) {
-                    s/2$//;
-                    $price .= substr $digits, $code_to_digit{$_}, 1 if defined $code_to_digit{$_};
-                }
-            }
-            # handle prices how they are listed when there is a sale
-            $price = $1 if $cells[8] =~ /^.*<span[^>]*>\$([\d.]+)<\/span>/;
-            $count = 0 if $cells[7] eq "Out of Stock";
-            for($cells[7] =~ /<div class="(.*?)">/g) {
-                for(split " ", $_) {
-                    s/2$//;
-                    $count .= substr $digits, $code_to_digit{$_}, 1 if defined $code_to_digit{$_};
-                }
-            }
-            print "price: $price\tcount: $count\n" if $debug;
-            $cards{$name}{$set}{count} += $count;
-            $cards{$name}{$set}{min} = $price if(!defined $cards{$name}{$set}{min} || $price < $cards{$name}{$set}{min});
-            $cards{$name}{$set}{max} = $price if(!defined $cards{$name}{$set}{max} || $price > $cards{$name}{$set}{max});
-            #my $i = 0; print "  ", $i++, ": $_\n" for @cells;
-        }
-
-        print "### StarCityGames\n" if %cards;
-        for my $name(sort keys %cards) {
-            for my $set(sort keys %{$cards{$name}}) {
-                printf "%-30s %-30s %6.2f  %3d\n",
-                $name,
-                $set,
-                ($cards{$name}{$set}{min} + $cards{$name}{$set}{max}) / 2,
-                $cards{$name}{$set}{count};
-            }
-        }
-    }
-} else { # no arguments, match cards on stdin
-    while(<>) {
-        chomp(my $card = $_);
-        print grep { /^$card(,| \(.{1,4}\))/i } @prices;
+    if(!$opts{l}) {
+        printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n",
+            $name,
+            $set,
+            format_price($tree->{product}->{avgprice}),
+            format_price($tree->{product}->{lowprice}),
+            format_price($tree->{product}->{hiprice}),
+            format_price($tree->{product}->{foilavgprice}),
     }
 }
 
-sub background_image_to_string {
-    my $background = $_[0];
-    #my @lines = `GET "$background" | pngtopnm | gocr -C 0-9.`;
-    my $image = get($background);
-    return "" unless $image;
-    my $pid = open2(*READER, *WRITER, 'pngtopnm | gocr -C 0-9.');
-    print WRITER $image;
-    close WRITER;
-    my @lines = <READER>;
-    close READER;
-    waitpid($pid, 0);
+print "$search|$lowest\n" if $opts{l};
+close $fh;
 
-    for(@lines){ tr/ //d; chomp; }
-    print "string1:  ", $lines[0], "\nstring2:  ", $lines[1], "\n" if $debug;
-    my (@digits, %seen_digit);
-
-    # make an array of digits in each row of the image
-    my @digits1 = split "", $lines[0];
-    my @digits2 = split "", $lines[1];
-
-    # bail if one line is shorter than the other
-    return "" unless @digits1 == @digits2;
-    # or if they are both the wrong length
-    return "" unless @digits1 == 11;
-
-    # iterate thru the digits noting the ones that match
-    my $max = (@digits1 > @digits2)?@digits1:@digits2;
-    for(0..$max-1) {
-        if($digits1[$_] eq $digits2[$_] && $digits1[$_] ne "_") {
-            $digits[$_] = $digits1[$_];
-            $seen_digit{$digits1[$_]} = 1;
-        } else {
-            $digits[$_] = "_";
-        }
-    }
-    print "1st pass: ", join "", @digits, "\n" if $debug;
-
-    # when one is unset pick the other if we havent used that digit anywhere else
-    for(0..$max-1) {
-        if($digits[$_] eq "_") {
-            if($digits1[$_] eq "_" && $digits2[$_] ne "_" && !defined $seen_digit{$digits2[$_]}) {
-                $digits[$_] = $digits2[$_];
-                $seen_digit{$digits2[$_]} = 1;
-            } elsif($digits2[$_] eq "_" && $digits1[$_] ne "_" && !defined $seen_digit{$digits1[$_]}) {
-                $digits[$_] = $digits1[$_];
-                $seen_digit{$digits1[$_]} = 1;
-            } elsif($digits1[$_] ne "_" && $digits2[$_] ne "_" && $seen_digit{$digits1[$_]} && !defined $seen_digit{$digits2[$_]}) {
-                $digits[$_] = $digits2[$_];
-                $seen_digit{$digits2[$_]} = 1;
-            } elsif($digits2[$_] ne "_" && $digits1[$_] ne "_" && $seen_digit{$digits2[$_]} && !defined $seen_digit{$digits1[$_]}) {
-                $digits[$_] = $digits1[$_];
-                $seen_digit{$digits1[$_]} = 1;
-            }
-        }
-    }
-    print "2nd pass: ", join "", @digits, "\n" if $debug;
-
-    # we have seen every digit but 1, fill it in
-    if(keys %seen_digit == 10) {
-        my $missing = "";
-        for(0..9, ".") {
-            $missing = $_ unless defined $seen_digit{$_};
-        }
-        for(0..$max-1) {
-            if($digits[$_] eq "_") {
-                $digits[$_] = $missing;
-                $seen_digit{$missing} = 1;
-            }
-        }
-    }
-    print "3rd pass: ", join "", @digits, "\n" if $debug;
-    # bail unless we've seen each digit once
-    return "" unless keys %seen_digit == 11;
-    return join "", @digits;
+sub format_price {
+    my $price = shift;
+    return "?" unless defined $price;
+    return "" if $price == 0;
+    return sprintf "%.2f", $price;
 }
+
+=cut
+
+TODO
+
+see if mtgjson has a flag for not tournament legal cards
+make translations for every set that is broken
+make & work in set names (and escape other stuff)
+make split cards work
+filter the back of double face / flip cards out of magic/by_set.txt
+no clue how to make cards with mult arts in the same set work
