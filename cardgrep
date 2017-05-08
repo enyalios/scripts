@@ -119,7 +119,7 @@ if($opts{u}) {
                 $cards{$name}{text} = "$hand cards / $life life\n" . $cards{$name}{text};
             }
             if(defined $card->{names}) {
-                if($card->{layout} eq "split") {
+                if($card->{layout} eq "split" || $card->{layout} eq "aftermath") {
                     push @{$cards{$name}{extras}}, "This is half of the split card " . join(" // ", @{$card->{names}}) . ".";
                 } elsif($card->{layout} eq "double-faced") {
                     if($card->{names}->[0] eq $name) {
@@ -143,7 +143,7 @@ if($opts{u}) {
                     }
                 } else {
                     push @{$cards{$name}{extras}}, "Related to " .
-                    join(", ", grep { $_ ne $name } @{$card->{names}}), ".";
+                    join(", ", grep { $_ ne $name } @{$card->{names}}) . ".";
                 }
             }
         }
