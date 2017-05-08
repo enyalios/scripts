@@ -67,17 +67,28 @@ my %trans = (
     "Champs and States" => "Champs Promos",
 );
 
-printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n", qw"Card Set Avg Low High Foil" unless $opts{l};
-
 open my $fh, "<$file" or die;
 
 my $lowest;
+my $regex = qr/\Q$search\E.*\|/i;
+$regex = qr/^\Q$search\E\|/mi if ($opts{e} || $opts{l});
+if($search eq "" && ! -t STDIN) {
+    # stdin is not a tty use stdin for search terms
+    chomp(my @list = <STDIN>);
+    $search = join "|", @list;
+    $regex = qr/^($search)\|/mi;
+}
+
+if($search eq "") {
+    print "nothing to search for\n";
+    exit 1;
+}
+
+printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n", qw"Card Set Avg Low High Foil" unless $opts{l};
+
 while(<$fh>) {
-    if($opts{e} || $opts{l}) {
-        next unless /^\Q$search\E\|/mi;
-    } else {
-        next unless /\Q$search\E.*\|/i;
-    }
+    next unless /$regex/;
+
     chomp;
     my ($name, $set) = split /\|/, $_, 2;
     $set = $trans{$set} if defined $trans{$set};
@@ -126,3 +137,5 @@ make & work in set names (and escape other stuff)
 make split cards work
 filter the back of double face / flip cards out of magic/by_set.txt
 no clue how to make cards with mult arts in the same set work
+make it so that you can use -l on a list of cards given to stdin
+make it so that -l will look at the foil price too (emrakul prerelease foil is cheaper than a regular non-foil)
