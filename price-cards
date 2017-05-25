@@ -103,8 +103,12 @@ while(<$fh>) {
     my $tree = XMLin $content;
 
     my $price = $tree->{product}->{avgprice};
+    my $fprice = $tree->{product}->{foilavgprice};
     if(defined $price && $price != 0 && (!defined $lowest || $price < $lowest)) {
         $lowest = $price;
+    }
+    if(defined $fprice && $fprice != 0 && (!defined $lowest || $fprice < $lowest)) {
+        $lowest = $fprice;
     }
     if(!$opts{l}) {
         printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n",
@@ -138,4 +142,3 @@ make split cards work
 filter the back of double face / flip cards out of magic/by_set.txt
 no clue how to make cards with mult arts in the same set work
 make it so that you can use -l on a list of cards given to stdin
-make it so that -l will look at the foil price too (emrakul prerelease foil is cheaper than a regular non-foil)
