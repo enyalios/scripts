@@ -7,10 +7,12 @@ use XML::Simple;
 use Getopt::Std;
 
 my $file = "$ENV{HOME}/magic/by_set.txt";
+my $format_string = "%-34s  %-34s  %7s  %7s  %7s  %7s\n";
 my %opts;
-getopts("elw", \%opts);
+getopts("els:", \%opts);
 # e - exact search
 # l - lowest price only
+# s - restrict to one set
 my $search = join " ", @ARGV;
 
 my %trans = (
@@ -84,10 +86,11 @@ if($search eq "") {
     exit 1;
 }
 
-printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n", qw"Card Set Avg Low High Foil" unless $opts{l};
+printf $format_string, qw"Card Set Avg Low High Foil" unless $opts{l};
 
 while(<$fh>) {
     next unless /$regex/;
+    next if defined $opts{s} && ! /\|.*\Q$opts{s}\E/i;
 
     chomp;
     my ($name, $set) = split /\|/, $_, 2;
@@ -111,7 +114,7 @@ while(<$fh>) {
         $lowest = $fprice;
     }
     if(!$opts{l}) {
-        printf "%-34s  %-34s  %7s  %7s  %7s  %7s\n",
+        printf $format_string,
             $name,
             $set,
             format_price($tree->{product}->{avgprice}),
