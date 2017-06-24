@@ -3,10 +3,10 @@
 use strict;
 
 my $dev = $ARGV[0];
-$dev = "wlan0" if (!$dev && -e "/etc/init.d/net.wlan0");
-$dev = "eth1" if (!$dev && -e "/etc/init.d/net.eth1");
-$dev = "eth0" if (!$dev && -e "/etc/init.d/net.eth0");
-$dev = "eth0" unless $dev;
+unless(length $dev) {
+    my @lines = grep { ! /no wireless extensions/ } grep /^\w/, qx"/sbin/iwconfig 2>&1";
+    ($dev) = split(" ", $lines[0]);
+}
 
 my $sudo = "";
 $sudo = "/usr/bin/sudo" if $>;
