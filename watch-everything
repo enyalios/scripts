@@ -395,6 +395,7 @@ sub format_from {
     # format a from field nicely
     my $from = $_[0] || "";
     $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+    $from = $1 if $from =~ /^\\"(.*)\\"$/;
     $from =~ s/\n//g;
     $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-?8|windows-1252)\?/i);
     $from = "$2 $1" if $from =~ /^(.*?), (.*)$/;
