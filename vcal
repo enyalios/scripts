@@ -46,7 +46,9 @@ $date = $recurring if $recurring;
 
 # pretty-print a meeting description
 my $header = "-- $summary ($date $start - $end)";
-print "\n", $header, "-" x (72-length($header)), "\n";
+my $header_len = 72-length($header);
+$header_len = 0 if $header_len < 0;
+print "\n", $header, "-" x $header_len, "\n";
 print "  Where: $location\n";
 print "  Organizer: $organizer\n\n";
 print "  Attendees:\n    ", join("\n    ", @attendees), "\n";
