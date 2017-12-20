@@ -7,7 +7,8 @@ use XML::Simple;
 use Getopt::Std;
 
 my $file = "$ENV{HOME}/magic/by_set.txt";
-my $format_string = "%-34s  %-34s  %7s  %7s  %7s  %7s\n";
+my $format_string = "%-34s  %-40s  %7s  %7s  %7s  %7s\n";
+$| = 1; # disable buffering even when stdout isnt connected to a tty
 my %opts;
 getopts("els:", \%opts);
 # e - exact search
@@ -81,7 +82,7 @@ if($search eq "" && ! -t STDIN) {
     $regex = qr/^($search)\|/mi;
 }
 
-if($search eq "") {
+if($search eq "" && !$opts{s}) {
     print "nothing to search for\n";
     exit 1;
 }
