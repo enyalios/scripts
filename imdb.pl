@@ -7,7 +7,7 @@ use Getopt::Std;
 use HTML::Entities;
 
 sub getMovieList {
-    my $_ = get "http://www.imdb.com/find?q=$_[0]";
+    local $_ = get "http://www.imdb.com/find?q=$_[0]";
     my ($number, $title, $year, $type);
     if(/<meta property="og:url" content="http:\/\/www.imdb.com\/title\/tt(\d+)\/" \/>/) {
         # this is a single movie page
