@@ -97,7 +97,7 @@ sub parse_args {
         'sid|u=i'        => sub { @sid = ("-sid", $_[1]) },
         'width|w=i'      => sub { $width = 16 * int(($_[1] + 8)/16) },
         'copy|y'         => \$copy,
-        'quality|q=i'    => \$quality
+        'quality|q=i'    => \$quality,
         '<>'             => sub { unless($_[0] =~ m#^dvd://\d+$# || -r $_[0]) {
                                       print "Input file '$_[0]' is not a valid ", 
                                       "dvd track or readable input file.\n";
