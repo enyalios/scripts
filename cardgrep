@@ -83,8 +83,9 @@ if($opts{u}) {
     print "updating card data...\n";
 
     require JSON;
-    my (%code_to_set, %cards);
+    my (%cards, @by_set);
     my $blob = join "", `wget -O - "$url" | funzip`;
+    #my $blob = join "", `cat AllSets.json.zip | funzip`;
     while(my ($key, $value) = each %trans) {
         $blob =~ s/$key/$value/g;
     }
@@ -103,7 +104,6 @@ if($opts{u}) {
             }
             $cards{$name}{text} = $card->{text};
             push @{$cards{$name}{set}}, [ $set_release, $set_name . " " . $card->{rarity} ];
-            push @{$cards{$name}{setlist}}, $set_name unless $tree->{$set_code}->{onlineOnly};
             $cards{$name}{cmc}  = $card->{cmc};
             $cards{$name}{cid}  = join "", @{$card->{colorIdentity}} if defined $card->{colorIdentity};
             $cards{$name}{loyal} = $card->{loyalty};
@@ -118,26 +118,32 @@ if($opts{u}) {
                 $life = "+$life" if $life >= 0;
                 $cards{$name}{text} = "$hand cards / $life life\n" . $cards{$name}{text};
             }
+            my $name_and_set;
             if(defined $card->{names}) {
                 if($card->{layout} eq "split" || $card->{layout} eq "aftermath") {
                     push @{$cards{$name}{extras}}, "This is half of the split card " . join(" // ", @{$card->{names}}) . ".";
+                    $name_and_set = join(" // ", @{$card->{names}}) . "|$set_name\n" if $name eq $card->{names}->[0];
                 } elsif($card->{layout} eq "double-faced") {
                     if($card->{names}->[0] eq $name) {
                         push @{$cards{$name}{extras}}, "Front face. Transforms into " . $card->{names}->[1] . ".";
+                        $name_and_set = "$name|$set_name\n";
                     } else {
                         push @{$cards{$name}{extras}}, "Back face. Transforms into " . $card->{names}->[0] . ".";
                     }
                 } elsif($card->{layout} eq "flip") {
                     if($card->{names}->[0] eq $name) {
                         push @{$cards{$name}{extras}}, "Flips into " . $card->{names}->[1] . ".";
+                        $name_and_set = "$name|$set_name\n";
                     } else {
                         push @{$cards{$name}{extras}}, "Flips from " . $card->{names}->[0] . ".";
                     }
                 } elsif($card->{layout} eq "meld") {
                     if($card->{names}->[0] eq $name) {
                         push @{$cards{$name}{extras}}, "Melds with " . $card->{names}->[1] . " into " . $card->{names}->[2] . ".";
+                        $name_and_set = "$name|$set_name\n";
                     } elsif($card->{names}->[1] eq $name) {
                         push @{$cards{$name}{extras}}, "Melds with " . $card->{names}->[0] . " into " . $card->{names}->[2] . ".";
+                        $name_and_set = "$name|$set_name\n";
                     } else {
                         push @{$cards{$name}{extras}}, "Melds from " . $card->{names}->[0] . " and " . $card->{names}->[1] . ".";
                     }
@@ -145,13 +151,14 @@ if($opts{u}) {
                     push @{$cards{$name}{extras}}, "Related to " .
                     join(", ", grep { $_ ne $name } @{$card->{names}}) . ".";
                 }
+            } else {
+                $name_and_set = "$name|$set_name\n"; 
             }
+            push @by_set, $name_and_set if defined $name_and_set && ! $tree->{$set_code}->{onlineOnly};
         }
     }
 
     open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
-    open my $by_set, ">$ENV{HOME}/magic/by_set.txt" or die;
-
     for(sort keys %cards) {
         my %card = %{$cards{$_}};
         $card{text} //= "";
@@ -176,13 +183,14 @@ if($opts{u}) {
         print OUTPUT "\n";
         print OUTPUT "Set/Rarity:  ", join ", ", uniq map { $_->[1] } sort { $a->[0] cmp $b->[0] } @{$card{set}};
         print OUTPUT "\n\n";
-        # make a file that lists which set each card is in
-        print $by_set "$card{name}|$_\n" for @{$card{setlist}};
     }
-
     # and then save it permanently to the data file
     close OUTPUT;
-    close $by_set;
+
+    # make a file that lists which set each card is in
+    open my $by_set_fh, ">$ENV{HOME}/magic/by_set.txt" or die;
+    print $by_set_fh $_ for sort @by_set;
+    close $by_set_fh;
 
     exit;
 }
