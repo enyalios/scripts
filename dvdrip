@@ -38,6 +38,7 @@ my @oggs        = ();
 my $copy        = 0;
 my $ffmpeg      = 0;
 my $dumpfile    = "";
+my $quality     = "";
 
 # this is a nice usage message that will get printed if anything goes wrong
 sub print_help {
@@ -49,19 +50,20 @@ Usage:
 Options:
   --aid         -a <n>[,<n>]+     aid number (default: 128)
   --bitrate     -b <n>            bitrate in kbits
+  --chapters    -r [<file>]       use chapter info (omit file to auto-detect)
+  --copy        -y                make a copy of the dvd before ripping
   --crop        -c [<n:n:n:n>]    crop region (omit region to auto-detect)
+  --deinterlace -l                deinterlace video stream
+  --denoise     -n                denoise video stream
   --dvd-device  -d <path>         dvd device
   --ffmpeg      -f                use ffmpeg instead of mencoder
   --keep        -k                do not delete temp files when done
-  --deinterlace -l                deinterlace video stream
-  --denoise     -n                denoise video stream
   --outfile     -o <file>         write movie to <file> (movie-\$pid.mkv)
   --pretend     -p                print out commands, but do not run them
-  --chapters    -r [<file>]       use chapter info (omit file to auto-detect)
-  --size        -s <n>            target filesize in mbs
+  --quality     -q <n>            x264 quality (0 - 51)
   --sid         -u <n>            subtitle id number
+  --size        -s <n>            target filesize in mbs
   --width       -w <n>            video width (default: 640)
-  --copy        -y                make a copy of the dvd before ripping
   --                              end dvdrip options--remaining args to mplayer
 
   Short options may be bundled and long options abbreviated.
@@ -95,6 +97,7 @@ sub parse_args {
         'sid|u=i'        => sub { @sid = ("-sid", $_[1]) },
         'width|w=i'      => sub { $width = 16 * int(($_[1] + 8)/16) },
         'copy|y'         => \$copy,
+        'quality|q=i'    => \$quality
         '<>'             => sub { unless($_[0] =~ m#^dvd://\d+$# || -r $_[0]) {
                                       print "Input file '$_[0]' is not a valid ", 
                                       "dvd track or readable input file.\n";
@@ -107,9 +110,12 @@ sub parse_args {
                                   push @infiles, $_[0]; }
     );
     
-    if($size && $bitrate)   { print "You cannot specify both a bitrate and a filesize.\n"; print_help(); }
-    if(!$size && !$bitrate) { print "You must specify either a bitrate or a filesize.\n";  print_help(); }
-    unless(@infiles)        { print "You must specify at least one input file.\n";         print_help(); }
+    if($size && $bitrate)    { print "You cannot specify both a bitrate and a filesize.\n"; print_help(); }
+    if($size && $quality)    { print "You cannot specify both a filesize and a quality.\n"; print_help(); }
+    if($bitrate && $quality) { print "You cannot specify both a bitrate and a quality.\n";  print_help(); }
+    if(!$ffmpeg && $quality) { print "You cannot use quality without the ffmpeg option.\n"; print_help(); }
+    if(!$size && !$bitrate && !$quality) { print "You must specify either a bitrate, a filesize, or a quality.\n";  print_help(); }
+    unless(@infiles)         { print "You must specify at least one input file.\n";         print_help(); }
     if(@chapters && !$chapters[1] && $infiles[0] !~ m#^dvd://\d+$#) 
     { print "You can only get chapters automatically from DVDs.\n"; print_help(); }
     if($copy && $infiles[0] !~ m#dvd://\d+$#)
@@ -400,6 +406,15 @@ sub video2_pass {
     }
 }
 
+sub video_pass {
+    print "\n" unless $ffmpeg;
+    print "### Encoding video pass...\n";
+    my $filters = "${deint}${crop}${noise}scale=$width:$height";
+    my_system(qw"ffmpeg -v error -stats -i", @infiles,
+        qw"-an -c:v libx264 -preset:v veryslow -crf", $quality, "-filter:v",
+        $filters, qw"-f avi -y", "$temp_dir/video-$pid.avi");
+}
+
 # here we are mixing the audio stream from the ogg file with the video stream
 # from the avi file we made.  the '-A' option tells mkvmerge to not use the
 # audio stream from the avi file (we don't want this since this was just to
@@ -433,7 +448,7 @@ sub rm_tmp {
     }
     unless($keep) {
         if($ffmpeg) {
-            unlink "$temp_dir/ffmpeg2pass-$pid-0.log", "$temp_dir/ffmpeg2pass-$pid-0.log.mbtree"; 
+            unlink "$temp_dir/ffmpeg2pass-$pid-0.log", "$temp_dir/ffmpeg2pass-$pid-0.log.mbtree" unless $quality; 
         } else {
             unlink "$temp_dir/divx2pass-$pid.log", "$temp_dir/divx2pass-$pid.log.mbtree";
         }
@@ -494,8 +509,12 @@ get_aspect();
 get_chapters();
 dump_stream() if $ffmpeg;
 audio_pass();
-video1_pass();
-video2_pass();
+if($quality) {
+    video_pass();
+} else {
+    video1_pass();
+    video2_pass();
+}
 mux_pass();
 rm_tmp();
 
