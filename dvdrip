@@ -319,7 +319,7 @@ sub audio_pass {
     # size and container overhead from the target file size.  this crazy
     # calculation gives us our needed bitrate which we then round down to an
     # integer so mencoder doesnt barf.
-    if(!$bitrate) {
+    if($size) {
         if($pretend) {
             # some crazy commands to dynamically determine the video bitrate
             # if we are doing a 'pretend'
