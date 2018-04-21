@@ -165,8 +165,8 @@ sub battery {
     my $percent = $battery->{POWER_SUPPLY_CAPACITY};
     my $text = "$status $percent%";
     if($status eq "Discharging") {
-        my $charge = $battery->{POWER_SUPPLY_CHARGE_NOW};
-        my $current = $battery->{POWER_SUPPLY_CURRENT_NOW};
+        my $charge = $battery->{POWER_SUPPLY_CHARGE_NOW} // $battery->{POWER_SUPPLY_ENERGY_NOW};
+        my $current = $battery->{POWER_SUPPLY_CURRENT_NOW} // $battery->{POWER_SUPPLY_POWER_NOW};
         my $seconds = 0;
         $seconds = $charge/$current*60*60 if $current;
         my $remaining = format_time($seconds);
