@@ -8,20 +8,20 @@ export DISPLAY=:0
 
 case $1 in
     (brightness)
-        $CAIRO_OSD -t Brightness -i $IMAGE_DIR/brightness.png -p `cat /sys/class/backlight/acpi_video0/brightness`/`cat /sys/class/backlight/acpi_video0/max_brightness` &
+        $CAIRO_OSD -t Brightness -i $IMAGE_DIR/brightness.png -p `cat /sys/class/backlight/acpi_video0/brightness`/`cat /sys/class/backlight/acpi_video0/max_brightness`
         ;;
     (battery)
-        $CAIRO_OSD -t `cat /sys/class/power_supply/BAT0/status` -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'` &
+        $CAIRO_OSD -t `cat /sys/class/power_supply/BAT0/status` -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'`
         ;;
     (volume)
-        $CAIRO_OSD -t Volume -i $IMAGE_DIR/volume.png -p `amixer get PCM | perl -ne 'print "$1/100\n" if /Front Left: Playback.*\[(\d+)%\]/'` &
         mplayer $SOUND_CHANGE &
+        $CAIRO_OSD -t Volume -i $IMAGE_DIR/volume.png -p `amixer get PCM | perl -ne 'print "$1/100\n" if /Front Left: Playback.*\[(\d+)%\]/'`
         ;;
     (mute)
-        if amixer -c 29 | grep -q 'Playback \[on\]'; then
-            $CAIRO_OSD -t Unmute -i $IMAGE_DIR/volume.png -p `amixer get PCM | perl -ne 'print "$1/100\n" if /Front Left: Playback.*\[(\d+)%\]/'` &
+        if grep -q 'mute.*off' /proc/acpi/ibm/volume; then
+            $CAIRO_OSD -t Unmute -i $IMAGE_DIR/volume.png -p `amixer get PCM | perl -ne 'print "$1/100\n" if /Front Left: Playback.*\[(\d+)%\]/'`
         else 
-            $CAIRO_OSD -t Mute -i $IMAGE_DIR/mute.png -p 0 &
+            $CAIRO_OSD -t Mute -i $IMAGE_DIR/mute.png -p 0
         fi
         ;;
     (suspend)
@@ -42,10 +42,10 @@ case $1 in
         fi
         ;;
     (charging)
-        $CAIRO_OSD -t Charging -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'` &
+        $CAIRO_OSD -t Charging -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'`
         ;;
     (discharging)
-        $CAIRO_OSD -t Battery -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'` &
+        $CAIRO_OSD -t Battery -i $IMAGE_DIR/battery.png -p `acpi | awk '{print $4/100}'`
         ;;
     (*)
         echo "invalid command $1"
