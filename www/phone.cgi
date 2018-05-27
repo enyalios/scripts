@@ -9,24 +9,25 @@ sub get_include {
     $retval =~ s/\x{e2}\x{80}\x{99}/'/g;
     $retval =~ s/\x{E2}\x{80}\x{93}/-/g;
     $retval =~ s/\x{E2}\x{84}\x{A2}/(tm)/g;
+    $retval =~ s/\x{E2}\x{80}\x{A6}/.../g;
     close INPUT;
     return $retval;
 }
 
 my %inc;
-$inc{$_} = get_include($_) for(qw"app woot shirt newegg weather steam deals");
+$inc{$_} = get_include($_) for(qw"woot shirt newegg weather steam deals");
 
-my $mobile = "m." if $ENV{HTTP_USER_AGENT} =~ /Galaxy Nexus|Nexus 7/i;
+my $mobile = ($ENV{HTTP_USER_AGENT} =~ /Galaxy Nexus|Nexus 7|\bMobile\b/i)?"m.":"";
 #my $mythtv = ($ENV{REMOTE_ADDR} eq "50.44.158.126")?"http://192.168.0.102/mythweb/":"http://mythtv.enyalios.net/";
 #my $minecraft = ($ENV{REMOTE_ADDR} eq "50.44.158.126")?"http://192.168.0.101/":"http://minecraft.enyalios.net/";
 
 my @links = ( 
-    [ "Dilbert Comic",          "http://pipes.yahoo.com/pipes/pipe.run?_id=1f33f50b7e2a1162758e9061a16cca83&_render=rss" ],
+    [ "Dilbert Comic",          $mobile?"http://dilbert.com/fast":"http://pipes.yahoo.com/pipes/pipe.run?_id=1f33f50b7e2a1162758e9061a16cca83&_render=rss" ],
     [ "Liryon Blog",            "http://liryon.net/" ],
     [ "xkcd",                   "http://${mobile}xkcd.com/" ],
     [ "Basic Instructions",     "http://www.basicinstructions.net/" ],
 #    [ "Jamie Wakefield Blog",   "http://www.jamiewakefield.com/" ],
-    [ "The Daily WTF",          "http://thedailywtf.com/" ],
+#    [ "The Daily WTF",          "http://thedailywtf.com/" ],
     [ "Sheldon Comic",          "http://www.sheldoncomics.com/" ],
     [ "Drive Comic",            "http://www.drivecomic.com/" ],
     [ "Subnormality Comic",     "http://www.viruscomix.com/subnormality.html" ],
@@ -37,6 +38,139 @@ my @links = (
     [ "FMyLife",                "http://www.fmylife.com/" ],
 );
 
+my $open_all_text = join "\n" . " "x16, map { sprintf("window.open('%s');", $_->[1]) } @links;
+
+my @smart_searches = (
+    {
+        prefix => "a",
+        label => "Amazon",
+        url => "https://smile.amazon.com/s/?field-keywords=%s",
+    },
+    {
+        prefix => "bl",
+        label => "Magic Card Price Graphs",
+        url => "/cgi-bin/mtgstocks.cgi?q=%s",
+    },
+    {
+        prefix => "c",
+        label => "Magic Cards",
+        url => "http://magiccards.info/query?q=l%3Aen+%s",
+        link => "http://magiccards.info/search.html",
+    },
+    {
+        prefix => "cc",
+        label => "Magic Quick Search",
+        url => "http://magic.enyalios.net/?q=%s",
+    },
+    {
+        prefix => "cg",
+        label => "Gatherer",
+        url => "http://gatherer.wizards.com/Pages/Search/Default.aspx?name=+[\\\"%s\\\"]",
+    },
+    {
+        prefix => "g",
+        label => "Google",
+        url => "http://www.google.com/search?q=%s",
+        link => "http://www.google.com/",
+    },
+    {
+        prefix => "gi",
+        label => "Google Images",
+        url => "http://www.google.com/search?tbm=isch&q=%s",
+    },
+    {
+        prefix => "gm",
+        label => "Google Maps",
+        url => "http://maps.google.com/maps?q=%s",
+        link => "http://maps.google.com/",
+    },
+    {
+        prefix => "h",
+        label => "Hearthstone",
+        url => "http://hearthstone.gamepedia.com/%s",
+    },
+    {
+        prefix => "k",
+        label => "Katello",
+        url => "https://katello.security.internal.ncsa.edu/cgi-bin/search.cgi?q=%s",
+        link => "https://katello.security.internal.ncsa.edu/cgi-bin/search.cgi",
+    },
+    {
+        prefix => "m",
+        label => "IMDB",
+        url => "http://www.imdb.com/find?q=%s",
+    },
+    {
+        prefix => "mc",
+        label => "Minecraft",
+        url => "http://www.minecraftwiki.net/wiki/%s",
+    },
+    {
+        prefix => "mom",
+        label => "Master of Magic",
+        url => "http://masterofmagic.wikia.com/wiki/%s",
+    },
+    {
+        prefix => "mt",
+        label => "Movie Times",
+        url => "https://www.google.com/search?q=%s",
+        link => "https://www.google.com/search?q=movies",
+    },
+    {
+        prefix => "n",
+        label => "Netflix",
+        url => "http://dvd.netflix.com/Search?v1=%s",
+        link => "http://dvd.netflix.com/Queue",
+    },
+    {
+        prefix => "o",
+        label => "Overwatch",
+        url => "http://overwatch.gamepedia.com/%s",
+    },
+    {
+        prefix => "p",
+        label => "Magic Prices",
+        url => "http://sales.starcitygames.com/search.php?substring=%s",
+    },
+    {
+        prefix => "pb",
+        label => "The Pirate Bay",
+        url => "https://thepiratebay.org/search/%s/0/99/0",
+    },
+    {
+        prefix => "pl",
+        label => "CPAN",
+        url => "http://search.cpan.org/search?query=%s",
+    },
+    {
+        prefix => "s",
+        label => "Starcraft",
+        url => "http://starcraft.wikia.com/wiki/Special:Search?search=%s",
+    },
+    {
+        prefix => "t",
+        label => "The TV DB",
+        url => "http://thetvdb.com/index.php?fieldlocation=2&language=7&searching=Search&tab=advancedsearch&order=translation&seriesname=%s",
+    },
+    {
+        prefix => "w",
+        label => "Wikipedia",
+        url => "http://en.wikipedia.org/w/index.php?search=%s",
+    },
+);
+
+my $help_text = join "\n" . " "x20, map { sprintf "\"<tr><td>%s</td><td>%s</td></tr>\" +", $_->{prefix}, $_->{label} } @smart_searches;
+my $button_text = join "\n" . " "x16, map { sprintf "else if(x.match(/^%s /i)) { document.getElementById(\"search-button\").innerHTML = \"%s\"; }", $_->{prefix}, $_->{label} } @smart_searches;
+my @jump_parts = ();
+for(@smart_searches) {
+    my ($prefix, $url, $link) = ($_->{prefix}, $_->{url}, $_->{link});
+    push(@jump_parts, sprintf "else if(q.match(/^%s ?\$/i)) { window.location = \"%s\"; }", $prefix, $link) if defined $link;
+    $url =~ s/%s/" + q.replace(\/^$prefix \/i, "") + "/;
+    push @jump_parts, sprintf "else if(q.match(/^%s /i)) { window.location = \"%s\"; }", $prefix, $url;
+}
+my $jump_string = join "\n" . " "x16, @jump_parts;
+my $links_string = join "\n", map { sprintf "<a href=\"%s\">%s</a><br/>", $_->[1], $_->[0] } @links;
+
 print <<EOF;
 Content-Type: text/html
 
@@ -44,6 +178,7 @@ Content-Type: text/html
 <html>
     <head>
         <title>Phone Links</title>
+        <meta charset="UTF-8">
         <style>
             body            { background-color: #000000; 
                               color: #DEDEDE; 
@@ -85,10 +220,29 @@ Content-Type: text/html
             .price          { text-align: right; }
             .discount       { font-size: 6pt; 
                               width: 20px; }
-            input[type=text] { border: 0px solid #3181B4; 
-                              border-radius: 8px; 
-                              width: 295px; 
+            input[type=text] { border: 1px solid #666; 
+                              border-radius: 4px 0px 0px 4px;
+                              width: 215px; 
+                              background-color: #000;
+                              color: #bbb;
+                              -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+                                      box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+                              -webkit-transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+                                      transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
                               padding: 3px; }
+            input[type=text]:focus {
+                              border-color: #66afe9;
+                              outline: 0;
+                              -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba(102, 175, 233, 0.6);
+                                      box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba(102, 175, 233, 0.6);
+                              }
+            .input-group-addon { border-top: 1px solid #666; 
+                              border-right: 1px solid #666; 
+                              border-bottom: 1px solid #666; 
+                              border-radius: 0px 4px 4px 0px; 
+                              background-color: #333;
+                              font-size: 10pt;
+                              padding: 2px 2px 3px 2px; }
         </style>
         <script language="JavaScript" type="text/javascript">
             <!-- 
@@ -96,7 +250,7 @@ Content-Type: text/html
             var selected = -2;
             var searchstring;
             function startup() {
-                document.search.query.focus();
+                //document.search.query.focus();
             }
             function toggle_help() {
                 if(document.getElementById("helptext")) { 
@@ -108,51 +262,24 @@ Content-Type: text/html
                     "<div class=\\"help\\" id=\\"helptext\\">Prefix your search with the " +
                     "following strings to make magic happen.<br/>" +
                     "<table class=\\"shortcuts\\">" +
-                    "<tr><td>g</td><td>google</td></tr>" +
-                    "<tr><td>gm</td><td>google maps</td></tr>" +
-                    "<tr><td>gi</td><td>google image</td></tr>" +
-                    "<tr><td>w</td><td>wikipedia</td></tr>" +
-                    "<tr><td>m</td><td>movies</td></tr>" +
-                    "<tr><td>pl</td><td>perl modules</td></tr>" +
-                    "<tr><td>n</td><td>netflix</td></tr>" +
-                    "<tr><td>c</td><td>magic cards</td></tr>" +
-                    "<tr><td>cg</td><td>magic cards on gatherer</td></tr>" +
-                    "<tr><td>t</td><td>tv shows</td></tr>" +
-                    "<tr><td>p</td><td>magic card prices</td></tr>" +
-                    "<tr><td>bl</td><td>black lotus project</td></tr>" +
-                    "<tr><td>s</td><td>starcraft units</td></tr>" +
-                    "<tr><td>mc</td><td>minecraft wiki</td></tr>" +
-                    "<tr><td>mt</td><td>movie times</td></tr>" +
+                    $help_text
                     "</table>Use no prefix to do an \\"I'm feeling " +
                     "lucky\\" search.</div>";
                 document.getElementById("help").style.display = "block";
             }
             function go(q) {
                 if(q.match(/^\$/)) { /* toggle_help(); */ }
-                else if(q.match(/^g ?\$/i))  { window.location = "http://www.google.com/"; }
-                else if(q.match(/^g /i))  { window.location = "http://www.google.com/search?q=" + q.replace(/^g /i, ""); }
-                else if(q.match(/^gm ?\$/i)) { window.location = "http://maps.google.com/"; }
-                else if(q.match(/^gm /i)) { window.location = "http://maps.google.com/maps?q=" + q.replace(/^gm /i, ""); }
-                else if(q.match(/^gi /i)) { window.location = "http://www.google.com/search?tbm=isch&q=" + q.replace(/^gi /i, ""); }
-                else if(q.match(/^w /i))  { window.location = "http://en.wikipedia.org/wiki/" + q.replace(/^w /i, ""); }
-                else if(q.match(/^m /i))  { window.location = "http://www.imdb.com/find?q=" + q.replace(/^m /i, "").replace(/ /g, "+"); }
-                else if(q.match(/^pl /i)) { window.location = "http://search.cpan.org/search?query=" + q.replace(/^pl /i, ""); }
-                else if(q.match(/^n ?\$/i))  { window.location = "http://dvd.netflix.com/Queue"; }
-                else if(q.match(/^n /i))  { window.location = "http://dvd.netflix.com/Search?v1=" + q.replace(/^n /i, ""); }
-                else if(q.match(/^c ?\$/i))  { window.location = "http://magiccards.info/search.html"; }
-                else if(q.match(/^c /i))  { window.location = "http://magiccards.info/query?q=l%3Aen+" + q.replace(/^c /i, ""); }
-                else if(q.match(/^bl /i)) { window.location = "http://blacklotusproject.com/cards/?q=" + q.replace(/^bl /i, ""); }
-                else if(q.match(/^cg /i)) { window.location = "http://gatherer.wizards.com/Pages/Search/Default.aspx?name=+[\\"" + q.replace(/^cg /i, "") + "\\"]"; }
-                else if(q.match(/^t /i))  { window.location = "http://thetvdb.com/index.php?language=7&order=translation&searching=Search&tab=advancedsearch&seriesname=" + q.replace(/^t /i, ""); }
-                else if(q.match(/^p /i))  { window.location = "/cgi-bin/price.cgi?query=" + q.replace(/^p /i, ""); }
-                else if(q.match(/^s /i))  { window.location = "http://starcraft.wikia.com/wiki/index.php?search=" + q.replace(/^s /i, ""); }
-                else if(q.match(/^mc /i)) { window.location = "http://www.minecraftwiki.net/wiki/" + q.replace(/^mc /i, ""); }
-                else if(q.match(/^mt /i)) { window.location = "http://www.google.com/movies?q=" + q.replace(/^mt /i, ""); }
-                else if(q.match(/^mt ?\$/i))  { window.location = "http://www.google.com/movies?q=movies"; }
+                $jump_string
                 else { window.location = "http://www.google.com/search?q=" + q + "&btnI=I'm+Feeling+Lucky"; }
                 return false;
             }
             function hint(x) {
+                if(x.match(/^\$/i)) { document.getElementById("search-button").innerHTML = "Search"; }
+                $button_text
+
+                if(x.match(/^cc/i))
+                    window.location = "http://magic.enyalios.net/";
+
                 if (x.length < 3)
                 { 
                     document.getElementById("help").innerHTML="";
@@ -180,9 +307,7 @@ Content-Type: text/html
                 xmlhttp.send(null);
             }
             function openall() {
-EOF
-print " " x 16, "window.open('", $_->[1], "');\n" for @links;
-print <<EOF;
+                $open_all_text
             }
             function handlekeys(x) {
                 var keynum = (window.event) ? event.keyCode : x.keyCode;
@@ -234,14 +359,16 @@ print <<EOF;
 
     </head>
     <body link="#3181B4" alink="#CC0000" vlink="#3181B4">
-        Smart Search <a style="font-size:8pt" href="javascript:toggle_help()">(?)</a><br/>
         <form method="get" name="search" action="/cgi-bin/redirect.cgi" onsubmit="return go(this.query.value)">
-            <input type="text" name="query" onkeyup="handlekeys(event)" onkeypress="return tabselect(event)" autocomplete="off" />
+            <div class="input-group">
+                <input type="text" name="query" onkeyup="handlekeys(event)" onkeypress="return tabselect(event)" autocomplete="off" placeholder="Smart Search" autofocus/><span class="input-group-addon" id="search-button">Search</span>
+                <a style="font-size:8pt" href="javascript:toggle_help()">(?)</a><br/>
+            </div>
         </form>
         <div id="help"></div><br/>
         Random Useful Links<br/>
         <table>
-            <tr><td class="icon"><a href="https://mail.google.com/mail" accesskey="1"><img src="/img/gmail.png"><br/>Email</a></td>
+            <tr><td class="icon"><a href="/hearthstone/links.html" accesskey="1"><img src="/img/hearthstone.png"><br/>Hearthstone</a></td>
                 <td class="icon"><a href="http://imgur.com/hot/time"><img src="/img/imgur.png"><br/>Imgur</a></td>
                 <td class="icon">$inc{weather}</td></tr>
             <tr><td class="icon"><a href="http://www.wizards.com/magic/Magazine/Default.aspx"><img src="/img/magic_the_gathering.jpg"><br/>Daily MTG</a></td>
@@ -256,7 +383,6 @@ print <<EOF;
         <br/>
         <br/>
 <table>
-$inc{app}
 $inc{woot}
 $inc{shirt}
 $inc{newegg}
@@ -266,9 +392,11 @@ $inc{deals}
 <br />
 Daily Links
 <a style="font-size:8pt" href="javascript:openall()">(open all)</a><br/>
+$links_string
+<br/>
+</body>
+</html>
 EOF
-print "<a href=\"", $_->[1], "\">", $_->[0], "</a><br/>\n" for @links;
-print "<br/>\n</body>\n</html>\n";
 
 =cut
         <table><tr>
@@ -300,6 +428,8 @@ print "<br/>\n</body>\n</html>\n";
 <a href="http://failblog.org/">Fail Blog</a><br/>
 <a href="http://comics.com/pearls_before_swine/?PerPage=50">Pearls Before Swine Comic</a><br/>
 <a href="http://www.aikida.net/">Aikida Comic</a><br/>
+<a href="http://buttsmithy.com/archives/comic/p-463">Alfie Comic</a><br/>
+<a href="http://oglaf.com/">Oglaf Comic</a><br/>
 <a href="http://onlythingconstantischange.wordpress.com/">Serena's Blog</a><br/>
 <a href="http://uiucnopants.com/">UIUC No Pants</a><br/>
 =cut
