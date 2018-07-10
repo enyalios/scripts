@@ -150,6 +150,7 @@ if($opts{u}) {
                 } else {
                     push @{$cards{$name}{extras}}, "Related to " .
                     join(", ", grep { $_ ne $name } @{$card->{names}}) . ".";
+                    $name_and_set = "$name|$set_name\n"; 
                 }
             } else {
                 $name_and_set = "$name|$set_name\n"; 
