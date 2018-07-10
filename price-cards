@@ -125,7 +125,13 @@ while(<$fh>) {
     }
 }
 
-print "$search|$lowest\n" if $opts{l};
+if($opts{l}) {
+    if(defined $lowest) {
+        print "$search|$lowest\n"
+    } else {
+        print STDERR "could not find '$search'\n";
+    }
+}
 close $fh;
 
 sub format_price {
