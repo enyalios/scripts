@@ -9,12 +9,12 @@ use Frontier::RPC2;
 
 $Frontier::RPC2::scalars{'i8'} = 1;
 
-my @torrents = @{send_request('d.multicall', "main", 
-    "d.get_name=",
-    "d.get_bytes_done=",
-    "d.get_size_bytes=",
-    "d.get_complete=",
-    "d.get_hash=",
+my @torrents = @{send_request('d.multicall2', '', "main", 
+    "d.name=",
+    "d.bytes_done=",
+    "d.size_bytes=",
+    "d.complete=",
+    "d.hash=",
 )};
 
 for(@torrents) {
