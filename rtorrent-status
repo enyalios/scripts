@@ -11,7 +11,8 @@ $Frontier::RPC2::scalars{'i8'} = 1;
 my $bar_width = 40;
 
 =cut
-print send_request("system.listMethods", ());
+use Data::Dumper;
+print Dumper send_request("system.listMethods", ());
 print send_request("download_list", "started");
 print send_request("download_list", "complete");
 print send_request("d.get_name", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
@@ -22,13 +23,13 @@ print send_request("d.get_down_total", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02
 print send_request("d.get_down_rate", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
 print send_request("d.get_up_rate", "71FDDD7E8302CA3B5E3D4303C646347AE78A9D02");
 =cut
-my @torrents = @{send_request('d.multicall', "main", 
-    "d.get_name=",
-    "d.get_bytes_done=",
-    "d.get_size_bytes=",
-    "to_kb=\$d.get_down_rate=",
-    "to_kb=\$d.get_up_rate=",
-    "d.get_complete=",
+my @torrents = @{send_request('d.multicall2', '', "main", 
+    "d.name=",
+    "d.bytes_done=",
+    "d.size_bytes=",
+    "to_kb=\$d.down.rate=",
+    "to_kb=\$d.up.rate=",
+    "d.complete=",
 )};
 
 my (@complete_torrents, @incomplete_torrents);
