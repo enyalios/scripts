@@ -56,6 +56,9 @@ twitch_list=$(GET "https://api.twitch.tv/kraken/users/endratic/follows/channels?
 streams=$(GET "https://api.twitch.tv/kraken/streams?client_id=$client_id&channel=$twitch_list" | perl -ne 'print "  $_\n" for /"url":"https:\/\/www.(twitch.tv\/.*?)"/g')
 [[ "$streams" != "" ]] && echo -e "Currently Streaming on TwitchTV:\n$streams\n"
 
-if [[ -S ~/.rtorrent.socket ]] && ps -C rtorrent &> /dev/null; then
-    ~/bin/rtorrent-status
+if [[ -S ~/.rtorrent.socket ]] && pgrep -x 'rtorrent main' > /dev/null; then
+    #~/bin/rtorrent-status
+    true
+else
+    echo -e 'rtorrent not running!\n'
 fi
