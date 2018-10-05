@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl -X
 # 
 # This script connects to exchange and prints out your calendar for the next
 # week.  It require some strange things so please read the rest of the comment
@@ -37,13 +37,20 @@ use GSSAPI; # from dev-perl/GSSAPI
 use LWP::Authen::Negotiate; # perl -MCPAN -e 'install LWP::Authen::Negotiate'
 
 my $login="guder\@illinois.edu";
-# get the users password
-print "$login\'s AD password: ";
-ReadMode('noecho');
-my $pw = ReadLine(0);
-ReadMode('normal');
-chomp $pw;
-print "\n";
+
+sub get_pw {
+    # get the users password
+    print "$login\'s AD password: ";
+    ReadMode('noecho');
+    my $pw = ReadLine(0);
+    ReadMode('normal');
+    chomp $pw;
+    print "\n";
+    return $pw;
+}
+
+#my $pw = get_pw();
+my $pw = `gpg -qd $ENV{HOME}/.password-store/password.gpg`; chomp $pw;
 # we used to use a krb ticket, because the password stuff didn't work
 #system("klist -l >/dev/null || kinit $login\@AD.UILLINOIS.EDU");
 
