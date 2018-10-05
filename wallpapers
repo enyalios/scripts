@@ -23,7 +23,12 @@ my $tree = XMLin($content);
 
 # delete images older than 1 week
 for(<good/*>) {
-    next unless -M $_ > 7;
+    my $age = -M $_;
+    unless(defined $age) {
+        unlink "good/$_";
+        next;
+    }
+    next unless $age > 7;
     my $path = readlink $_;
     unlink "good/$path", $_;
 }
