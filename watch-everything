@@ -46,6 +46,9 @@ $r->header(Authorization => "Basic $auth");
 # open the imap connection that we'll be using
 my $imap = &connect_to_imap();
 
+# the calendar seems to only work half the time so we cache it
+my $cal_info;
+
 while(1) {
     ($width, $height, undef, undef) = GetTerminalSize();
     $buffer = "";
@@ -88,7 +91,7 @@ sub get_password {
 #     chomp $pw;
 #     print "\n";
 #     return $pw;
-    my $pw = `gpg -qd ~/.pw/password.gpg`;
+    my $pw = `gpg -qd ~/.password-store/password.gpg`;
     chomp $pw;
     return $pw;
 }
@@ -198,7 +201,8 @@ sub check_calendar {
     # we eval this so that errors connecting to exchange dont kill the whole script
     eval '$output = &exchange_cal()';
     #$output = &exchange_cal();
-    output($output);
+    $cal_info = $output unless $@;
+    output($cal_info);
 }
 
 sub exchange_cal {
@@ -281,14 +285,20 @@ sub exchange_cal {
 
     my $num = 0;
     foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
+        my $color = "";
+        $color = "\e[2m" if $_->{'Subject'} =~ /^Canceled: /;
+        my $color_off = "\e[0m";
+        $color = $color_off = "" unless $delay;
         # truncate subject so lines dont wrap
         $_->{'Subject'} = substr($_->{'Subject'}, 0, $width - 54);
         $_->{'Location'} = "" unless defined $_->{'Location'};
-        $output .= sprintf "%s - %s %-28s %s\n",
+        $output .= sprintf "%s%s - %s %-28s %s%s\n",
+            $color,
             strftime("%a %b %d %R", localtime str2time $_->{"Start"}),
             strftime("%R", localtime str2time $_->{"End"}),
             $_->{'Location'},
-            $_->{'Subject'};
+            $_->{'Subject'},
+            $color_off;
         $num++;
     }
 
