@@ -33,6 +33,7 @@ if($file =~ /sessionstore/) {
     my $input = join "", <INPUT>;
     close INPUT;
     if($file =~ /\.jsonlz4$/) {
+        use lib "$ENV{HOME}/perl5/lib/perl5";
         require Compress::LZ4;
         $input = substr $input, 8;
         $input = Compress::LZ4::decompress $input;
