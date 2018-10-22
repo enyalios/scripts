@@ -24,6 +24,7 @@ $file = "$dir/prefs.js";
 $file = "$dir/sessionstore.js" if -e "$dir/sessionstore.js";
 $file = "$dir/sessionstore.json" if -e "$dir/sessionstore.json";
 $file = "$dir/sessionstore-backups/recovery.bak" if -e "$dir/sessionstore-backups/recovery.bak";
+$file = "$dir/sessionstore-backups/recovery.jsonlz4" if -e "$dir/sessionstore-backups/recovery.jsonlz4";
 
 die unless open(INPUT, "<$file");
 
@@ -31,7 +32,13 @@ if($file =~ /sessionstore/) {
     require JSON;
     my $input = join "", <INPUT>;
     close INPUT;
-    $input =~ s/^\((.*)\)$/$1/sm;
+    if($file =~ /\.jsonlz4$/) {
+        require Compress::LZ4;
+        $input = substr $input, 8;
+        $input = Compress::LZ4::decompress $input;
+    } else {
+        $input =~ s/^\((.*)\)$/$1/sm;
+    }
     my $tree = JSON::decode_json($input);
 
     my $win = 0;
@@ -42,7 +49,12 @@ if($file =~ /sessionstore/) {
                 print "hist_num: ", $_->{"index"}, "\n";
                 print "  ", $_->{"url"}, "\n" for @{$_->{"entries"}};
             }
-            print $_->{"entries"}[$_->{"index"} - 1]{"url"}, "\n";
+            #print $_->{"entries"}[$_->{"index"} - 1]{"url"}, "\n";
+            my $index = $_->{"index"};
+            my $entries = $_->{entries};
+            my $entry = $entries->[$index - 1];
+            my $url = $entry->{"url"};
+            print "$url\n";
         }
         if($opt_v) {
             print "Recently Closed Tabs:\n" if @{$_->{"_closedTabs"}};
