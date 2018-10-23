@@ -45,7 +45,6 @@ printf $format, $header_color, "Filesystem" . " " x ($dev_width - 10), "Size", "
     "Avail", "Use", "[" . "-" x $bar_width . "]", "Mounted", $stop_color;
 
 # do our magic
-my $afp = 1;
 open PIPE, '-|', qw[/bin/df -P], @df_args
 or die "couldn't open `df -P @df_args`";
 while ( my $line = <PIPE> ) {
@@ -53,9 +52,8 @@ while ( my $line = <PIPE> ) {
     chomp $line;
     next if $line =~ /^Filesystem.*Mounted on$/;
     my ($device,  $total, $used, $avail, undef, $mount)
-	= split /(?<!^map) +/, $line;
-    next if $device =~ /^(none|shm|udev|rootfs|rc-svcdir|.*tmpfs|cgroup_root)$/;
-	$device =~ s/^afp.*$/"afp".$afp++/ge;
+    = split / +/, $line;
+    next if $device =~ /^(none|shm|u?dev|rootfs|rc-svcdir|.*tmpfs|cgroup_root)$/;
 
     # format the device name correctly
     if(length($device) > $dev_width)
