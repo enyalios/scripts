@@ -47,13 +47,13 @@ sub record {
 
 sub reencode {
     my $input = $_[0];
-    (my $output = $input) =~ s/\.mpeg/.mp4/;
+    (my $output = $input) =~ s/\.mpeg$/.mp4/;
     exec("ffmpeg -i $input -c:v libx264 -c:a libmp3lame -crf 20 -filter:v pp=fd,scale=1280:720 $output");
 }
 
 # -e filename re-encodes the file
 if($ARGV[0] eq "-e") {
-    &reencode($ARGV[1]);
+    reencode($ARGV[1]);
     exit;
 }
 
