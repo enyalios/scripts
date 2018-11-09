@@ -3,7 +3,8 @@
     <head>
         <title>Magic Life Counter</title>
         <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="viewport" content="width=device-width; initial-scale=1.0; user-scalable=0;">
+        <!--<meta name="viewport" content="width=device-width; initial-scale=1.0; user-scalable=0;">-->
+        <script src="https://use.fontawesome.com/d5f3842a96.js"></script>
         <style>
             *    { -webkit-touch-callout: none; }
             body { background-color: #000; 
@@ -28,6 +29,34 @@
                    font-weight: bold; }
             .center { text-align: center; }
             .button { padding: 1px; }
+            .btn {
+                height: 34px;
+                width: 34px;
+                display: inline-block;
+                border: 1px solid white;
+                border-radius: 18px;
+                color: white;
+                font-size: 18pt;
+                text-align: center;
+                text-decoration: none;
+                margin: 3px;
+                line-height: 32px;
+            }
+            .btn-green {
+                background: linear-gradient(#5c5, #3a3);
+            }
+            .btn-red {
+                background: linear-gradient(#c55, #a33);
+            }
+            .btn-wide {
+                height: 34px;
+                width: 78px;
+                border-radius: 18px;
+                line-height: 32px;
+                margin: 5px;
+                color: black;
+                background: linear-gradient(#88f, #55c);
+            }
         </style>
         <script language="JavaScript" type="text/javascript">
             <!-- 
@@ -60,13 +89,13 @@
                     output += "<td>";
                     output += "<div class=\"center\">";
                     output += "<span class=\"big\" id=\"name" + x + "\" onclick=\"rename(" + x + ")\">" + names[x] + "</span><br />";
-                    output += "<a href=\"javascript:void()\" onmousedown=\"return inc(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
+                    output += "<a class=\"btn btn-green\" href=\"javascript:void()\" onmousedown=\"return inc(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
                     output += "ontouchstart=\"return inc(" + x + ", 1)\" ontouchend=\"clearTimeout(t)\">";
-                    output += "<img src=\"plus.png\" height=\"40px\" width=\"40px\" /></a><br />";
+                    output += "<i class=\"fa fa-plus\"></i></a><br />";
                     output += "<span class=\"big\" id=\"life" + x + "\" onclick=\"setLife(" + x + ")\">" + life[x] + "</span><br />";
-                    output += "<a href=\"javascript:void()\" onmousedown=\"return dec(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
+                    output += "<a class=\"btn btn-red\" href=\"javascript:void()\" onmousedown=\"return dec(" + x + ", 0)\" onmouseup=\"clearTimeout(t)\" ";
                     output += "ontouchstart=\"return dec(" + x + ", 1)\" ontouchend=\"clearTimeout(t)\">";
-                    output += "<img src=\"minus.png\" height=\"40px\" width=\"40px\" /></a>";
+                    output += "<i class=\"fa fa-minus\"></i></a>";
                     output += "</div>";
                     output += "<span class=\"sml\" id=\"hist" + x + "\" style=\"width:300px\">" + hist[x] + "</h3>";
                     output += "</td>";
@@ -198,12 +227,14 @@
     </head>
     <body>
         <div id="table"></div><br />
-        <a href="javascript:addPlayer()"><img class="button" src="add.png" /></a>
-        <a href="javascript:remPlayer()"><img class="button" src="rem.png" /></a><br />
-        <a href="javascript:resetAll(20)"><img class="button" src="20.png" /></a>
-        <a href="javascript:resetAll(40)"><img class="button" src="40.png" /></a><br />
+        <a href="javascript:addPlayer()" class="btn btn-wide">+ <i class="fa fa-user"></i></a>
+        <a href="javascript:remPlayer()" class="btn btn-wide">&mdash; <i class="fa fa-user"></i></a><br />
+        <a href="javascript:resetAll(20)" class="btn btn-wide">20 <i class="fa fa-users"></i></a>
+        <a href="javascript:resetAll(40)" class="btn btn-wide">40 <i class="fa fa-users"></i></a><br />
         <br />
         <a href="javascript:first()">who goes first?</a><br />
+        <br />
+        <a href="https://docs.google.com/spreadsheets/d/1ZXVK2z2MoihbQGDGWvYHA-ygQ_Cumz28GnAKsjbF0Gg/edit#gid=0">starting life totals</a><br />
         <br />
         <a href="/cgi-bin/dice.cgi" target="_blank">roll some dice</a><br />
         <br />

@@ -16,16 +16,19 @@
             .odd {
                 background-color: #ddf;
             }
+            .year {
+                border-bottom: double;
+            }
         </style>
         <script language="JavaScript" type="text/javascript">
             <!--
             function calculate() {
-                var principal = document.forms[0].elements["principal"].value; 
-                var rate = document.forms[0].elements["rate"].value; 
-                var months = document.forms[0].elements["years"].value * 12; 
-                var additional_every = document.forms[0].elements["additional_every"].value; 
-                var additional_once = document.forms[0].elements["additional_once"].value; 
-                var additional_once_month = document.forms[0].elements["additional_once_month"].value; 
+                var principal = document.forms[0].elements["principal"].value;
+                var rate = document.forms[0].elements["rate"].value;
+                var months = document.forms[0].elements["years"].value * 12;
+                var additional_every = document.forms[0].elements["additional_every"].value;
+                var additional_once = document.forms[0].elements["additional_once"].value;
+                var additional_once_month = document.forms[0].elements["additional_once_month"].value;
                 var monthly_rate = rate / 100 / 12;
                 var factor = Math.pow(1+monthly_rate, months);
                 var payment = principal * monthly_rate * factor / (factor - 1);
@@ -51,18 +54,20 @@
                     month++;
                     var color = "odd";
                     if(month % 2 == 0) { color = "even"; }
+                    var year = "";
+                    if(month % 12 == 0) { color = "year"; }
                     var extra = 0;
                     if(month == additional_once_month) { extra = additional_once; }
                     var interest = round(principal * monthly_rate);
                     total_interest = round(parseFloat(total_interest) + parseFloat(interest));
                     principal = round(parseFloat(principal) + parseFloat(interest) - parseFloat(payment) - parseFloat(extra));
                     table_data += "<tr>";
-                    table_data += "  <td class=\"schedule " + color + "\">" + month + "</td>";
-                    table_data += "  <td class=\"schedule " + color + "\">" + (parseFloat(payment) + parseFloat(extra)) + "</td>";
-                    table_data += "  <td class=\"schedule " + color + "\">" + interest + "</td>";
-                    table_data += "  <td class=\"schedule " + color + "\">" + round(parseFloat(payment) + parseFloat(extra) - parseFloat(interest)) + "</td>";
-                    table_data += "  <td class=\"schedule " + color + "\">" + commaify(total_interest) + "</td>";
-                    table_data += "  <td class=\"schedule " + color + "\">$" + commaify(principal) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + " " + year + "\">" + month + "</td>";
+                    table_data += "  <td class=\"schedule " + color + " " + year + "\">" + (parseFloat(payment) + parseFloat(extra)) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + " " + year + "\">" + interest + "</td>";
+                    table_data += "  <td class=\"schedule " + color + " " + year + "\">" + round(parseFloat(payment) + parseFloat(extra) - parseFloat(interest)) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + " " + year + "\">" + commaify(total_interest) + "</td>";
+                    table_data += "  <td class=\"schedule " + color + " " + year + "\">$" + commaify(principal) + "</td>";
                 }
                 document.getElementById("schedule").innerHTML = table_data;
 
@@ -108,12 +113,12 @@
             </table>
             <!--<input type="range" name="slider" min="0" max="10" name="slider" onchange="updaterate()" />-->
             <br />
-            Add an additional payment of 
-            <input type="text" name="additional_every" value="0" onchange="calculate()" /> 
+            Add an additional payment of
+            <input type="text" name="additional_every" value="0" onchange="calculate()" />
             to your payment every month.<br />
-            Add an additional payment of 
-            <input type="text" name="additional_once" value="0" onchange="calculate()" /> 
-            to your payment once, on month 
+            Add an additional payment of
+            <input type="text" name="additional_once" value="0" onchange="calculate()" />
+            to your payment once, on month
             <input type="text" name="additional_once_month" value="1" onchange="calculate()" />.<br />
         </form>
         <div id="payment"></div>
@@ -123,3 +128,8 @@
         <table id="schedule" class="schedule"></table>
     </body>
 </html>
+<!--
+    TODO:
+
+    - add a year column
+-->

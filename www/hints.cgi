@@ -10,18 +10,24 @@ my @hints;
 my $results = 0;
 print "Content-Type: text/html\n\n";
 
-my %file = ( "p"  => "oracle",
-             "c"  => "oracle",
-             "cg" => "oracle",
-             "bl" => "oracle",
-             "m"  => "movies.list",
-             "n"  => "movies.list",
-             "pl" => "perl.list",
-             "t"  => "tv.list",
-             "s"  => "starcraft.list",
-             "mc" => "minecraft.list" );
+my %file = (
+    "bl"  => "magic.list",
+    "c"   => "magic.list",
+    "cg"  => "magic.list",
+    "p"   => "magic.list",
+    "m"   => "imdb.list",
+    "mom" => "masterofmagic.list",
+    "n"   => "movies.list",
+    "h"   => "hearthstone.list",
+    "mc"  => "minecraft.list",
+    "o"   => "overwatch.list",
+    "pl"  => "perl.list",
+    "s"   => "starcraft.list",
+    "t"   => "tv.list",
+);
 
-if($query =~ /^(p|c|cg|m|n|t|pl|s|mc|bl) (.+)/i) { # complete magic cards, movie titles, and tv shows, starcraft units, minecraft wiki pages
+my $prefixes = join "|", keys %file;
+if($query =~ /^($prefixes) (.+)/i) { # complete magic cards, movie titles, and tv shows, starcraft units, minecraft wiki pages
     my ($prefix, $search) = ($1, $2);
     $prefix =~ y/A-Z/a-z/;
     exit unless length $search > 2;
@@ -40,8 +46,9 @@ if($query =~ /^(p|c|cg|m|n|t|pl|s|mc|bl) (.+)/i) { # complete magic cards, movie
 } else { # fall back to just completing on dictionary words
     $query =~ (/^(.* )?(.*)/i);
     my ($prefix, $search) = ($1, $2);
+    $prefix = "" unless defined $prefix;
     exit unless length $query > 2;
-    open FILE, "<$data_dir/words" or die;
+    open FILE, "<$data_dir/words.list" or die;
     while(<FILE>) { push @hints, "$prefix$1" if /^(\Q$search\E.*)/i; }
 }
 
