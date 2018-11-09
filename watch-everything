@@ -2,10 +2,9 @@
 
 use strict;
 use warnings;
-use Data::Dumper;
 use Date::Parse; # from dev-perl/TimeDate
 use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
-use LWP::Simple; # from dev-perl/libwww-perl
+use LWP::UserAgent; # from dev-perl/libwww-perl
 use MIME::Base64; 
 use MIME::Words qw(decode_mimewords); # from dev-perl/MIME-tools
 use Mail::IMAPClient; # from dev-perl/Mail-IMAPClient
@@ -16,6 +15,7 @@ use Term::ANSIColor;
 use Term::Cap;
 use Term::ReadKey; # from dev-perl/TermReadKey
 use File::Find;
+use JSON;
 
 # supress stupid warnings from the SOAP::Lite module
 #$SIG{'__WARN__'} = sub { warn $_[0] unless (caller eq "SOAP::Schema"); };
@@ -197,21 +197,7 @@ sub check_jabber {
 }
 
 sub check_calendar {
-    my $output = "Could not connect to the exchange calendar.\n\n";
-    # we eval this so that errors connecting to exchange dont kill the whole script
-    eval '$output = &exchange_cal()';
-    #$output = &exchange_cal();
-    $cal_info = $output unless $@;
-    output($cal_info);
-}
-
-sub exchange_cal {
-
-    # renew our kerberos ticket
-    #system(qw"kinit -R");
-    my $output;
-    my $now = strftime("%s", localtime);
-    my $tz = "-06:00";
+    my $string = "";
     # this craziness is all to make it look at the next 2 business days
     my $range = 2;
     my $day_of_week = strftime("%w", localtime);
@@ -220,90 +206,27 @@ sub exchange_cal {
     } elsif($day_of_week == 0) {
         $range = 3;
     }
-    my $start = strftime("%F", localtime) . 'T00:00:00' . $tz;
-    my $end   = strftime("%F", localtime($now + 24*60*60*$range)) . 'T00:00:00' . $tz;
+	my $start = strftime("%FT00:00:01%z", localtime(time));
+	my $end = strftime("%FT00:00:00%z", localtime(time + $range*24*60*60));
 
-    my $service = SOAP::Lite
-    ->service("https://exchws.illinois.edu/ews/Services.wsdl")
-    ->proxy("https://exchws.illinois.edu/ews/exchange.asmx")
-    ->encodingStyle('')
-    ->ns("http://schemas.microsoft.com/exchange/services/2006/types",'t')
-    ->default_ns("http://schemas.microsoft.com/exchange/services/2006/messages");
+	my $ua = LWP::UserAgent->new;
+	my $r = HTTP::Request->new(GET => "https://outlook.office365.com/api/v1.0/me/calendarview?\$select=Subject,Start,End,Location&StartDateTime=$start&EndDateTime=$end&orderby=Start");
+	my $auth = MIME::Base64::encode("$user\@illinois.edu:$pass");
+	$r->header(Authorization => "Basic $auth");
+	my $content = $ua->request($r)->{_content};
 
-    # over-ride method to handle authentication
-    sub SOAP::Schema::access
-    {
-        my $self = shift->new;
-        my $url = shift || $self->schema_url || Carp::croak 'Nothing to access. URL is not specified';
+	my $tree = decode_json $content;
+	for(@{$tree->{value}}) {
+		$string .= sprintf "%s - %s %-28s %s\n",
+		strftime("%a %b %d %R", localtime str2time $_->{Start}),
+		strftime("%R", localtime str2time $_->{End}),
+		$_->{Location}->{DisplayName},
+		$_->{Subject};
+	}
 
-        my $req = HTTP::Request->new(GET => $url);
+    $string .= "\n" unless $string eq "";
 
-        # this is why it's over-ridden
-        $req->authorization_basic("$user\@illinois.edu", $pass);
-
-        my $resp = $self->useragent->request($req);
-        $resp->is_success ? $resp->content : die "Service description '$url' can't be loaded: ", $resp->status_line, "\n";
-    }
-
-    # and get_basic_credentials for the service calls,
-    # if they require authentication
-    sub SOAP::Transport::HTTP::Client::get_basic_credentials
-    { return "$user\@illinois.edu" => $pass; }
-
-    my $response = $service->call(
-        SOAP::Data->name('FindItem')
-        ->attr({'Traversal'=>'Shallow',
-                'xmlns' => 'http://schemas.microsoft.com/exchange/services/2006/messages'
-            }),
-        SOAP::Header->name('RequestServerVersion')->prefix('t')->type('')
-        ->attr({'Version' => 'Exchange2010_SP1'}),
-        SOAP::Data->name('ItemShape' => \SOAP::Data->value(
-            SOAP::Data->name('BaseShape')->value('IdOnly')
-            ->prefix('t')
-            ->type(''),
-            SOAP::Data->name('AdditionalProperties' => \SOAP::Data->value(
-                SOAP::Data->name('FieldURI')->prefix('t')
-                ->attr({ 'FieldURI' => 'calendar:Start' }),
-                SOAP::Data->name('FieldURI')->prefix('t')
-                ->attr({ 'FieldURI' => 'calendar:End' }),
-                SOAP::Data->name('FieldURI')->prefix('t')
-                ->attr({ 'FieldURI' => 'item:Subject' }),
-                SOAP::Data->name('FieldURI')->prefix('t')
-                ->attr({ 'FieldURI' => 'calendar:Location' }),
-            ))->prefix('t'),
-    )),
-    SOAP::Data->name('CalendarView')
-    ->attr( { 'MaxEntriesReturned' => '10',
-        'StartDate' => $start,
-        'EndDate'   => $end,
-    }),
-    SOAP::Data->name('ParentFolderIds')->value(
-        \SOAP::Data->name('DistinguishedFolderId')->attr({ 'Id' => 'calendar' })
-    ->prefix('t')
-    ->type('')
-    ));
-
-    my $num = 0;
-    foreach ($response->valueof('//ResponseMessages/FindItemResponseMessage/RootFolder/Items/CalendarItem')){
-        my $color = "";
-        $color = "\e[2m" if $_->{'Subject'} =~ /^Canceled: /;
-        my $color_off = "\e[0m";
-        $color = $color_off = "" unless $delay;
-        # truncate subject so lines dont wrap
-        $_->{'Subject'} = substr($_->{'Subject'}, 0, $width - 54);
-        $_->{'Location'} = "" unless defined $_->{'Location'};
-        $output .= sprintf "%s%s - %s %-28s %s%s\n",
-            $color,
-            strftime("%a %b %d %R", localtime str2time $_->{"Start"}),
-            strftime("%R", localtime str2time $_->{"End"}),
-            $_->{'Location'},
-            $_->{'Subject'},
-            $color_off;
-        $num++;
-    }
-
-    $output .= "\n" if $num;
-    return $output;
+    output($string);
 }
 
 sub check_email {
