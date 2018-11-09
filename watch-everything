@@ -5,7 +5,7 @@ use warnings;
 use Date::Parse; # from dev-perl/TimeDate
 use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
 use LWP::UserAgent; # from dev-perl/libwww-perl
-use MIME::Base64; 
+use MIME::Base64;
 use MIME::Words qw(decode_mimewords); # from dev-perl/MIME-tools
 use Mail::IMAPClient; # from dev-perl/Mail-IMAPClient
 use POSIX;
@@ -143,7 +143,7 @@ sub check_nagios {
             $content .= "There are $count $_ probes down.\n";
         }
     }
-    
+
     # dont show ntp probes if there are more than 2 down
     #if($content =~ s/\bntp\b/ntp/g > 2) {
     #    my $count = ($content =~ s/.*\bntp\b.*\n//g);
@@ -206,23 +206,35 @@ sub check_calendar {
     } elsif($day_of_week == 0) {
         $range = 3;
     }
-	my $start = strftime("%FT00:00:01%z", localtime(time));
-	my $end = strftime("%FT00:00:00%z", localtime(time + $range*24*60*60));
+    my $start = strftime("%FT00:00:01%z", localtime(time));
+    my $end = strftime("%FT00:00:00%z", localtime(time + $range*24*60*60));
 
-	my $ua = LWP::UserAgent->new;
-	my $r = HTTP::Request->new(GET => "https://outlook.office365.com/api/v1.0/me/calendarview?\$select=Subject,Start,End,Location&StartDateTime=$start&EndDateTime=$end&orderby=Start");
-	my $auth = MIME::Base64::encode("$user\@illinois.edu:$pass");
-	$r->header(Authorization => "Basic $auth");
-	my $content = $ua->request($r)->{_content};
+    my $ua = LWP::UserAgent->new;
+    my $r = HTTP::Request->new(GET => "https://outlook.office365.com/api/v1.0/me/calendarview?\$select=Subject,Start,End,Location&StartDateTime=$start&EndDateTime=$end&orderby=Start");
+    my $auth = MIME::Base64::encode("$user\@illinois.edu:$pass");
+    $r->header(Authorization => "Basic $auth");
+    my $content = $ua->request($r)->{_content};
 
-	my $tree = decode_json $content;
-	for(@{$tree->{value}}) {
-		$string .= sprintf "%s - %s %-28s %s\n",
-		strftime("%a %b %d %R", localtime str2time $_->{Start}),
-		strftime("%R", localtime str2time $_->{End}),
-		$_->{Location}->{DisplayName},
-		$_->{Subject};
-	}
+    my $tree = decode_json $content;
+    for(@{$tree->{value}}) {
+        my $color = my $color_off = "";
+        if($_->{'Subject'} =~ /^Canceled: /) {
+            $color = color("BRIGHT_BLACK");
+            $color_off = color("RESET");
+        }
+        $color = $color_off = "" unless $delay;
+
+        # truncate subject so lines dont wrap
+        $_->{'Subject'} = substr($_->{'Subject'}, 0, $width - 54);
+
+        $string .= sprintf "%s%s - %s %-28s %s%s\n",
+        $color,
+        strftime("%a %b %d %R", localtime str2time $_->{Start}),
+        strftime("%R", localtime str2time $_->{End}),
+        $_->{Location}->{DisplayName},
+        $_->{Subject},
+        $color_off;
+    }
 
     $string .= "\n" unless $string eq "";
 
@@ -231,14 +243,14 @@ sub check_calendar {
 
 sub check_email {
     # try to reconnect if exchange disconnected us
-    $imap = &connect_to_imap() unless $imap->State($imap->Connected);
+    $imap = &connect_to_imap() unless $imap->IsConnected;
 
     my $now = strftime "%s", localtime;
     # figure out what we are searching for
     my @search = ("UNSEEN");
     # @search = ("ALL");
     # @search = ("FLAGGED");
-    # @search = ('OR', 'OR', 'TO', $imap->Quote($opts{s}), 
+    # @search = ('OR', 'OR', 'TO', $imap->Quote($opts{s}),
     #     'FROM', $imap->Quote($opts{s}),
     #     'SUBJECT', $imap->Quote($opts{s})) if $opts{s};
 
@@ -280,23 +292,14 @@ sub check_email {
 }
 
 sub connect_to_imap {
-    # grab authentication info
-    #my ($host, $user, $pass) = ("imap.illinois.edu:143", "guder\@illinois.edu", $pass);
-    #my ($host, $user, $pass) = ("outlook.office365.com:143", "guder\@illinois.edu", $pass);
-    my ($host, $user, $pass) = ("outlook.office365.com:993", "guder\@illinois.edu", $pass);
-
     # use the socket and our credentials to open an imap connection
     my $imap = Mail::IMAPClient->new(
-        Server => $host,
-        Ssl    => 1,
+        Server   => "outlook.office365.com:993",
+        User     => "$user\@illinois.edu",
+        Password => $pass,
+        Ssl      => 1,
     ) or die "Cannot imap: $@";
-    # $imap->starttls(SSL_verify_mode => 0) or die "starttls failed: $@\n";
-    $imap->User($user);
-    $imap->Password($pass);
 
-    # connect and login
-    $imap->State($imap->Connected);
-    $imap->login() or die "cannot login: $@\n";
     print "could not authenticate\n" unless $imap->IsAuthenticated();
     return $imap;
 }
