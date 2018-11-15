@@ -30,9 +30,14 @@ my ($buffer, $width, $height);
 $| = 1;
 
 my $pass = get_password();
+# save the buffer so we can redraw if the window gets resized
+my $saved_buffer;
+# open the imap connection that we'll be using
+my $imap = &connect_to_imap();
 
 # make the cursor dissappear if we're a daemon
 $SIG{INT} = sub { &fix_term && exit };
+$SIG{WINCH} = sub { draw_screen($saved_buffer); };
 END { &fix_term }
 sub fix_term { print "\e[?25h"; }
 print "\e[?25l" if $delay;
@@ -42,12 +47,6 @@ my $ua = LWP::UserAgent->new;
 my $r = HTTP::Request->new(GET => 'https://nagios.security.ncsa.illinois.edu/nagios/cgi-bin/text-status.cgi');
 my $auth = MIME::Base64::encode("$user:$pass");
 $r->header(Authorization => "Basic $auth");
-
-# open the imap connection that we'll be using
-my $imap = &connect_to_imap();
-
-# the calendar seems to only work half the time so we cache it
-my $cal_info;
 
 while(1) {
     ($width, $height, undef, undef) = GetTerminalSize();
@@ -66,12 +65,18 @@ while(1) {
     # bail if we're not a daemon, since we already printed everything
     last unless $delay;
 
+    $saved_buffer = $buffer;
+    draw_screen($buffer);
+    sleep $delay;
+}
+
+sub draw_screen {
+    my $buffer = shift;
     &clear_screen();
     $buffer = &get_header() . $buffer;
     $buffer = &truncate($buffer);
     $buffer = &colorize($buffer);
     print $buffer;
-    sleep $delay;
 }
 
 sub output {
@@ -123,6 +128,7 @@ sub colorize {
     my $buffer = $_[0];
     $buffer =~ s/(.*     WARNING .*)/color('YELLOW') . $1 . color('RESET')/eg;
     $buffer =~ s/(.*     CRITICAL .*)/color('RED') . $1 . color('RESET')/eg;
+    $buffer =~ s/(.* - .* Canceled: .*)/color('BRIGHT_BLACK') . $1 . color('RESET')/eg;
     return $buffer;
 }
 
@@ -217,23 +223,14 @@ sub check_calendar {
 
     my $tree = decode_json $content;
     for(@{$tree->{value}}) {
-        my $color = my $color_off = "";
-        if($_->{'Subject'} =~ /^Canceled: /) {
-            $color = color("BRIGHT_BLACK");
-            $color_off = color("RESET");
-        }
-        $color = $color_off = "" unless $delay;
-
         # truncate subject so lines dont wrap
         $_->{'Subject'} = substr($_->{'Subject'}, 0, $width - 54);
 
-        $string .= sprintf "%s%s - %s %-28s %s%s\n",
-        $color,
+        $string .= sprintf "%s - %s %-28s %s\n",
         strftime("%a %b %d %R", localtime str2time $_->{Start}),
         strftime("%R", localtime str2time $_->{End}),
         $_->{Location}->{DisplayName},
         $_->{Subject},
-        $color_off;
     }
 
     $string .= "\n" unless $string eq "";
