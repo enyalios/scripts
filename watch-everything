@@ -72,9 +72,12 @@ while(1) {
 
 sub draw_screen {
     my $buffer = shift;
+    ($width, $height, undef, undef) = GetTerminalSize();
+
     &clear_screen();
     $buffer = &get_header() . $buffer;
-    $buffer = &truncate($buffer);
+    $buffer = &truncate_lines($buffer);
+    $buffer = &truncate_to_window_height($buffer);
     $buffer = &colorize($buffer);
     print $buffer;
 }
@@ -84,7 +87,7 @@ sub output {
     print $_[0] and return unless $delay;
     # add newlines so that no lines wrap
     $_ = $_[0];
-    1 while s/^(.{$width})(?!\n)/$1\n/m;
+    #1 while s/^(.{$width})(?!\n)/$1\n/m;
     $buffer .= $_;
 }
 
@@ -115,7 +118,13 @@ sub get_header {
     return $lheader . " " x ($width - length($rheader) - length($lheader)) . $rheader . "\n\n";
 }
 
-sub truncate {
+sub truncate_lines {
+    $buffer = $_[0];
+    $buffer =~ s/^(.{1,$width}).*$/$1/gm;
+    return $buffer;
+}
+
+sub truncate_to_window_height {
     # truncate the buffer so it doesnt scroll off the screen
     my $buffer = $_[0];
     $buffer =~ s/^((?:.*\n){1,$height})[\s\S]*/$1/;
@@ -128,7 +137,7 @@ sub colorize {
     my $buffer = $_[0];
     $buffer =~ s/(.*     WARNING .*)/color('YELLOW') . $1 . color('RESET')/eg;
     $buffer =~ s/(.*     CRITICAL .*)/color('RED') . $1 . color('RESET')/eg;
-    $buffer =~ s/(.* - .* Canceled: .*)/color('BRIGHT_BLACK') . $1 . color('RESET')/eg;
+    $buffer =~ s/(.* - .* Canceled: .*)/color('BRIGHT_BLACK') . sprintf("\e[9m$1\e[0m") . color('RESET')/eg;
     return $buffer;
 }
 
@@ -157,7 +166,7 @@ sub check_nagios {
     #}
 
     # truncate the lines so they dont wrap
-    $content =~ s/^(.{1,$width}).*$/$1/gm;
+    #$content =~ s/^(.{1,$width}).*$/$1/gm;
     output("$content\n") if $content;
 }
 
