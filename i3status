@@ -6,6 +6,8 @@ use LWP::Simple;
 use POSIX qw(strftime);
 use JSON;
 use Socket;
+use utf8;
+binmode(STDOUT, ":utf8");
 
 my $SIOCGIFADDR = 0x8915;
 my $SIOCGIWESSID = 0x8B1B;
@@ -19,6 +21,7 @@ my $click_commands = {
     },
 };
 my $count = 0;
+my %traffic;
 my $output = "json";
 $output = "text" if -t *STDIN;
 
@@ -220,6 +223,41 @@ sub network {
     return json("network", $essid);
 }
 
+sub format_traffic {
+    my $number = shift;
+    my @sizes = split //, "BKMGTPEZY";
+    my $index = 0;
+    while($number >= 1000 || !$index) {
+        $number /= 1024;
+        $index++;
+        last if $index >= @sizes - 1;
+    }
+    return sprintf "%.1f %s/s", $number, $sizes[$index];
+}
+
+sub traffic {
+    my ($down, $up, $current_down, $current_up);
+    for(split "\n", read_file("/proc/net/dev")) {
+        next if /^ *lo:/;
+        next unless s/^.*: *//;
+        my @fields = split " ", $_;
+        $down += $fields[0];
+        $up += $fields[8]
+    }
+    my $time = time;
+    if(defined $traffic{time} && $traffic{time} != $time) {
+        $current_down = ($down - $traffic{down}) / ($time - $traffic{time});
+        $current_up   = ($up   - $traffic{up})   / ($time - $traffic{time});
+    }
+    $traffic{down} = $down;
+    $traffic{up}   = $up;
+    $traffic{time} = $time;
+
+    return json("traffic", "") unless defined $current_down;
+    return json("traffic", sprintf("\x{25BC} %s, \x{25B2} %s", format_traffic($current_down), format_traffic($current_up)));
+}
+
+
 $| = 1;
 print "{\"version\":1,\"click_events\":true}\n[\n" if $output eq "json";
 my $pid = fork();
@@ -231,7 +269,7 @@ if($pid) {
     while(++$count) {
         print "[" if $output eq "json";
         my $battery = get_battery_data();
-        my $string = join($sep, network(), weather(), battery($battery), watts($battery), load(), date());
+        my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), load(), date());
         print $string unless $benchmark;
         print "]," if $output eq "json";
         print "\n" unless $benchmark;
