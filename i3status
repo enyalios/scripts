@@ -118,8 +118,8 @@ sub get_battery_data {
 sub weather {
     my $api = "15c3972ca958c237";
     my (@stat) = stat "$ENV{HOME}/.weather";
-    # file is <6 bytes, >50 bytes, or more than 15 minutes old
-    if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 15*60) {
+    # file is <6 bytes, >50 bytes, or more than 30 minutes old
+    if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 30*60) {
         my $zip = read_file("$ENV{HOME}/.zipcode");
         $_ = get "http://api.wunderground.com/api/$api/conditions/q/$zip.json";
         my $tree;
