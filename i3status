@@ -116,22 +116,11 @@ sub get_battery_data {
 }
 
 sub weather {
-    my $api = "15c3972ca958c237";
     my (@stat) = stat "$ENV{HOME}/.weather";
     # file is <6 bytes, >50 bytes, or more than 30 minutes old
     if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 30*60) {
         my $zip = read_file("$ENV{HOME}/.zipcode");
-        $_ = get "http://api.wunderground.com/api/$api/conditions/q/$zip.json";
-        my $tree;
-        my $weather = "";
-        eval { $tree = decode_json($_); };
-        if($@) {
-            warn $@;
-        } else {
-            $weather = sprintf "%s %.1f",
-                $tree->{current_observation}->{weather},
-                $tree->{current_observation}->{temp_f};
-        }
+        my $weather = get "http://enyalios.net/cgi-bin/weather.cgi?zip=$zip";
         write_file("$ENV{HOME}/.weather", $weather);
     }
     my $string = read_file("$ENV{HOME}/.weather");
