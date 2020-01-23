@@ -120,7 +120,7 @@ sub weather {
     # file is <6 bytes, >50 bytes, or more than 30 minutes old
     if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 30*60) {
         my $zip = read_file("$ENV{HOME}/.zipcode");
-        my $weather = get "http://enyalios.net/cgi-bin/weather.cgi?zip=$zip";
+        my $weather = get "http://enyalios.net/cgi-bin/weather.cgi?zip=$zip&output=tiny";
         write_file("$ENV{HOME}/.weather", $weather);
     }
     my $string = read_file("$ENV{HOME}/.weather");
