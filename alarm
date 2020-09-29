@@ -16,7 +16,13 @@ $SIG{INT} = sub { fix_term() && exit };
 END { fix_term() }
 
 my $end = $ARGV[0];
-die "When should the alarm go off?\n" unless defined $end;
+if(!defined $end) {
+    my $start = now();
+    while(1) {
+        print_time(now()-$start);
+        sleep 1;
+    }
+}
 if($end =~ /^\d+$/) {
     $end = strftime("%s", localtime()) + $end*60;
 } else {
@@ -28,12 +34,7 @@ print "\e[?25l"; # make the cursor disappear
 
 while(1) {
     my $diff = $end - now();
-    my $hours = int($diff / 60 / 60);
-    my $minutes =  int($diff / 60) % 60;
-    my $seconds = $diff % 60;
-
-    my $string = sprintf "%02d:%02d:%02d", $hours, $minutes, $seconds;
-    print_arrays(string_to_arrays($string));
+    print_time($diff);
     last if $diff <= 0;
     sleep 1;
 }
@@ -45,6 +46,16 @@ play_music();
 sub now { strftime("%s", localtime()); }
 
 sub fix_term { print "\e[?25h"; } # make the cursor come back
+
+sub seconds_to_hms {
+    my $input = $_[0];
+    my $hours = int($input / 60 / 60);
+    my $minutes =  int($input / 60) % 60;
+    my $seconds = $input % 60;
+
+    my $hms = sprintf "%02d:%02d:%02d", $hours, $minutes, $seconds;
+    return $hms;
+}
 
 sub play_music {
     my @files;
@@ -226,4 +237,8 @@ sub print_arrays {
 
 sub string_to_arrays {
     return map { char_to_array($_) } split //, $_[0];
+}
+
+sub print_time {
+    print_arrays(string_to_arrays(seconds_to_hms($_[0])));
 }
