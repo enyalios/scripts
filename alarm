@@ -15,6 +15,8 @@ $| = 1;
 $SIG{INT} = sub { fix_term() && exit };
 END { fix_term() }
 
+print "\e[?25l"; # make the cursor disappear
+
 my $end = $ARGV[0];
 if(!defined $end) {
     my $start = now();
@@ -29,8 +31,6 @@ if($end =~ /^\d+$/) {
     $end = str2time($end);
     $end += 24*60*60 if $end < now();
 }
-
-print "\e[?25l"; # make the cursor disappear
 
 while(1) {
     my $diff = $end - now();
