@@ -1,0 +1,13 @@
+#!/bin/bash
+
+export DISPLAY=:0
+
+echo "OK Pleased to meet you"
+while read input; do
+    case $input in
+        "GETINFO *") echo -e "D $$\nOK";;
+        "GETPIN") echo -e "D $(echo -n | dmenu -nf '#222222' -nb '#222222' -p 'GPG Passphrase:')\nOK";;
+        "BYE") echo "OK closing connection"; exit;;
+        *) echo "OK"
+    esac
+done
