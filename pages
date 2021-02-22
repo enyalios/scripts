@@ -14,7 +14,7 @@
 
 use Getopt::Std;
 
-getopts('msv');
+getopts('msvc');
 
 $dir = glob "$ENV{HOME}/.mozilla/firefox/*.default";
 $dir = glob "$ENV{HOME}/.mozilla/default/*.slt" if $opt_m;
@@ -43,6 +43,15 @@ if($file =~ /sessionstore/) {
     my $tree = JSON::decode_json($input);
 
     my $win = 0;
+    if($opt_c) {
+        my $cur_win = $tree->{selectedWindow} - 1;
+        my $cur_tab = $tree->{windows}->[$cur_win]->{selected} - 1;
+        my $cur_hist = $tree->{windows}->[$cur_win]->{tabs}->[$cur_tab]->{index} - 1;
+
+        print "window: $cur_win\ntab: $cur_tab\nhist: $cur_hist\n" if $opt_v;
+        print $tree->{windows}->[$cur_win]->{tabs}->[$cur_tab]->{entries}->[$cur_hist]->{url}, "\n";
+        exit;
+    }
     for(@{$tree->{windows}}) {
         print "Window ", $win++, ":\n" if @{$tree->{windows}} > 1;
         for(@{$_->{"tabs"}}) {
