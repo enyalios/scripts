@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# re-exec ourselves with sudo if not root
+[[ "$UID" -ne "0" ]] && exec sudo $0 $@
+
+JOBS=$(($(cat /proc/cpuinfo | grep MHz | wc -l) + 1))
+RED=$(echo -ne "\e[1;31m")
+DEFAULT=$(echo -ne "\e[0m")
+
+check() {
+    CODE=$1
+    MSG=$2
+    if [[ "$CODE" -ne "0" ]]; then
+        echo "${RED}${MSG}${DEFAULT}"
+        exit $CODE
+    fi
+}
+
+emerge --quiet-build --update --deep --ask --verbose --newuse --jobs $JOBS @world
+check "$?" "Died emerging world."
+emerge --quiet-build --ask --verbose --jobs $JOBS @preserved-rebuild
+check "$?" "Died during rebuild."
+emerge --ask --depclean
+check "$?" "Died during depclean."
