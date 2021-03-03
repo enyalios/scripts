@@ -31,6 +31,8 @@ if($end =~ /^\d+$/) {
     $end = str2time($end);
     $end += 24*60*60 if $end < now();
 }
+# use this if we want our laptop to wake up from sleep or hibernate
+#system("sudo rtcwake --mode no --time $end");
 
 while(1) {
     my $diff = $end - now();
