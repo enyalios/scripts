@@ -5,6 +5,7 @@
 
 JOBS=$(($(cat /proc/cpuinfo | grep MHz | wc -l) + 1))
 RED=$(echo -ne "\e[1;31m")
+BLUE=$(echo -ne "\e[1;34m")
 CYAN=$(echo -ne "\e[1;36m")
 DEFAULT=$(echo -ne "\e[0m")
 MOUNTED_BOOT="0"
@@ -19,8 +20,14 @@ check_exit_code() {
 }
 
 check_for_new_kernel() {
-    if [[ "$(emerge --quiet --pretend --update gentoo-kernel | wc -l)" -gt "0" ]]; then
-        mount /boot
+    # skip kernel stuff if we arent using the gentoo-kernel package
+    if ! grep -q '^sys-kernel/gentoo-kernel' /var/lib/portage/world; then
+        return
+    fi
+
+    # we do the grep so messages about eselect news dont throw off the count
+    if [[ "$(emerge --quiet --pretend --update gentoo-kernel | grep gentoo-kernel | wc -l)" -gt "0" ]]; then
+        mount /boot 2>/dev/null
         [[ "$?" -eq  "0" ]] && MOUNTED_BOOT=1
         echo "${CYAN}A new kernel will be installed."
         echo "  Please remove the oldest one to make space"
@@ -29,22 +36,34 @@ check_for_new_kernel() {
     fi
 }
 
+header() {
+    echo "${BLUE}### $1 ${DEFAULT}"
+}
+
 check_for_new_kernel
 
+header "emerge @world"
 emerge --quiet-build --update --deep --ask --verbose --newuse --jobs $JOBS @world
 check_exit_code "$?" "Died emerging world."
 
+find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
 dispatch-conf
 
+header "emerge @preserved-rebuild"
 emerge --quiet-build --ask --verbose --jobs $JOBS @preserved-rebuild
 check_exit_code "$?" "Died during rebuild."
 
+find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
+dispatch-conf
+
+header "emerge depclean"
 emerge --ask --depclean
 check_exit_code "$?" "Died during depclean."
 
-dispatch-conf
+NEWS=$(eselect news list | awk '{if($2=="N")print}')
+echo "$NEWS" | grep -q . && header "eselect news"
+echo "$NEWS"
 
-eselect news list | awk '{if($2=="N")print}'
 if [[ "$(uname -r)" != "$(eselect kernel list | sed -ne 's/.*linux-\([.0-9]*\) \*/\1/p')" ]]; then
     echo "${CYAN}New kernel installed, please edit grub config and reboot!${DEFAULT}"
 fi
