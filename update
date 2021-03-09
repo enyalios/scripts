@@ -5,9 +5,11 @@
 
 JOBS=$(($(cat /proc/cpuinfo | grep MHz | wc -l) + 1))
 RED=$(echo -ne "\e[1;31m")
+CYAN=$(echo -ne "\e[1;36m")
 DEFAULT=$(echo -ne "\e[0m")
+MOUNTED_BOOT="0"
 
-check() {
+check_exit_code() {
     CODE=$1
     MSG=$2
     if [[ "$CODE" -ne "0" ]]; then
@@ -16,9 +18,47 @@ check() {
     fi
 }
 
+check_for_new_kernel() {
+    if [[ "$(emerge --quiet --pretend --update gentoo-kernel | wc -l)" -gt "0" ]]; then
+        mount /boot
+        [[ "$?" -ne  "0" ]] && MOUNTED_BOOT=1
+        echo "${CYAN}A new kernel will be installed."
+        echo "  Please remove the oldest one to make space"
+        echo "  in /boot, and then press enter to continue.${DEFAULT}"
+        read
+    fi
+}
+
+check_for_new_kernel
+
 emerge --quiet-build --update --deep --ask --verbose --newuse --jobs $JOBS @world
-check "$?" "Died emerging world."
+check_exit_code "$?" "Died emerging world."
+
+dispatch-conf
+
 emerge --quiet-build --ask --verbose --jobs $JOBS @preserved-rebuild
-check "$?" "Died during rebuild."
+check_exit_code "$?" "Died during rebuild."
+
 emerge --ask --depclean
-check "$?" "Died during depclean."
+check_exit_code "$?" "Died during depclean."
+
+dispatch-conf
+
+eselect news list | awk '{if($2=="N")print}'
+if [[ "$(uname -r)" != "$(eselect kernel list | sed -ne 's/.*linux-\([.0-9]*\) \*/\1/p')" ]]; then
+    echo "${CYAN}New kernel installed, please edit grub config and reboot!${DEFAULT}"
+fi
+
+[[ "$MOUNTED_BOOT" -eq "1" ]] && umount /boot
+
+# TODO
+# update perl modules in ~/perl5
+# remove old kernels
+# keep n old kernels
+
+# kernel removal steps
+# edit grub config
+# emerge -Ca gentoo-kernel-5.4.40
+# rm /boot/System.map-5.4.40  /boot/config-5.4.40  /boot/initramfs-5.4.40.img  /boot/vmlinuz-5.4.40
+# rm -rf /lib/modules/5.4.40
+# rm -rf /usr/src/linux-5.4.40
