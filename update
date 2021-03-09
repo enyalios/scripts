@@ -21,7 +21,7 @@ check_exit_code() {
 check_for_new_kernel() {
     if [[ "$(emerge --quiet --pretend --update gentoo-kernel | wc -l)" -gt "0" ]]; then
         mount /boot
-        [[ "$?" -ne  "0" ]] && MOUNTED_BOOT=1
+        [[ "$?" -eq  "0" ]] && MOUNTED_BOOT=1
         echo "${CYAN}A new kernel will be installed."
         echo "  Please remove the oldest one to make space"
         echo "  in /boot, and then press enter to continue.${DEFAULT}"
