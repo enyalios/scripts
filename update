@@ -65,7 +65,14 @@ echo "$NEWS" | grep -q . && header "eselect news"
 echo "$NEWS"
 
 if [[ "$(uname -r)" != "$(eselect kernel list | sed -ne 's/.*linux-\([.0-9]*\) \*/\1/p')" ]]; then
-    echo "${CYAN}New kernel installed, please edit grub config and reboot!${DEFAULT}"
+    if [[ -e "/usr/sbin/grub-mkconfig" ]]; then
+        header "reconfiguring grub"
+        grub-mkconfig -o /boot/grub/grub.cfg
+        check_exit_code "$?" "Died during grub reconfiguration."
+        echo "${CYAN}New kernel installed, please reboot!${DEFAULT}"
+    else
+        echo "${CYAN}New kernel installed, please edit grub config and reboot!${DEFAULT}"
+    fi
 fi
 
 [[ "$MOUNTED_BOOT" -eq "1" ]] && umount /boot
