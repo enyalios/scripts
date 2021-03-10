@@ -43,14 +43,14 @@ header() {
 check_for_new_kernel
 
 header "emerge @world"
-emerge --quiet-build --update --deep --ask --verbose --newuse --jobs $JOBS @world
+emerge --ask --quiet-build --verbose --jobs $JOBS --update --deep --newuse @world
 check_exit_code "$?" "Died emerging world."
 
 find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
 dispatch-conf
 
 header "emerge @preserved-rebuild"
-emerge --quiet-build --ask --verbose --jobs $JOBS @preserved-rebuild
+emerge --ask --quiet-build --verbose --jobs $JOBS @preserved-rebuild
 check_exit_code "$?" "Died during rebuild."
 
 find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
