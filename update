@@ -47,7 +47,6 @@ important() {
 }
 
 check_for_new_kernel
-exit
 
 run_command "emerge --ask --quiet-build --verbose --jobs $JOBS --update --deep --newuse @world"
 
