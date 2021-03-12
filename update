@@ -10,11 +10,13 @@ CYAN=$(echo -ne "\e[1;36m")
 DEFAULT=$(echo -ne "\e[0m")
 MOUNTED_BOOT="0"
 
-check_exit_code() {
-    CODE=$1
-    MSG=$2
+run_command() {
+    CMD=$1
+    header "$CMD"
+    $CMD
+    CODE=$?
     if [[ "$CODE" -ne "0" ]]; then
-        echo "${RED}${MSG}${DEFAULT}"
+        echo -e "\n  ${RED}Died running '$CMD'${DEFAULT}\n"
         exit $CODE
     fi
 }
@@ -29,9 +31,9 @@ check_for_new_kernel() {
     if [[ "$(emerge --quiet --pretend --update gentoo-kernel | grep gentoo-kernel | wc -l)" -gt "0" ]]; then
         mount /boot 2>/dev/null
         [[ "$?" -eq  "0" ]] && MOUNTED_BOOT=1
-        echo "${CYAN}A new kernel will be installed."
-        echo "  Please remove the oldest one to make space"
-        echo "  in /boot, and then press enter to continue.${DEFAULT}"
+        important "A new kernel will be installed.\n\
+  Please remove the oldest one to make space\n\
+  in /boot, and then press enter to continue."
         read
     fi
 }
@@ -40,42 +42,41 @@ header() {
     echo "${BLUE}### $1 ${DEFAULT}"
 }
 
+important() {
+    echo -e "\n  ${CYAN}$1${DEFAULT}\n"
+}
+
 check_for_new_kernel
+exit
 
-header "emerge @world"
-emerge --ask --quiet-build --verbose --jobs $JOBS --update --deep --newuse @world
-check_exit_code "$?" "Died emerging world."
-
-find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
-dispatch-conf
-
-header "emerge @preserved-rebuild"
-emerge --ask --quiet-build --verbose --jobs $JOBS @preserved-rebuild
-check_exit_code "$?" "Died during rebuild."
+run_command "emerge --ask --quiet-build --verbose --jobs $JOBS --update --deep --newuse @world"
 
 find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
 dispatch-conf
 
-header "emerge depclean"
-emerge --ask --depclean
-check_exit_code "$?" "Died during depclean."
+run_command "emerge --ask --quiet-build --verbose --jobs $JOBS @preserved-rebuild"
+
+find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
+dispatch-conf
+
+run_command "emerge --ask --depclean"
 
 NEWS=$(eselect news list | awk '{if($2=="N")print}')
-echo "$NEWS" | grep -q . && header "eselect news"
+echo "$NEWS" | grep -q . && header "eselect news list"
 echo "$NEWS"
 
 if [[ "$(uname -r)" != "$(eselect kernel list | sed -ne 's/.*linux-\([.0-9]*\) \*/\1/p')" ]]; then
     if [[ -e "/usr/sbin/grub-mkconfig" ]]; then
-        header "reconfiguring grub"
-        grub-mkconfig -o /boot/grub/grub.cfg
-        check_exit_code "$?" "Died during grub reconfiguration."
-        echo "${CYAN}New kernel installed, please reboot!${DEFAULT}"
+        run_command "grub-mkconfig -o /boot/grub/grub.cfg"
+        important "New kernel installed, please reboot!"
     else
-        echo "${CYAN}New kernel installed, please edit grub config and reboot!${DEFAULT}"
+        important "New kernel installed, please edit grub config and reboot!"
     fi
 fi
 
 [[ "$MOUNTED_BOOT" -eq "1" ]] && umount /boot
+# so we exit 0 even if $MOUNTED_BOOT is 0
+true
 
 # TODO
 # update perl modules in ~/perl5
