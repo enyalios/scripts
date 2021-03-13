@@ -1,10 +1,14 @@
 #!/bin/bash
 
+# keep only n kernels, 0 to disable pruning
+PRUNE_KERNELS="3"
+
 # re-exec ourselves with sudo if not root
 [[ "$UID" -ne "0" ]] && exec sudo $0 $@
 
 JOBS=$(($(cat /proc/cpuinfo | grep MHz | wc -l) + 1))
 RED=$(echo -ne "\e[1;31m")
+GREEN=$(echo -ne "\e[1;32m")
 BLUE=$(echo -ne "\e[1;34m")
 CYAN=$(echo -ne "\e[1;36m")
 DEFAULT=$(echo -ne "\e[0m")
@@ -46,6 +50,44 @@ important() {
     echo -e "\n  ${CYAN}$1${DEFAULT}\n"
 }
 
+remove_kernel() {
+    KERNEL=$1
+    if ! echo "$KERNEL" | grep -Pq '\d+\.\d+\.\d+'; then
+        echo "'$KERNEL' does not look like a kernel version"
+        exit 1
+    fi
+    equery l '*' | grep -P "^sys-kernel/(gentoo|vanilla)-(kernel|sources)(-bin)?-$KERNEL\$" | xargs -r emerge -C
+    rm -rf /boot/{System.map,config,vmlinuz}-$KERNEL /boot/initramfs-$KERNEL.img /lib/modules/$KERNEL /usr/src/linux-$KERNEL
+}
+
+prune_kernels() {
+    if ! [[ "$PRUNE_KERNELS" -gt "0" ]]; then
+        return
+    fi
+    KERNEL_LIST=$(eselect kernel list | sed -ne 's/^.*linux-\([^ ]*\) *\**/\1/p')
+    CURRENT=$(uname -r)
+    # put the current kernel at the bottom of the list so it doesnt get pruned
+    KERNEL_LIST=$(echo "$KERNEL_LIST" | grep -v "^$CURRENT$"; echo "$CURRENT")
+    REMOVE_LIST=$(echo "$KERNEL_LIST" | head -n -$PRUNE_KERNELS)
+    KEEP_LIST=$(echo "$KERNEL_LIST" | tail -n $PRUNE_KERNELS)
+    if [[ -z "$REMOVE_LIST" ]]; then
+        return
+    fi
+    echo "One or more kernels will be removed:"
+    echo -n "  remove: ${RED}"
+    echo "$REMOVE_LIST" | tr '\n' ' '
+    echo "${DEFAULT}"
+    echo -n "    keep: ${GREEN}"
+    echo "$KEEP_LIST" | tr '\n' ' '
+    echo "${DEFAULT}"
+    echo -n "Press enter to confirm (Control-C to cancel). "
+    read
+    for KERNEL in $REMOVE_LIST; do
+        header "removing kernel $KERNEL"
+        remove_kernel "$KERNEL"
+    done
+}
+
 check_for_new_kernel
 
 run_command "emerge --ask --quiet-build --verbose --jobs $JOBS --update --deep --newuse @world"
@@ -59,6 +101,8 @@ find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
 dispatch-conf
 
 run_command "emerge --ask --depclean"
+
+prune_kernels
 
 NEWS=$(eselect news list | awk '{if($2=="N")print}')
 echo "$NEWS" | grep -q . && header "eselect news list"
@@ -79,12 +123,3 @@ true
 
 # TODO
 # update perl modules in ~/perl5
-# remove old kernels
-# keep n old kernels
-
-# kernel removal steps
-# edit grub config
-# emerge -Ca gentoo-kernel-5.4.40
-# rm /boot/System.map-5.4.40  /boot/config-5.4.40  /boot/initramfs-5.4.40.img  /boot/vmlinuz-5.4.40
-# rm -rf /lib/modules/5.4.40
-# rm -rf /usr/src/linux-5.4.40
