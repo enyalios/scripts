@@ -108,7 +108,7 @@ NEWS=$(eselect news list | awk '{if($2=="N")print}')
 echo "$NEWS" | grep -q . && header "eselect news list"
 echo "$NEWS"
 
-if [[ "$(uname -r)" != "$(eselect kernel list | sed -ne 's/.*linux-\([.0-9]*\) \*/\1/p')" ]]; then
+if [[ "$(uname -r)" != "$(eselect kernel list | sed -ne 's/.*linux-\(.*\) \*/\1/p')" ]]; then
     if [[ -e "/usr/sbin/grub-mkconfig" ]]; then
         run_command "grub-mkconfig -o /boot/grub/grub.cfg"
         important "New kernel installed, please reboot!"
