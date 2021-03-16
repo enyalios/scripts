@@ -33,7 +33,8 @@ my $pass = get_password();
 # save the buffer so we can redraw if the window gets resized
 my $saved_buffer;
 # open the imap connection that we'll be using
-my $imap = &connect_to_imap();
+my $imap;
+#my $imap = &connect_to_imap();
 
 # make the cursor dissappear if we're a daemon
 $SIG{INT} = sub { &fix_term && exit };
@@ -54,9 +55,10 @@ while(1) {
 
     &check_process("openvpn");
     &check_process("imapfilter");
+    &check_process("imap-daemon");
     &check_krb_ticket();
     &check_nagios();
-    &check_calendar();
+    #&check_calendar();
     &check_email();
     &check_irc();
     #&check_jabber();
@@ -145,6 +147,11 @@ sub check_nagios {
     my $content;
     #$content = $ua->request($r)->{_content};
     $content = join "", `curl --negotiate -su: 'https://nagios.security.ncsa.illinois.edu/nagios/cgi-bin/text-status.cgi'`;
+    if($content =~ /<title>401 Unauthorized<\/title>/) {
+        output("Could not connect to nagios (401 Unauthorized).\n\n");
+        return;
+    }
+
     # strip off the html
     $content =~ s/.*<\/?html>.*\n//g;
 
@@ -248,6 +255,16 @@ sub check_calendar {
 }
 
 sub check_email {
+    if(open(my $fh, "<", "$ENV{HOME}/.email.txt")) {
+        my $string = join "", <$fh>;
+        close $fh or die "Couldn't close email file: $!\n";
+        output($string);
+    } else {
+        output("Opening email...\n");
+    }
+}
+
+sub check_email2 {
     # try to reconnect if exchange disconnected us
     $imap = &connect_to_imap() unless $imap->IsConnected;
 
