@@ -27,7 +27,7 @@ run_command() {
 
 check_for_new_kernel() {
     # skip kernel stuff if we arent using the gentoo-kernel package
-    if ! grep -q 'sys-kernel/gentoo-kernel' /var/lib/portage/world; then
+    if ! grep -q '^sys-kernel/gentoo-kernel' /var/lib/portage/world; then
         return
     fi
 
@@ -88,6 +88,7 @@ prune_kernels() {
     done
 }
 
+
 check_for_new_kernel
 
 run_command "emerge --ask --quiet-build --verbose --jobs $JOBS --update --deep --newuse @world"
@@ -99,6 +100,10 @@ run_command "emerge --ask --quiet-build --verbose --jobs $JOBS @preserved-rebuil
 
 find '/etc' -name '._cfg????_*' | grep -q . && header "dispatch-conf"
 dispatch-conf
+
+# add all installed kernel packages to the world file so they arent depcleaned
+# sed adds '=' to the beginning of each sys-kernel/gentoo-sources-* package
+equery l 'sys-kernel/*' | sed -ne 's/^\(sys-kernel\/gentoo-kernel\)/=\1/p' | xargs emerge -qu
 
 run_command "emerge --ask --depclean"
 
