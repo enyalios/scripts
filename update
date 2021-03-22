@@ -56,7 +56,8 @@ remove_kernel() {
         echo "'$KERNEL' does not look like a kernel version"
         exit 1
     fi
-    equery l '*' | grep -P "^sys-kernel/(gentoo|vanilla)-(kernel|sources)(-bin)?-$KERNEL\$" | xargs -r emerge -C
+    SHORT_KERNEL=$(echo $KERNEL | sed -e 's/-gentoo-dist$//')
+    equery l '*' | grep -P "^sys-kernel/(gentoo|vanilla)-(kernel|sources)(-bin)?-($KERNEL|$SHORT_KERNEL)\$" | xargs -r emerge -C
     rm -rf /boot/{System.map,config,vmlinuz}-$KERNEL /boot/initramfs-$KERNEL.img /lib/modules/$KERNEL /usr/src/linux-$KERNEL
 }
 
