@@ -27,7 +27,7 @@ run_command() {
 
 check_for_new_kernel() {
     # skip kernel stuff if we arent using the gentoo-kernel package
-    if ! grep -q '^sys-kernel/gentoo-kernel' /var/lib/portage/world; then
+    if ! grep -q 'sys-kernel/gentoo-kernel' /var/lib/portage/world; then
         return
     fi
 
