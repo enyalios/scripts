@@ -2,6 +2,7 @@
 
 # keep only n kernels, 0 to disable pruning
 PRUNE_KERNELS="3"
+SYNC_AGE="604800" # one week
 
 # re-exec ourselves with sudo if not root
 [[ "$UID" -ne "0" ]] && exec sudo $0 $@
@@ -89,6 +90,26 @@ prune_kernels() {
     done
 }
 
+synced_recently() {
+    LAST_SYNC=$(date -d "$(cat /usr/portage/metadata/timestamp.chk)" +%s)
+    NOW=$(date +%s)
+    if [[ "$(($NOW - $LAST_SYNC))" -lt "$SYNC_AGE" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+lines() {
+    LINES=0
+    while read; do
+        LINES=$(($LINES + 1))
+        echo -ne "\r$LINES "
+    done
+    echo
+}
+
+
+synced_recently || run_command "emerge --sync | lines"
 
 check_for_new_kernel
 
