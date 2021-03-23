@@ -18,7 +18,14 @@ MOUNTED_BOOT="0"
 run_command() {
     CMD=$1
     header "$CMD"
-    $CMD
+    # set the return code to the last non-zero code,
+    # so $? is from $CMD if it fails and not from 'lines'
+    set -o pipefail
+    if [[ "$2" == "quiet" ]]; then
+        $CMD | lines
+    else
+        $CMD
+    fi
     CODE=$?
     if [[ "$CODE" -ne "0" ]]; then
         echo -e "\n  ${RED}Died running '$CMD'${DEFAULT}\n"
@@ -109,7 +116,7 @@ lines() {
 }
 
 
-synced_recently || run_command "emerge --sync | lines"
+synced_recently || run_command "emerge --sync" "quiet"
 
 check_for_new_kernel
 
@@ -125,7 +132,7 @@ dispatch-conf
 
 # add all installed kernel packages to the world file so they arent depcleaned
 # sed adds '=' to the beginning of each sys-kernel/gentoo-sources-* package
-equery l 'sys-kernel/*' | sed -ne 's/^\(sys-kernel\/gentoo-kernel\)/=\1/p' | xargs emerge -qu
+equery l 'sys-kernel/*' | sed -ne 's/^\(sys-kernel\/gentoo-kernel\)/=\1/p' | xargs -r emerge -qu
 
 run_command "emerge --ask --depclean"
 
