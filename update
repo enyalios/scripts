@@ -107,10 +107,11 @@ synced_recently() {
 }
 
 lines() {
-    LINES=0
+    COUNT=0;
+    SPINNER="|/-\\"
     while read; do
-        LINES=$(($LINES + 1))
-        echo -ne "\r$LINES "
+        COUNT=$(($COUNT + 1))
+        echo -ne "\r ${SPINNER:$(($COUNT%4)):1} $COUNT "
     done
     echo
 }
