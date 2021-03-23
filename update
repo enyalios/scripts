@@ -1,12 +1,12 @@
 #!/bin/bash
 
+# variables for tweaking
 # keep only n kernels, 0 to disable pruning
 PRUNE_KERNELS="3"
 SYNC_AGE="604800" # one week
 
-# re-exec ourselves with sudo if not root
-[[ "$UID" -ne "0" ]] && exec sudo $0 $@
 
+# internal variables, please dont edit
 JOBS=$(($(cat /proc/cpuinfo | grep MHz | wc -l) + 1))
 RED=$(echo -ne "\e[1;31m")
 GREEN=$(echo -ne "\e[1;32m")
@@ -14,6 +14,11 @@ BLUE=$(echo -ne "\e[1;34m")
 CYAN=$(echo -ne "\e[1;36m")
 DEFAULT=$(echo -ne "\e[0m")
 MOUNTED_BOOT="0"
+
+get_root() {
+    # re-exec ourselves with sudo if not root
+    [[ "$UID" -ne "0" ]] && exec sudo $0 $@
+}
 
 run_command() {
     CMD=$1
@@ -116,6 +121,20 @@ lines() {
     echo
 }
 
+update_local_perl_mods() {
+    PERLDIR="$HOME/perl5"
+    if ! [[ -d "$PERLDIR" ]]; then
+        return
+    fi
+    header "updating local perl modules"
+    find $PERLDIR -name install.json | xargs -n1 perl -MJSON -le 'print decode_json(<>)->{target}' | cpanm | grep -v ' is up to date\. '
+}
+
+
+# this is before re-execing as root to we update mods in the users home dir
+update_local_perl_mods
+
+get_root
 
 synced_recently || run_command "emerge --sync" "quiet"
 
@@ -155,6 +174,3 @@ fi
 [[ "$MOUNTED_BOOT" -eq "1" ]] && umount /boot
 # so we exit 0 even if $MOUNTED_BOOT is 0
 true
-
-# TODO
-# update perl modules in ~/perl5
