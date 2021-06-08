@@ -131,6 +131,9 @@ update_local_perl_mods() {
 }
 
 
+# run sudo in advance so we ask for a password right at the start
+[[ "$UID" -ne "0" ]] && sudo echo -n
+
 # this is before re-execing as root to we update mods in the users home dir
 update_local_perl_mods
 
