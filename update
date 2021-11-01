@@ -48,10 +48,14 @@ check_for_new_kernel() {
     if [[ "$(emerge --quiet --pretend --update gentoo-kernel | grep gentoo-kernel | wc -l)" -gt "0" ]]; then
         mount /boot 2>/dev/null
         [[ "$?" -eq  "0" ]] && MOUNTED_BOOT=1
-        important "A new kernel will be installed.\n\
-  Please remove the oldest one to make space\n\
-  in /boot, and then press enter to continue."
-        read
+
+        KERNEL_SIZE=$(du -c /boot/*$(uname -r)* | awk 'END{print $1}')
+        BOOT_SPACE=$(df /boot | awk 'END{print $4}')
+        if [[ "$KERNEL_SIZE" -gt "$BOOT_SIZE" ]]; then
+            important "A new kernel will be installed and it doesn't look like there is enough space\n\
+  in /boot. Please free up some space and then press enter to continue."
+            read
+        fi
     fi
 }
 
