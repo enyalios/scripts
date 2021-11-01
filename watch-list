@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# prometheus alerts
+echo -ne '\e[31;1m'
+curl -ns 'https://status.enyalios.net/api/v1/alerts' | perl -MJSON -e '$tree = decode_json(<>); @alerts = @{$tree->{data}->{alerts}}; print $_->{annotations}->{summary}, "\n" for @alerts; print "\n" if @alerts'
+echo -ne '\e[m'
+
 # email
 if [[ -e ~/.imapls ]]; then
     imapls -n 2>&1
