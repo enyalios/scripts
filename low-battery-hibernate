@@ -4,6 +4,14 @@ use warnings;
 use strict;
 use Sys::Syslog;
 
+sub write_text {
+    my $file = shift;
+    my $string = shift;
+    open(my $fh, ">", $file) or die "Couldn't open '$file': $!";
+    print $fh $string;
+    close $fh or die "Couldn't close '$file': $!";
+}
+
 my $VERBOSE = (defined $ARGV[0] && $ARGV[0] eq "-v")?1:0;
 
 undef $/;
@@ -20,7 +28,8 @@ while(1) {
             openlog("acpi", "pid", "user");
             syslog("info", "battery running low, hibernating");
             closelog();
-            system("/usr/sbin/pm-hibernate");
+            #system("/usr/sbin/pm-hibernate");
+            write_text "/sys/power/state", "disk\n";
         }
         print "discharging = $discharging\nremaining: $remaining\nrate: $rate\ntime: $time\n\n" if $VERBOSE;
     }
