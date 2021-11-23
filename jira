@@ -6,6 +6,7 @@ TEXT=""
 # API documentation:
 # https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/
 
+# helper functions
 format() {
     sed -e 's/^[^=]* = "*/'"$1"'/; s/"*;$//; s/\(\\r\)*\\n/\n/g; s/\\"/"/g; s/\\t/\t/g; s/\\\\/\\/g; s/\xC2\xA0/ /g'
 }
@@ -31,7 +32,7 @@ find_transition_id() {
 }
 
 die() {
-    echo "$1"
+    echo -e "$1"
     exit 1
 }
 
@@ -94,7 +95,14 @@ EOF
     PASS=$(bash -c "$PASS_CMD")
 }
 
+find_gron() {
+    if ! which gron &> /dev/null; then
+        echo -e "Unable to find 'gron' in your path.\n"
+        die "Please install it from https://github.com/tomnomnom/gron .\n"
+    fi
+}
 
+# action specific functions
 show_ticket() {
     JSON=$(get issue/$TICKET | gron)
     echo "$JSON" | grep '^json.errorMessages\['      | format 'ERROR: '
@@ -191,8 +199,8 @@ EOF
 }
 
 
+find_gron
 read_rcfile
-
 [[ "$TICKET" =~ ^(-*help|-h|'')$ ]] && print_help && exit
 
 case $ACTION in
