@@ -78,7 +78,7 @@ jira = https://JIRA SERVER/rest/api/2
 user = $(whoami)
 
 # a command that outputs your password
-password_command = echo -n 'Password: ' >&2; stty -echo; read pw; echo \$pw
+password_command = echo -n 'Password: ' >&2; stty -echo; read pw; stty echo; echo \$pw
 # password_command = echo 'pa\$\$w0rd1'
 # password_command = gpg -qd \$HOME/.password.gpg
 
@@ -165,7 +165,8 @@ show_queue() {
     ' \
         | sort -n \
         | sed -e 's/^[0-9]*[abcd] = "//; s/";$//' \
-        | xargs -d '\n' printf "%-16s" \
+        | tr '\n' '\0' \
+        | xargs -0 printf "%-16s" \
         | sed -e 's/<><>/\n/g'
     #echo "$JSON"
 }
@@ -199,9 +200,10 @@ EOF
 }
 
 
-[[ "$TICKET" =~ ^(-*help|-h|'')$ ]] && print_help && exit
+[[ "$TICKET" =~ ^(-*help|-h)$ ]] && print_help && exit
 find_gron
 read_rcfile
+[[ "$TICKET" == "" ]] && print_help && exit
 
 case $ACTION in
     show|'')        show_ticket;;
