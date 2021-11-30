@@ -199,9 +199,9 @@ EOF
 }
 
 
+[[ "$TICKET" =~ ^(-*help|-h|'')$ ]] && print_help && exit
 find_gron
 read_rcfile
-[[ "$TICKET" =~ ^(-*help|-h|'')$ ]] && print_help && exit
 
 case $ACTION in
     show|'')        show_ticket;;
