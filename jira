@@ -83,7 +83,7 @@ password_command = echo -n 'Password: ' >&2; stty -echo; read pw; echo \$pw
 # password_command = gpg -qd \$HOME/.password.gpg
 
 # your preferred editor (will use \$EDITOR if not set)
-# editor = vim
+# editor = vim +startinsert
 EOF
         exit 1
     fi
