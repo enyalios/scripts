@@ -41,11 +41,11 @@ get() {
 }
 
 put() {
-    curl -su "$USER:$PASS" -X POST -d @- -H "Content-Type: application/json" "$JIRA_API/$1"
+    curl -su "$USER:$PASS" -X PUT -d @- -H "Content-Type: application/json" "$JIRA_API/$1"
 }
 
 post() {
-    curl -su "$USER:$PASS" -X PUT -d @- -H "Content-Type: application/json" "$JIRA_API/$1"
+    curl -su "$USER:$PASS" -X POST -d @- -H "Content-Type: application/json" "$JIRA_API/$1"
 }
 
 urlencode() {
@@ -218,9 +218,6 @@ esac
 
 # TODO
 # allow you to specify the message as an argument to comment rather than on stdin or from the editor?
-# create GET PUT and POST functions and migrate all the web calls to them
-#   test new post function
-#   test new put function
 # use sed to look for 'json.issues[3].fields.assignee = null;' and change that to 'json.issues[6].fields.assignee.name = "(null)";'
 # make it so you can pass in your own search query
 # make 'jira SECOPS' list the queue without needed the 'search' command
