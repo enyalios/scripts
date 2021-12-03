@@ -3,6 +3,7 @@
 TICKET=$1; shift
 ACTION=$1; shift
 TEXT=""
+RCFILE="$HOME/.jirarc"
 # API documentation:
 # https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/
 
@@ -65,8 +66,7 @@ urlencode() {
     echo "${encoded}"
 }
 
-read_rcfile() {
-    RCFILE="$HOME/.jirarc"
+create_rcfile() {
     if [[ ! -e "$RCFILE" ]]; then
         echo -e "No '$RCFILE' file found, generating one.\n"
         echo -e "Please edit the template before continuing.\n"
@@ -87,11 +87,17 @@ password_command = echo -n 'Password: ' >&2; stty -echo; read pw; stty echo; ech
 EOF
         exit 1
     fi
+}
 
-    JIRA_API=$(cat "$RCFILE" | sed -ne 's/^ *jira *= *//p')
-        USER=$(cat "$RCFILE" | sed -ne 's/^ *user *= *//p')
-    PASS_CMD=$(cat "$RCFILE" | sed -ne 's/^ *password_command *= *//p')
-      EDITOR=$(cat "$RCFILE" | sed -ne 's/^ *editor *= *//p')
+config() {
+    cat "$RCFILE" | sed -ne "s/^ *$1 *= *//p"
+}
+
+read_rcfile() {
+    JIRA_API=$(config jira)
+        USER=$(config user)
+    PASS_CMD=$(config password_command)
+      EDITOR=$(config editor)
     PASS=$(bash -c "$PASS_CMD")
 }
 
@@ -200,10 +206,10 @@ EOF
 }
 
 
-[[ "$TICKET" =~ ^(-*help|-h)$ ]] && print_help && exit
 find_gron
+create_rcfile
+[[ "$TICKET" =~ ^(-*help|-h|'')$ ]] && print_help && exit
 read_rcfile
-[[ "$TICKET" == "" ]] && print_help && exit
 
 case $ACTION in
     show|'')        show_ticket;;
@@ -227,3 +233,4 @@ esac
 # verify that the escape function escapes all json sequences properly
 #   https://www.tutorialspoint.com/json_simple/json_simple_escape_characters.htm
 # show dates of ticket creation and each comment
+# fix counts in search results
