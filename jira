@@ -126,7 +126,7 @@ create_ticket() {
     SUMMARY=$1
     get_text
     INPUT_JSON='{"fields":{
-    "project":{"key":"'"$(escape "$TICKET")"'"},
+    "project":{"key":"'"$(escape "$PROJECT")"'"},
     "summary":"'"$(escape "$SUMMARY")"'",
     "description":"'"$(escape "$TEXT")"'",
     "issuetype":{"name":"Ticket"}}}'
