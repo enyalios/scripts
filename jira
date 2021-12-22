@@ -15,7 +15,7 @@ format() {
 
 get_text() {
     if [[ -t 0 ]]; then
-        TEMP=$(mktemp)
+        TEMP=$(mktemp --suffix=.txt)
         [[ -z "$EDITOR" ]] && EDITOR="vi"
         $EDITOR $TEMP
         TEXT=$(cat $TEMP)
