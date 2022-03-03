@@ -154,7 +154,7 @@ sub battery {
     my $battery = $_[0];
     return unless defined $battery;
     my $status = $battery->{POWER_SUPPLY_STATUS};
-    $status = "Full" if $status eq "Unknown";
+    $status = "Full" if $status eq "Not charging";
     my $percent = $battery->{POWER_SUPPLY_CAPACITY};
     my $text = "$status $percent%";
     if($status eq "Discharging") {

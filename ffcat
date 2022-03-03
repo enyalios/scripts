@@ -1,0 +1,71 @@
+#!/bin/bash
+
+REENCODE=0
+RES=""
+OUTPUT=""
+FILES=()
+
+print_help() {
+    PROG_NAME=$(echo $0 | sed -e 's/.*\///')
+    cat <<EOF
+Concatenate several video files together into one.
+
+Usage:
+  $PROG_NAME [options] file ...
+
+Options:
+  --help     -h                 display this help message
+  --output   -o <file>          write output to <file>
+  --reencode -r                 re-encode input files
+  --size     -s <width:height>  resize video to width x height
+
+EOF
+}
+
+
+while [[ $1 != "" ]]; do
+    case $1 in
+        -r|--reencode) REENCODE=1 ; shift  ;;
+        -s|--size)     RES="$2"   ; shift 2;;
+        -o|--output)   OUTPUT="$2"; shift 2;;
+        -h|--help)     print_help; exit;;
+        *)             FILES+=("$1"); shift;;
+    esac
+done
+
+if [[ $REENCODE -eq 1 ]]; then
+    if [[ "$RES" == "" ]]; then
+        RES=$(for i in "${FILES[@]}"; do ffprobe "$i"; done 2>&1 | grep -Po '\d{2,}x\d{2,}' | sort -rn | head -n1)
+    fi
+    RES=$(echo "$RES" | tr ,xX- :)
+    for i in "${FILES[@]}"; do
+        # fit image into a box
+        ffmpeg -i "$i" -vf "scale=${RES}:force_original_aspect_ratio=increase,crop=${RES},setsar=1:1" -c:v libx265 -crf 23 -c:a libmp3lame intermediate-"$i".mp4
+    done
+    printf "file 'intermediate-%s.mp4'\n" "${FILES[@]}" > list.$$.txt
+    [[ "$OUTPUT" == "" ]] && OUTPUT="out.mp4"
+else
+    printf "file '%s'\n" "${FILES[@]}" > list.$$.txt
+    [[ "$OUTPUT" == "" ]] && OUTPUT="out.$(echo "${FILES[0]}" | sed -e 's/.*\.//')"
+fi
+
+ffmpeg -f concat -safe 0 -i list.$$.txt -c copy $OUTPUT
+rm list.$$.txt
+
+# declare -a ARGS
+# for i in "$@"; do
+#     ARGS+=("-i" "$i")
+# done
+# 
+# ffmpeg "${ARGS[@]}" -c copy out.mp4
+
+#mencoder input*.avi -ovc copy -oac copy -o out.avi
+#mencoder input*.avi -ovc x264 -oac mp3lame -o out.avi
+# crop off extra image after scaling
+# ffmpeg -i "$i" -vf "scale=${RES}:force_original_aspect_ratio=increase,crop=${RES},setsar=1:1" -c:v libx264 -c:a libmp3lame intermediate-"$i".mp4
+# fit image into a box
+# ffmpeg -i "$i" -vf "scale=${RES}:force_original_aspect_ratio=decrease,pad=${RES}:-1:-1:color=black,setsar=1:1" -c:v libx265 -crf 23 -c:a libmp3lame intermediate-"$i".mp4
+# if fps doesnt match
+# -r 29.97
+# if tbn doesnt match
+# -video_track_timescale 30k
