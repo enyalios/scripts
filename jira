@@ -1,0 +1,259 @@
+#!/bin/bash
+
+TICKET=""
+PROJECT=""
+ACTION=""
+TEXT=""
+RCFILE="$HOME/.jirarc"
+# API documentation:
+# https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/
+
+# helper functions
+format() {
+    sed -e 's/^[^=]* = "*/'"$1"'/; s/"*;$//; s/\(\\r\)*\\n/\n/g; s/\\"/"/g; s/\\t/\t/g; s/\\\\/\\/g; s/\xC2\xA0/ /g'
+}
+
+get_text() {
+    if [[ -t 0 ]]; then
+        TEMP=$(mktemp --suffix=.txt)
+        [[ -z "$EDITOR" ]] && EDITOR="vi"
+        $EDITOR $TEMP
+        TEXT=$(cat $TEMP)
+        rm $TEMP
+    else
+        TEXT=$(cat)
+    fi
+}
+
+escape() {
+    echo "$1" | sed -e 's/\\/\\\\/g; s/\r/\\r/g; s/\t/\\t/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n' | sed -e 's/\\n$//'
+}
+
+find_transition_id() {
+    sed -ne 's/.*"id":"\([0-9]*\)","name":"'"$1"'".*/\1/p'
+}
+
+die() {
+    echo -e "$1"
+    exit 1
+}
+
+get() {
+    curl -su "$USER:$PASS" "$JIRA_API/$1"
+}
+
+put() {
+    curl -su "$USER:$PASS" -X PUT -d @- -H "Content-Type: application/json" "$JIRA_API/$1"
+}
+
+post() {
+    curl -su "$USER:$PASS" -X POST -d @- -H "Content-Type: application/json" "$JIRA_API/$1"
+}
+
+urlencode() {
+    local string="${1}"
+    local strlen=${#string}
+    local encoded=""
+    local pos c o
+
+    for (( pos=0 ; pos<strlen ; pos++ )); do
+        c=${string:$pos:1}
+        case "$c" in
+            [-_.~a-zA-Z0-9] ) o="${c}" ;;
+            * )               printf -v o '%%%02x' "'$c"
+        esac
+        encoded+="${o}"
+    done
+    echo "${encoded}"
+}
+
+create_rcfile() {
+    if [[ ! -e "$RCFILE" ]]; then
+        echo -e "No '$RCFILE' file found, generating one.\n"
+        echo -e "Please edit the template before continuing.\n"
+        cat << EOF > "$RCFILE"
+# the url of the jira servers rest API
+jira = https://JIRA SERVER/rest/api/2
+
+# your jira username
+user = $(whoami)
+
+# a command that outputs your password
+password_command = echo -n 'Password: ' >&2; stty -echo; read pw; stty echo; echo \$pw
+# password_command = echo 'pa\$\$w0rd1'
+# password_command = gpg -qd \$HOME/.password.gpg
+
+# your preferred editor (will use \$EDITOR if not set)
+# editor = vim +startinsert
+EOF
+        exit 1
+    fi
+}
+
+config() {
+    cat "$RCFILE" | sed -ne "s/^ *$1 *= *//p"
+}
+
+read_rcfile() {
+    JIRA_API=$(config jira)
+        USER=$(config user)
+    PASS_CMD=$(config password_command)
+      EDITOR=$(config editor)
+    PASS=$(bash -c "$PASS_CMD")
+}
+
+find_gron() {
+    if ! which gron &> /dev/null; then
+        echo -e "Unable to find 'gron' in your path.\n"
+        die "Please install it from https://github.com/tomnomnom/gron .\n"
+    fi
+}
+
+# action specific functions
+show_ticket() {
+    JSON=$(get issue/$TICKET | gron)
+    echo "$JSON" | grep '^json.errorMessages\['      | format 'ERROR: '
+    echo "$JSON" | grep '^json.fields.summary'       | format
+    echo "$JSON" | grep '^json.fields.status.name'   | format 'Status:   '
+    echo "$JSON" | grep '^json.fields.assignee.name' | format 'Assignee: '
+    echo "$JSON" | grep '^json.fields.reporter.name' | format 'Reporter: '
+    echo "$JSON" | grep '^json.fields.description'   | format '\n'
+    echo "$JSON" | grep '^json.fields.comment.comments\[[0-9]*\].\(body\|author.name\)' | sed -e 's/^json.fields.comment.comments\[[0-9]*\].author.name = "\(.*\)";$/\n==== Comment by \1 ====/' | format
+    #echo "$JSON" | grep 'assign'
+}
+
+create_ticket() {
+    SUMMARY=$1
+    get_text
+    INPUT_JSON='{"fields":{
+    "project":{"key":"'"$(escape "$PROJECT")"'"},
+    "summary":"'"$(escape "$SUMMARY")"'",
+    "description":"'"$(escape "$TEXT")"'",
+    "issuetype":{"name":"Ticket"}}}'
+    JSON=$(echo "$INPUT_JSON" | post issue | gron)
+    echo "$JSON" | grep '^json.key' | format
+}
+
+assign_ticket() {
+    WHO=$1
+    echo "Assigning ticket $TICKET to $WHO."
+    INPUT_JSON='{"fields":{"assignee":{"name":"'"$(escape "$WHO")"'"}}}'
+    echo "$INPUT_JSON" | put issue/$TICKET
+}
+
+add_comment() {
+    get_text
+    INPUT_JSON='{"body":"'"$(escape "$TEXT")"'"}'
+    JSON=$(echo "$INPUT_JSON" | post issue/$TICKET/comment | gron)
+    echo "$JSON" | grep '^json.errorMessages\[' | format 'ERROR: '
+}
+
+transition_ticket() {
+    TRANSITION="$1"
+    get_text
+    ID=$(get issue/$TICKET/transitions | find_transition_id "$TRANSITION")
+    [[ "$ID" == "" ]] && die "Unable to find the appropriate transition id."
+    INPUT_JSON='{"transition":{"id":'"$ID"'},"update":{"comment":[{"add":{"body":"'"$(escape "$TEXT")"'"}}]}}'
+    [[ "$TEXT" == "" ]] && INPUT_JSON='{"transition":{"id":'"$ID"'}}'
+    echo "$INPUT_JSON" | post issue/$TICKET/transitions
+}
+
+show_queue() {
+    case $1 in
+        mine|'') QUERY="project=$PROJECT AND resolution=Unresolved AND assignee=$USER";;
+        all)     QUERY="project=$PROJECT AND resolution=Unresolved";;
+        *)       QUERY="project=$PROJECT AND $1";;
+    esac
+
+    JSON=$(get "search?jql=$(urlencode "$QUERY")&fields=key,summary,assignee,status" | gron)
+    echo "$JSON" | grep '^json.maxResults' | format 'Showing ' | tr -d '\n'
+    echo "$JSON" | grep '^json.total' | format ' of '
+    echo "$JSON" | sed -ne '
+    s/json.issues\[\([0-9]*\)\].key/\1a/p;
+    s/json.issues\[\([0-9]*\)\].fields.status.name/\1b/p;
+    s/json.issues\[\([0-9]*\)\].fields.assignee.name/\1c/p;
+    s/json.issues\[\([0-9]*\)\].fields.summary\(.*\)";/\1d\2<><>";/p;
+    ' \
+        | sort -n \
+        | sed -e 's/^[0-9]*[abcd] = "//; s/";$//' \
+        | tr '\n' '\0' \
+        | xargs -0 printf "%-16s" \
+        | sed -e 's/<><>/\n/g'
+    #echo "$JSON"
+}
+
+show_transitions() {
+    get issue/$TICKET/transitions | gron
+}
+
+print_help() {
+    PROGNAME=$(basename "$0")
+    cat << EOF
+$PROGNAME: a simple tool for interacting with jira tickets.
+
+Usage:
+  $PROGNAME (ticket|project) [action]
+
+  $PROGNAME <ticket> [show]            -- display a ticket
+  $PROGNAME <project> create <summary> -- create a new ticket
+  $PROGNAME <ticket> assign <user>     -- assign a ticket
+  $PROGNAME <ticket> take              -- assign a ticket to you
+  $PROGNAME <ticket> comment           -- add a comment to a ticket
+  $PROGNAME <ticket> start             -- move a ticket to 'in progress'
+  $PROGNAME <ticket> close             -- close a ticket
+  $PROGNAME <project> [search] [query] -- list tickets in a project
+  $PROGNAME help                       -- this help message
+
+Any commands that can take a message body (create, comment, start, and
+close) read it on stdin but open an editor if nothing is piped to them.
+
+When searching a project you can use 'mine', 'all', or just pass in jql.
+
+EOF
+}
+
+
+create_rcfile
+
+# argument parsing
+if echo "$1" | grep -q '^\(-h\|-*help\|\)$'; then
+    print_help; exit
+elif echo "$1" | grep -q -- '-[0-9][0-9]*$'; then
+    TICKET="$1"; shift
+else
+    PROJECT="$1"; shift
+fi
+ACTION=$1; shift
+
+find_gron
+read_rcfile
+
+if [[ -n "$PROJECT" ]]; then
+    # actions on a project
+    case $ACTION in
+        create|new)     create_ticket "$1";;
+        search)         show_queue "$1";;
+        *)              show_queue "$ACTION";;
+    esac
+else
+    # actions on a ticket
+    case $ACTION in
+        show|'')        show_ticket;;
+        assign)         assign_ticket "$1";;
+        take)           assign_ticket "$USER";;
+        comment|cm)     add_comment;;
+        start)          transition_ticket "Start Progress";;
+        close)          transition_ticket "Close Issue";;
+        transitions)    show_transitions;;
+        *)              print_help; die "Unknown action '$ACTION'.";;
+    esac
+fi
+
+# TODO
+# allow you to specify the message as an argument to comment rather than on stdin or from the editor?
+# use sed to look for 'json.issues[3].fields.assignee = null;' and change that to 'json.issues[6].fields.assignee.name = "(null)";'
+# verify that the format function unescapes all json sequences properly
+# verify that the escape function escapes all json sequences properly
+#   https://www.tutorialspoint.com/json_simple/json_simple_escape_characters.htm
+# show dates of ticket creation and each comment
+# fix counts in search results
