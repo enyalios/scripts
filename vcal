@@ -58,8 +58,8 @@ print "  $description\n" if $description;
 # this nicely formats a name and email address
 sub fix_name {
     my $string = $_[0];
-    $string =~ s/;SENT-BY="MAILTO:.*?":/:/;
-    $string =~ /^CN=(.*):MAILTO:(.*)$/;
+    $string =~ s/;SENT-BY="MAILTO:.*?":/:/i;
+    $string =~ /^CN=(.*):MAILTO:(.*)$/i;
     my ($name, $address) = ($1, $2);
     $name =~ s/"(.*)"/$1/;
     my @parts = split ", ", $name, 2;
