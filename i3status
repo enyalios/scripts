@@ -7,15 +7,116 @@ use POSIX qw(strftime);
 use JSON;
 use Socket;
 use utf8;
+use Time::HiRes qw(time);
 binmode(STDOUT, ":utf8");
+
+# icon cheatsheet https://fontawesome.com/v5/cheatsheet
+# https://fontawesome.com/icons/categories/weather
+my %icon = (
+    wifi     => "\x{f1eb}",
+    clock    => "\x{f073}",
+    load     => "\x{f201}",
+    traffic  => "\x{f6ff}",
+    down     => "\x{25BC}",
+    up       => "\x{25B2}",
+    plug     => "\x{f1e6}",
+    battery0 => "\x{f244}",
+    battery1 => "\x{f243}",
+    battery2 => "\x{f242}",
+    battery3 => "\x{f241}",
+    battery4 => "\x{f240}",
+    bright   => "\x{f26c}",
+    unknown  => "\x{f128}",
+    # one icon if the same for day and night
+    # an array with "day icon", "night icon" if different
+    "Mostly Cloudy"                  => "\x{f0c2}",
+    "Mostly Cloudy with Haze"        => "\x{f0c2}",
+    "Overcast"                       => "\x{f0c2}",
+    "Overcast with Haze"             => "\x{f0c2}",
+    "Overcast and Breezy"            => "\x{f72e}\x{f0c2}",
+    "Overcast and Windy"             => "\x{f72e}\x{f0c2}",
+    "Mostly Cloudy and Breezy"       => "\x{f72e}\x{f0c2}",
+    "Mostly Cloudy and Windy"        => "\x{f72e}\x{f0c2}",
+    "Light Rain Fog/Mist"            => "\x{f73d}",
+    "Light Rain Fog/Mist and Breezy" => "\x{f72e}\x{f73d}",
+    "Light Rain Fog/Mist and Windy"  => "\x{f72e}\x{f73d}",
+    "Light Rain"                     => "\x{f73d}",
+    "Light Rain and Breezy"          => "\x{f72e}\x{f73d}",
+    "Light Rain and Windy"           => "\x{f72e}\x{f73d}",
+    "Heavy Rain Fog/Mist"            => "\x{f740}",
+    "Heavy Rain Fog/Mist and Windy"  => "\x{f72e}\x{f740}",
+    "Heavy Rain"                     => "\x{f740}",
+    "Rain"                           => "\x{f740}",
+    "Rain Fog/Mist"                  => "\x{f740}",
+    "Rain Fog/Mist and Breezy"       => "\x{f72e}\x{f740}",
+    "Rain Fog/Mist and Windy"        => "\x{f72e}\x{f740}",
+    "Rain and Windy"                 => "\x{f72e}\x{f740}",
+    "Fog"                            => "\x{f75f}",
+    "Fog/Mist"                       => "\x{f75f}",
+    "Fog/Mist and Breezy"            => "\x{f72e}\x{f75f}",
+    "Sky Obscured with Haze"         => "\x{f75f}",
+    "Light Snow"                     => "\x{f2dc}",
+    "Light Snow and Breezy"          => "\x{f72e}\x{f2dc}",
+    "Light Snow and Windy"           => "\x{f72e}\x{f2dc}",
+    "Light Snow Fog/Mist"            => "\x{f2dc}",
+    "Light Snow Fog/Mist and Windy"  => "\x{f72e}\x{f2dc}",
+    "Snow Fog/Mist"                  => "\x{f2dc}",
+    "Snow Fog"                       => "\x{f2dc}",
+    "Snow"                           => "\x{f2dc}",
+    "Snow and Breezy"                => "\x{f72e}\x{f2dc}",
+    "Snow and Windy"                 => "\x{f72e}\x{f2dc}",
+    "Light Snow Fog/Mist and Breezy" => "\x{f72e}\x{f2dc}",
+    "Light Snow Freezing Fog and Breezy"           => "\x{f72e}\x{f2dc}",
+    "Thunderstorm"                                 => "\x{f0e7}\x{f740}",
+    "Thunderstorm Rain Fog/Mist"                   => "\x{f0e7}\x{f740}",
+    "Thunderstorm Rain"                            => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Heavy Rain Fog/Mist" => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Heavy Rain"          => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Rain Fog/Mist"       => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Rain"                => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Haze"                => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Fog/Mist"            => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Fog and Windy"       => "\x{f72e}\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity"                     => "\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity and Windy"           => "\x{f72e}\x{f0e7}\x{f740}",
+    "Thunderstorm in Vicinity Light Rain Fog/Mist" => "\x{f0e7}\x{f73d}",
+    "Thunderstorm in Vicinity Light Rain"          => "\x{f0e7}\x{f73d}",
+    "Thunderstorm in Vicinity Light Rain and Windy" => "\x{f72e}\x{f0e7}\x{f73d}",
+    "Thunderstorm Light Rain"                      => "\x{f0e7}\x{f73d}",
+    "Thunderstorm Light Rain in Vicinity"          => "\x{f0e7}\x{f73d}",
+    "Thunderstorm Light Rain and Windy"            => "\x{f72e}\x{f0e7}\x{f73d}",
+    "Thunderstorm Light Rain and Breezy"           => "\x{f72e}\x{f0e7}\x{f73d}",
+    "Thunderstorm Heavy Rain Fog"                  => "\x{f0e7}\x{f740}",
+    "Smoke"                                        => "\x{f75f}",
+    "A Few Clouds"               => [ "\x{f6c4}", "\x{f6c3}" ],
+    "A Few Clouds with Haze"     => [ "\x{f6c4}", "\x{f6c3}" ],
+    "Partly Cloudy"              => [ "\x{f6c4}", "\x{f6c3}" ],
+    "Partly Cloudy with Haze"    => [ "\x{f6c4}", "\x{f6c3}" ],
+    "Fair"                       => [ "\x{f185}", "\x{f186}" ],
+    "Fair with Haze"             => [ "\x{f185}", "\x{f186}" ],
+    "A Few Clouds and Breezy"    => [ "\x{f72e}\x{f6c4}", "\x{f72e}\x{f6c3}" ],
+    "A Few Clouds and Windy"     => [ "\x{f72e}\x{f6c4}", "\x{f72e}\x{f6c3}" ],
+    "Partly Cloudy and Breezy"   => [ "\x{f72e}\x{f6c4}", "\x{f72e}\x{f6c3}" ],
+    "Partly Cloudy and Windy"    => [ "\x{f72e}\x{f6c4}", "\x{f72e}\x{f6c3}" ],
+    "Fair and Breezy"            => [ "\x{f72e}\x{f185}", "\x{f72e}\x{f186}" ],
+    "Fair and Windy"             => [ "\x{f72e}\x{f185}", "\x{f72e}\x{f186}" ],
+);
 
 my $SIOCGIFADDR = 0x8915;
 my $SIOCGIWESSID = 0x8B1B;
 my $benchmark = 0;
 $benchmark = 1 if defined $ARGV[0] && $ARGV[0] eq "-benchmark";
 my $click_commands = {
-    "date"    => "xterm -e 'date; echo; cal -3; read'",
-    "weather" => "firefox-bin -new-tab 'http://enyalios.net/cgi-bin/weather.cgi?zip=61874'",
+    #"date"    => "xterm -title float -e 'date; echo; cal -3; read'",
+    "date"    => "firefox-bin -new-tab 'https://calendar.google.com/'; i3-msg workspace 2",
+    "weather" => "firefox-bin -new-tab 'https://enyalios.net/cgi-bin/weather.cgi?zip=61874'; i3-msg workspace 2",
+    "load"    => "xterm -e top",
+    "bright" => {
+        1 => "brightness down; killall -HUP i3status",
+        3 => "brightness up; killall -HUP i3status",
+        4 => "brightness up; killall -HUP i3status",
+        5 => "brightness down; killall -HUP i3status",
+    },
     #     "weather" => {
     #         1 => "firefox-bin -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
     #         3 => "firefox-bin -new-tab 'https://radar.weather.gov/Conus/Loop/centgrtlakes_loop.gif'",
@@ -48,7 +149,7 @@ sub json {
     return $_[1] unless $output eq "json";
     my $sep_width = 21;
     my $sep = "";
-    if($_[0] eq "battery" && $_[1] =~ /^Discharging/) {
+    if($_[0] eq "battery" && $_[1] =~ /Discharging/) {
         $sep_width = 0;
         $sep = ',"separator": false';
         $_[1] .= ", ";
@@ -116,19 +217,48 @@ sub get_battery_data {
     return \%info;
 }
 
+sub is_night {
+    my (undef,$min,$hour,undef,$mon,undef,undef,undef,undef) = localtime;
+    my $time = sprintf "%d%02d", $hour, $min;
+    # table made by approximately averaging each month from
+    # https://gml.noaa.gov/grad/solcalc/table.php?lat=40&lon=-88&year=2022
+    my @sun_table = (
+        [708, 1654], # jan
+        [646, 1727], # feb
+        [634, 1828], # mar
+        [615, 1931], # apr
+        [539, 2001], # may
+        [524, 2022], # jun
+        [537, 2018], # jul
+        [604, 1947], # aug
+        [634, 1859], # sep
+        [704, 1812], # oct
+        [650, 1646], # nov
+        [707, 1630], # dec
+    );
+    return 1 if $time < $sun_table[$mon][0]; # its before sunrise
+    return 1 if $time > $sun_table[$mon][1]; # its after sunset
+    return 0;
+}
+
 sub weather {
     my (@stat) = stat "$ENV{HOME}/.weather";
     # file is <6 bytes, >50 bytes, or more than 30 minutes old
     if($stat[7] > 50 || $stat[7] < 6 || time - $stat[9] > 30*60) {
         my $zip = read_file("$ENV{HOME}/.zipcode");
-        my $weather = get "http://enyalios.net/cgi-bin/weather.cgi?zip=$zip&output=tiny";
+        my $weather = get "http://enyalios.net/cgi-bin/weather.cgi?zip=$zip&output=tiny" // "";
         write_file("$ENV{HOME}/.weather", $weather);
     }
     my $string = read_file("$ENV{HOME}/.weather");
+    (my $cond = $string) =~ s/ -?\d+$//;
+    my $icon = $icon{$cond} // $icon{unknown};
+    if(ref $icon{$cond} eq "ARRAY") {
+        $icon = $icon{$cond}[is_night()];
+    }
     $string = "???" if(length $string > 50 || length $string < 6);
     my $color = "";
     $color = "8888ff" if $string =~ /snow/i;
-    return json("weather", $string, $color);
+    return json("weather", "$icon $string", $color);
 }
 
 sub load {
@@ -143,11 +273,11 @@ sub load {
     elsif($string >= .37) { $color = "ffc322"; }
     elsif($string >= .25) { $color = "ffff44"; }
     elsif($string >= .12) { $color = "ffffa1"; }
-    return json("load", $string, $color);
+    return json("load", "$icon{load} $string", $color);
 }
 
 sub date {
-    return json("date", strftime("%-m/%-d %T", localtime()));
+    return json("date", "$icon{clock} " . strftime("%-m/%-d %T", localtime()));
 }
 
 sub battery {
@@ -165,7 +295,8 @@ sub battery {
         my $remaining = format_time($seconds);
         $text .= " $remaining remaining";
     }
-    my $color = "";
+    my $color = "aa55dd";
+    my $icon = "$icon{plug}";
     if($status eq "Discharging") {
         if($percent <= 5 && $count%2) { $color = "000000"; }
         elsif($percent <= 5)  { $color = "ff0000"; }
@@ -179,8 +310,14 @@ sub battery {
         elsif($percent <= 50) { $color = "ddff7f"; }
         elsif($percent <= 60) { $color = "bbffbb"; }
         elsif($percent <= 80) { $color = "ddffdd"; }
+        else { $color = ""; }
+        if($percent <= 20)    { $icon = "$icon{battery0}"; }
+        elsif($percent <= 40) { $icon = "$icon{battery1}"; }
+        elsif($percent <= 60) { $icon = "$icon{battery2}"; }
+        elsif($percent <= 80) { $icon = "$icon{battery3}"; }
+        else                  { $icon = "$icon{battery4}"; }
     }
-    return json("battery", $text, $color);
+    return json("battery", "$icon $text", $color);
 }
 
 sub watts {
@@ -207,10 +344,10 @@ sub network {
     return unless defined $dev;
     my $socket = create_socket();
     my $essid = get_essid($dev, $socket);
-    return json("network", "No wireless networks found", "ff2a2a") unless defined $essid;
+    return json("network", "$icon{wifi} No wireless networks found", "ff2a2a") unless defined $essid;
     my $ip = get_ip($dev, $socket);
-    return json("network", "Connecting to $essid", "ff8000") unless defined $ip;
-    return json("network", $essid);
+    return json("network", "$icon{wifi} Connecting to $essid", "ff8000") unless defined $ip;
+    return json("network", "$icon{wifi} $essid");
 }
 
 sub format_traffic {
@@ -227,6 +364,8 @@ sub format_traffic {
 
 sub traffic {
     my ($down, $up, $current_down, $current_up);
+    my $rcstatus = qx"rc-status -a 2>/dev/null | egrep 'net\\.' | egrep -v 'net\\.lo|stopped|inactive'";
+    return if $rcstatus eq "";
     for(split "\n", read_file("/proc/net/dev")) {
         next if /^ *lo:/;
         next unless s/^.*: *//;
@@ -244,7 +383,19 @@ sub traffic {
     $traffic{time} = $time;
 
     return json("traffic", "") unless defined $current_down;
-    return json("traffic", sprintf("\x{25BC} %s, \x{25B2} %s", format_traffic($current_down), format_traffic($current_up)));
+    return json("traffic", sprintf("$icon{traffic} $icon{down} %s, $icon{up} %s", format_traffic($current_down), format_traffic($current_up)));
+}
+
+sub bright {
+    my $brightness = read_file("/sys/class/backlight/intel_backlight/brightness");
+    return json("bright", "$icon{bright} $brightness");
+}
+
+sub cpu_temp {
+    my $temp = read_file("/sys/class/thermal/thermal_zone1/temp");
+    $temp = sprintf "%.1f", $temp / 1000;
+    # todo - add color
+    return json("cpu_temp", $temp);
 }
 
 
@@ -257,17 +408,21 @@ if($pid) {
     close STDIN;
     my $sep = ($output eq "json")?",":" | ";
     while(++$count) {
-        print "[" if $output eq "json";
-        my $battery = get_battery_data();
-        my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), load(), date());
-        print $string unless $benchmark;
-        print "]," if $output eq "json";
-        print "\n" unless $benchmark;
-        sleep 1 unless $benchmark;
-        exit if $benchmark && $count >= 10000;
+        eval {
+            $SIG{HUP} = sub { die; };
+            print "[" if $output eq "json";
+            my $battery = get_battery_data();
+            my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), load(), bright(), date());
+            print $string unless $benchmark;
+            print "]," if $output eq "json";
+            print "\n" unless $benchmark;
+            sleep 1 unless $benchmark;
+            exit if $benchmark && $count >= 10000;
+        };
     }
 } else {
     # child
+    $SIG{HUP} = 'IGNORE';
     close STDOUT;
     open my $log, ">$ENV{HOME}/.i3/i3status.log" or die "couldnt open log: $!\n";
     # autoflush the $log filehandle
