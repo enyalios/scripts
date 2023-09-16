@@ -10,6 +10,8 @@ use utf8;
 use Time::HiRes qw(time);
 binmode(STDOUT, ":utf8");
 
+my $battery_file = "/sys/class/power_supply/BAT0/uevent";
+
 # icon cheatsheet https://fontawesome.com/v5/cheatsheet
 # https://fontawesome.com/icons/categories/weather
 my %icon = (
@@ -207,10 +209,10 @@ sub find_wireless_device {
 }
 
 sub get_battery_data {
-    my $battery_file = "/sys/class/power_supply/BAT0/uevent";
-    return undef unless -e $battery_file;
+    my $file = $ENV{BATTERY_UEVENT} // $battery_file;
+    return undef unless -e $file;
     my %info;
-    for(split "\n",  read_file("$battery_file")) {
+    for(split "\n",  read_file("$file")) {
         my ($key, $value) = split "=", $_, 2;
         $info{$key} = $value;
     }
@@ -286,10 +288,12 @@ sub battery {
     my $status = $battery->{POWER_SUPPLY_STATUS};
     $status = "Full" if $status eq "Not charging";
     my $percent = $battery->{POWER_SUPPLY_CAPACITY};
+    $percent //= sprintf "%d", $battery->{POWER_SUPPLY_ENERGY_NOW} / $battery->{POWER_SUPPLY_ENERGY_FULL} * 100;
     my $text = "$status $percent%";
     if($status eq "Discharging") {
         my $charge = $battery->{POWER_SUPPLY_CHARGE_NOW} // $battery->{POWER_SUPPLY_ENERGY_NOW};
         my $current = $battery->{POWER_SUPPLY_CURRENT_NOW} // $battery->{POWER_SUPPLY_POWER_NOW};
+        $current *= -1 if $current < 0;
         my $seconds = 0;
         $seconds = $charge/$current*60*60 if $current;
         my $remaining = format_time($seconds);
@@ -336,6 +340,7 @@ sub watts {
     } else {
         return;
     }
+    $watts *= -1 if $watts < 0;
     return json("watts", "$watts W");
 }
 
