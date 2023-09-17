@@ -11,6 +11,7 @@ use Time::HiRes qw(time);
 binmode(STDOUT, ":utf8");
 
 my $battery_file = "/sys/class/power_supply/BAT0/uevent";
+my $brightness_file = "/sys/class/backlight/intel_backlight/brightness";
 
 # icon cheatsheet https://fontawesome.com/v5/cheatsheet
 # https://fontawesome.com/icons/categories/weather
@@ -392,7 +393,8 @@ sub traffic {
 }
 
 sub bright {
-    my $brightness = read_file("/sys/class/backlight/intel_backlight/brightness");
+    $brightness_file = $ENV{BRIGHTNESS_FILE} // $brightness_file;
+    my $brightness = read_file($brightness_file);
     return json("bright", "$icon{bright} $brightness");
 }
 
