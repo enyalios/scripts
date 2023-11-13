@@ -7,7 +7,7 @@ SYNC_AGE="604800" # one week
 
 
 # internal variables, please dont edit
-JOBS=$(($(cat /proc/cpuinfo | grep MHz | wc -l) + 1))
+JOBS=$(($(cat /proc/cpuinfo | grep '^processor' | wc -l) + 1))
 RED=$(echo -ne "\e[1;31m")
 GREEN=$(echo -ne "\e[1;32m")
 BLUE=$(echo -ne "\e[1;34m")
