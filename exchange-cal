@@ -3,34 +3,53 @@
 use strict;
 use warnings;
 use LWP::UserAgent;
-use MIME::Base64;
 use JSON;
 use POSIX qw(strftime);
 use Date::Parse;
+use Getopt::Std;
 
-my $user = "guder\@illinois.edu";
-my $pass = get_password();
+my %opts;
+getopts('d:hv', \%opts);
+(my $progname = $0) =~ s/.*\///;
 
-sub get_password {
-    my $pw = `gpg -qd ~/.password-store/password.gpg`;
-    chomp $pw;
-    return $pw;
+if($opts{h}) {
+    print <<EOF;
+  $progname - a script for printing out your exchange calendar
+
+    -d days     number of days ahead to print
+    -h          this help message
+    -v          verbose output
+
+EOF
+    exit;
 }
 
-my $start = strftime("%FT00:00:01%z", localtime(time));
-my $end = strftime("%FT00:00:00%z", localtime(time + 7*24*60*60));
+$opts{d} //= "7";
+my $timezone = "America/Chicago";
+my $access_token = `$ENV{HOME}/bin/cal_oath2.py $ENV{HOME}/.calendar.tokens`;
+my $start = strftime("%FT%T%z", localtime(time));
+my $end = strftime("%FT00:00:00%z", localtime(time + $opts{d}*24*60*60));
+
 my $ua = LWP::UserAgent->new;
-my $r = HTTP::Request->new(GET => "https://outlook.office365.com/api/v1.0/me/calendarview?\$select=Subject,Start,End,Location&StartDateTime=$start&EndDateTime=$end&orderby=Start");
-my $auth = MIME::Base64::encode("$user:$pass");
-$r->header(Authorization => "Basic $auth");
+my $r = HTTP::Request->new(GET => "https://graph.microsoft.com/v1.0/me/calendarView?\$select=subject,start,end,location&startDateTime=$start&endDateTime=$end&orderby=start/dateTime");
+$r->header(Authorization => "Bearer $access_token");
+$r->header(Prefer => "outlook.timezone=\"$timezone\"");
 my $content = $ua->request($r)->{_content};
 
 my $tree = decode_json $content;
 #use Data::Dumper; print Dumper $tree;
+printf "ERROR %s: %s\n", $tree->{error}->{code}, $tree->{error}->{message} if $tree->{error};
 for(@{$tree->{value}}) {
+    my $location = $_->{location}->{displayName};
+    $location =~ s/\bhttps:\/\/illinois\.zoom\.us\/[^\s;]*/Zoom/ unless $opts{v};
     printf "%s - %s %-28s %s\n",
-    strftime("%a %b %d %R", localtime str2time $_->{Start}),
-    strftime("%R", localtime str2time $_->{End}),
-    $_->{Location}->{DisplayName},
-    $_->{Subject};
+    strftime("%a %b %d %R", localtime str2time $_->{start}->{dateTime}),
+    strftime("%R", localtime str2time $_->{end}->{dateTime}),
+    $location,
+    $_->{subject};
 }
+
+=cut
+TODO:
+
+- maybe make the verbose option print in a prettier multi-line format for each event and show the description
