@@ -14,11 +14,12 @@
 
 use Getopt::Std;
 
-getopts('msvc');
+getopts('msvcd:');
 
 $dir = glob "$ENV{HOME}/.mozilla/firefox/*.default";
 $dir = glob "$ENV{HOME}/.mozilla/default/*.slt" if $opt_m;
 $dir = glob "$ENV{HOME}/.mozilla/seamonkey/*.default" if $opt_s;
+$dir = $opt_d if $opt_d;
 
 $file = "$dir/prefs.js";
 $file = "$dir/sessionstore.js" if -e "$dir/sessionstore.js";

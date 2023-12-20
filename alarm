@@ -6,8 +6,8 @@ use POSIX "strftime";
 use Date::Parse; # from dev-perl/TimeDate
 use File::Find;
 use List::Util "shuffle";
-
-use Data::Dumper;
+use Time::HiRes "time";
+use Term::ReadKey;
 
 my $volume_file = "/proc/acpi/ibm/volume";
 my $music_dir = "$ENV{HOME}/media/music/Daft\ Punk\ -\ Discovery";
@@ -19,10 +19,23 @@ print "\e[?25l"; # make the cursor disappear
 
 my $end = $ARGV[0];
 if(!defined $end) {
-    my $start = now();
+    ReadMode "cbreak";
+    my $t = time;
+    my $key = "";
+    my $paused = 0;
     while(1) {
-        print_time(now()-$start);
-        sleep 1;
+        if($paused) {
+            print_time($t, $paused);
+        } else {
+            print_time(time-$t, $paused);
+        }
+        $key = ReadKey(1) // "";
+        if($key eq " ") {
+            # while paused, $t holds the duration so far
+            # while unpaused, $t holds the start time
+            $paused = !$paused;
+            $t = time-$t;
+        }
     }
 }
 if($end =~ /^\d+$/) {
@@ -243,4 +256,5 @@ sub string_to_arrays {
 
 sub print_time {
     print_arrays(string_to_arrays(seconds_to_hms($_[0])));
+    print "                                   Paused" if $_[1];
 }
