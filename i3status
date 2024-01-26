@@ -395,6 +395,7 @@ sub traffic {
 
 sub bright {
     my $dir = $ENV{BRIGHTNESS_DIR} // $brightness_dir;
+    return unless -d $dir;
     my $brightness = read_file("$dir/brightness");
     my $max_brightness = read_file("$dir/max_brightness");
     return json("bright", sprintf "$icon{bright} %d", $brightness/$max_brightness*100);
