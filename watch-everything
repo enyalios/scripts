@@ -58,7 +58,7 @@ while(1) {
     &check_process("imap-daemon");
     &check_krb_ticket();
     &check_nagios();
-    #&check_calendar();
+    &check_calendar();
     &check_email();
     &check_irc();
     #&check_jabber();
@@ -219,6 +219,12 @@ sub check_jabber {
 }
 
 sub check_calendar {
+    my $string = `gpg-connect-agent 'keyinfo --list' /bye | awk '{print \$7}' | grep -q 1 && exchange-cal -d 1`;
+    $string .= "\n" unless $string eq "";
+    output($string);
+}
+
+sub check_calendar2 {
     my $string = "";
     # this craziness is all to make it look at the next 2 business days
     my $range = 2;
