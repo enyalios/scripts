@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [[ $1 == "" ]]; then
+    PROG=$(basename $0)
+    cat <<EOF
+
+    $PROG <input> <time1,time2,time3,...>
+
+$PROG splits the an input media file into chunks based on the timestamps
+provided.  n timestamps will produce n+1 output files.  Timestamps can be in
+seconds, MM:SS, or HH:MM:SS format.
+
+EOF
+    exit
+fi
+
+INPUT=$1
+BASE=$(echo "$INPUT" | sed -e 's/\.[^\.]*$//')
+EXT=$(echo "$INPUT" | sed -e 's/^.*\.//')
+TIMES=($(echo $2 | tr , ' '))
+
+# do the first piece
+ffmpeg -to ${TIMES[0]} -i "$INPUT" -c copy "${BASE}.part1.${EXT}"
+# do all the middle pieces
+for i in ${!TIMES[@]}; do
+    # abort if were on the last element of $TIMES
+    [[ $i -eq $((${#TIMES[@]} - 1)) ]] && break
+    ffmpeg -ss ${TIMES[$i]} -to ${TIMES[$(($i + 1))]} -i "$INPUT" -c copy "${BASE}.part$(( $i + 2 )).${EXT}"
+done
+# do the last piece
+ffmpeg -ss ${TIMES[-1]} -i "$INPUT" -c copy "${BASE}.part$(( ${#TIMES[@]} + 1 )).${EXT}"
