@@ -79,8 +79,9 @@ sub play_music {
 }
 
 sub set_volume_and_unmute { 
-    system "amixer set PCM 60% > /dev/null";
-    system "echo unmute > /proc/acpi/ibm/volume"
+    system "amixer set Master unmute > /dev/null";
+    system "amixer set Master 40% > /dev/null";
+    #system "echo unmute > /proc/acpi/ibm/volume"
     #volume_cmd("level 14\n");
     #volume_cmd("up\n") while is_muted();
 }
