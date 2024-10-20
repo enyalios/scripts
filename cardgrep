@@ -20,56 +20,9 @@ use LWP::Simple;
 
 # tweak this depending on where you want to store your data
 my $data_file = "$ENV{HOME}/magic/oracle";
-my $url = "https://mtgjson.com/json/AllSets.json.zip";
-
-my %trans = (
-    "\xE2\x80\x94" => "--",
-    "\xE2\x80\xA2" => "-",
-    "\xE2\x88\x92" => "-",
-    "\xE2\x80\x98" => "'",
-    "\xE2\x80\x99" => "'",
-    "\xE2\x88\x9E" => "infinity",
-    "\xC3\xBA" => "u",
-    "\xC3\xA0" => "a",
-    "\xC3\xA1" => "a",
-    "\xC3\xA2" => "a",
-    "\xC3\xB6" => "o",
-    "\xC3\xBB" => "u",
-    "\xC3\xA9" => "e",
-    "\xC2\xBD" => ".5",
-    "\xC2\xAE" => "(R)",
-    "\xC3\xAD" => "i",
-);
-
-sub uniq {
-    my %seen;
-    return grep { !$seen{$_}++ } @_;
-}
-
-sub colors_to_string {
-    my $string = "";
-    my %colors = qw(
-        White W
-        Blue  U
-        Black B
-        Red   R
-        Green G
-    );
-    $string .= $colors{$_} for @_;
-    return $string;
-}
-
-sub cost_to_colors {
-    my $string = "";
-    return "" unless length $_[0];
-    for(split //, "WUBRG") {
-        $string .= $_ if $_[0] =~ /$_/i;
-    }
-    return $string;
-}
+my $url = "https://magic.enyalios.net/text.cgi?q=....";
 
 
-# make it read in 1 card at a time
 my %opts;
 getopts('anuw', \%opts);
 # a - show all fields
@@ -81,118 +34,8 @@ my $num_cards = "0";
 # this part is when you want to update the datafile
 if($opts{u}) {
     print "updating card data...\n";
-
-    require JSON;
-    my (%cards, @by_set);
-    my $blob = join "", `wget -O - "$url" | funzip`;
-    #my $blob = join "", `cat AllSets.json.zip | funzip`;
-    while(my ($key, $value) = each %trans) {
-        $blob =~ s/$key/$value/g;
-    }
-    my $tree = JSON::decode_json($blob);
-    for my $set_code (keys %$tree) {
-        my $set_name = $tree->{$set_code}->{name};
-        my $set_release = $tree->{$set_code}->{releaseDate};
-        for my $card (@{$tree->{$set_code}->{cards}}) {
-            next if $card->{layout} eq "token";
-            my $name = $card->{name};
-            $cards{$name}{name} = $name;
-            $cards{$name}{cost} = $card->{manaCost};
-            $cards{$name}{type} = $card->{type};
-            if(defined $card->{power}) {
-                $cards{$name}{size}  = $card->{power} . "/" . $card->{toughness};
-            }
-            $cards{$name}{text} = $card->{text};
-            push @{$cards{$name}{set}}, [ $set_release, $set_name . " " . $card->{rarity} ];
-            $cards{$name}{cmc}  = $card->{cmc};
-            $cards{$name}{cid}  = join "", @{$card->{colorIdentity}} if defined $card->{colorIdentity};
-            $cards{$name}{loyal} = $card->{loyalty};
-            $cards{$name}{extras} = undef;
-            if(defined $card->{colors} && (colors_to_string(@{$card->{colors}}) ne cost_to_colors($card->{manaCost}))) {
-                push @{$cards{$name}{extras}}, join("/", @{$card->{colors}}) . " color indicator.";
-            }
-            if($card->{layout} eq "vanguard") {
-                my $hand = $card->{hand};
-                my $life = $card->{life};
-                $hand = "+$hand" if $hand >= 0;
-                $life = "+$life" if $life >= 0;
-                $cards{$name}{text} = "$hand cards / $life life\n" . $cards{$name}{text};
-            }
-            my $name_and_set;
-            if(defined $card->{names}) {
-                if($card->{layout} eq "split" || $card->{layout} eq "aftermath") {
-                    push @{$cards{$name}{extras}}, "This is half of the split card " . join(" // ", @{$card->{names}}) . ".";
-                    $name_and_set = join(" // ", @{$card->{names}}) . "|$set_name\n" if $name eq $card->{names}->[0];
-                } elsif($card->{layout} eq "double-faced") {
-                    if($card->{names}->[0] eq $name) {
-                        push @{$cards{$name}{extras}}, "Front face. Transforms into " . $card->{names}->[1] . ".";
-                        $name_and_set = "$name|$set_name\n";
-                    } else {
-                        push @{$cards{$name}{extras}}, "Back face. Transforms into " . $card->{names}->[0] . ".";
-                    }
-                } elsif($card->{layout} eq "flip") {
-                    if($card->{names}->[0] eq $name) {
-                        push @{$cards{$name}{extras}}, "Flips into " . $card->{names}->[1] . ".";
-                        $name_and_set = "$name|$set_name\n";
-                    } else {
-                        push @{$cards{$name}{extras}}, "Flips from " . $card->{names}->[0] . ".";
-                    }
-                } elsif($card->{layout} eq "meld") {
-                    if($card->{names}->[0] eq $name) {
-                        push @{$cards{$name}{extras}}, "Melds with " . $card->{names}->[1] . " into " . $card->{names}->[2] . ".";
-                        $name_and_set = "$name|$set_name\n";
-                    } elsif($card->{names}->[1] eq $name) {
-                        push @{$cards{$name}{extras}}, "Melds with " . $card->{names}->[0] . " into " . $card->{names}->[2] . ".";
-                        $name_and_set = "$name|$set_name\n";
-                    } else {
-                        push @{$cards{$name}{extras}}, "Melds from " . $card->{names}->[0] . " and " . $card->{names}->[1] . ".";
-                    }
-                } else {
-                    push @{$cards{$name}{extras}}, "Related to " .
-                    join(", ", grep { $_ ne $name } @{$card->{names}}) . ".";
-                    $name_and_set = "$name|$set_name\n"; 
-                }
-            } else {
-                $name_and_set = "$name|$set_name\n"; 
-            }
-            push @by_set, $name_and_set if defined $name_and_set && ! $tree->{$set_code}->{onlineOnly};
-        }
-    }
-
-    open OUTPUT, ">$data_file" or die "cant open output file '$data_file': $!\n";
-    for(sort keys %cards) {
-        my %card = %{$cards{$_}};
-        $card{text} //= "";
-        if($card{extras}) {
-            $card{text} .= "\n" if $card{text};
-            $card{text} .= "[" . join(" ", @{$card{extras}}) . "]";
-        }
-        $card{text} =~ s/\n/\n             /g;
-        $card{cost} //= "";
-        $card{cost} =~ s/\{([WUBRGXC\d]+)\}/$1/g;
-        $card{text} =~ s/\{?(CHAOS)\}?/{$1}/g;
-        $card{cmc} //= "";
-        $card{cid} //= "";
-        print OUTPUT "Name:        $card{name}\n";
-        print OUTPUT "Cost:        $card{cost}\n" unless $card{cost} eq "";
-        print OUTPUT "CMC:         $card{cmc}\n";
-        print OUTPUT "CID:         $card{cid}\n";
-        print OUTPUT "Type:        $card{type}\n";
-        print OUTPUT "Pow/Tgh:     $card{size}\n" if defined $card{size};
-        print OUTPUT "Loyalty:     $card{loyal}\n" if defined $card{loyal};
-        print OUTPUT "Rules Text:  $card{text}";
-        print OUTPUT "\n";
-        print OUTPUT "Set/Rarity:  ", join ", ", uniq map { $_->[1] } sort { $a->[0] cmp $b->[0] } @{$card{set}};
-        print OUTPUT "\n\n";
-    }
-    # and then save it permanently to the data file
-    close OUTPUT;
-
-    # make a file that lists which set each card is in
-    open my $by_set_fh, ">$ENV{HOME}/magic/by_set.txt" or die;
-    print $by_set_fh $_ for sort @by_set;
-    close $by_set_fh;
-
+    getstore($url, $data_file)
+        or die "Couldn't update card data: $!\n";
     exit;
 }
  
@@ -205,6 +48,7 @@ if(@ARGV == 0) {
     push @ARGV, $regex;
 }
 
+# make it read in 1 card at a time
 $/ = "\n\n";
 open INPUT, "<$data_file" or die "cant find input file\n";
 
@@ -226,7 +70,10 @@ CARD: while(<INPUT>) {
         # then either print out the card name
         print "$1\n" if /^Name: +(.*)$/m;
     } else {
-        s/^(CMC|CID): .*\n//mg unless $opts{a};
+        # dont show some fields
+        s/^(CMC|Color|CID|Date|Legality|Reserved|Timeshifted): .*\n//mg unless $opts{a};
+        s/^(Name: .*\n)Name: .*\n/$1/mg unless $opts{a};
+
         # or print out the whole card, this craziness wraps the lines to 80 columns
         unless($opts{w}) {
             1 while s/^(?=.{81})(.{0,80})( +.*)/$1\n              $2/m
