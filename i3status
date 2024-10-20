@@ -424,7 +424,7 @@ if($pid) {
             $SIG{HUP} = sub { die; };
             print "[" if $output eq "json";
             my $battery = get_battery_data();
-            my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), load(), bright(), date());
+            my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), date());
             print $string unless $benchmark;
             print "]," if $output eq "json";
             print "\n" unless $benchmark;
