@@ -38,9 +38,12 @@ if [[ $REENCODE -eq 1 ]]; then
         RES=$(for i in "${FILES[@]}"; do ffprobe "$i"; done 2>&1 | grep -Po '\d{2,}x\d{2,}' | sort -rn | head -n1)
     fi
     RES=$(echo "$RES" | tr ,xX- :)
+    # find the most common fps and audio sample rate
+    FPS=$(midentify ??.mp4 | sed -ne 's/^ID_VIDEO_FPS=//p' | sort | uniq -c | sort -n | tail -n1 | awk '{print $2}')
+    AR=$(midentify ??.mp4 | sed -ne 's/^ID_AUDIO_RATE=//p' | sort | uniq -c | sort -n | tail -n1 | awk '{print $2}')
     for i in "${FILES[@]}"; do
         # fit image into a box
-        ffmpeg -i "$i" -vf "scale=${RES}:force_original_aspect_ratio=increase,crop=${RES},setsar=1:1" -c:v libx265 -crf 23 -c:a libmp3lame intermediate-"$i".mp4
+        ffmpeg -i "$i" -vf "scale=${RES}:force_original_aspect_ratio=increase,crop=${RES},setsar=1:1" -c:v libx265 -crf 23 -c:a libmp3lame -r ${FSP} -ar ${AR} intermediate-"$i".mp4
     done
     printf "file 'intermediate-%s.mp4'\n" "${FILES[@]}" > list.$$.txt
     [[ "$OUTPUT" == "" ]] && OUTPUT="out.mp4"
