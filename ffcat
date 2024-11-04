@@ -28,6 +28,7 @@ while [[ $1 != "" ]]; do
         -r|--reencode) REENCODE=1 ; shift  ;;
         -s|--size)     RES="$2"   ; shift 2;;
         -o|--output)   OUTPUT="$2"; shift 2;;
+        -f|--fps)      FPS="$2"; shift 2;;
         -h|--help)     print_help; exit;;
         *)             FILES+=("$1"); shift;;
     esac
@@ -39,7 +40,9 @@ if [[ $REENCODE -eq 1 ]]; then
     fi
     RES=$(echo "$RES" | tr ,xX- :)
     # find the most common fps and audio sample rate
-    FPS=$(midentify "${FILES[@]}" | sed -ne 's/^ID_VIDEO_FPS=//p' | sort | uniq -c | sort -n | tail -n1 | awk '{print $2}')
+    if [[ "$FPS" == "" ]]; then
+        FPS=$(midentify "${FILES[@]}" | sed -ne 's/^ID_VIDEO_FPS=//p' | sort | uniq -c | sort -n | tail -n1 | awk '{print $2}')
+    fi
     AR=$(midentify "${FILES[@]}" | sed -ne 's/^ID_AUDIO_RATE=//p' | sort | uniq -c | sort -n | tail -n1 | awk '{print $2}')
     for i in "${FILES[@]}"; do
         # fit image into a box
