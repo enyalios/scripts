@@ -14,6 +14,7 @@ Usage:
   $PROG_NAME [options] file ...
 
 Options:
+  --fps      -f <fps>           use the specified fps
   --help     -h                 display this help message
   --output   -o <file>          write output to <file>
   --reencode -r                 re-encode input files
