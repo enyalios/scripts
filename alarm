@@ -5,7 +5,7 @@ use warnings;
 use POSIX "strftime";
 use Date::Parse; # from dev-perl/TimeDate
 use File::Find;
-use Getopt::Long;
+use Getopt::Long qw(:config bundling);
 use List::Util "shuffle";
 use Time::HiRes "time";
 use Term::ReadKey;
