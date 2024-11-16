@@ -5,17 +5,57 @@ use warnings;
 use POSIX "strftime";
 use Date::Parse; # from dev-perl/TimeDate
 use File::Find;
+use Getopt::Long qw(:config bundling);
 use List::Util "shuffle";
 use Time::HiRes "time";
 use Term::ReadKey;
 
-my $volume_file = "/proc/acpi/ibm/volume";
-my $music_dir = "$ENV{HOME}/media/music/Daft\ Punk\ -\ Discovery";
+my $config_file = "$ENV{HOME}/.alarmrc";
+my $help = 0;
+my $osd = 0;
+my $command = undef;
 $| = 1;
 $SIG{INT} = sub { fix_term() && exit };
 END { fix_term() }
 
 print "\e[?25l"; # make the cursor disappear
+
+GetOptions(
+    "help|h"      => \$help,
+    "osd|o"       => \$osd,
+    "command|c=s" => \$command,
+) or die "Error parsing command line arguments.\n";
+
+sub print_help {
+    my $code = $_[0] // 0;
+    (my $progname = $0) =~ s/.*\///;
+    print <<EOF;
+$progname - a simple alarm program
+
+  $progname <options> [delay|time]
+
+  The first argument can be a delay in minutes to go off after that long.
+  It can also be a time in HH:MM (24 hour time) to go off then.
+  Or it can be omitted to simply count up like a stopwatch.
+
+  Options:
+    -h  --help               Display this help message
+    -o  --osd                Use osd_cat to display on top of everything
+    -c  --command <command>  Run the specified command when time is up
+
+EOF
+    exit $code;
+}
+
+print_help() if $help;
+
+my $osd_fh;
+if($osd) {
+    open($osd_fh, "|-", "osd_cat -f '-bitstream-charter-bold-r-normal--33-240-100-100-p-206-iso8859-1' -c '#ccf' -O 1 -u '#000' -l 1")
+        or die "Can't open pipe to osd_cat: $!";
+    $osd_fh->autoflush(1);
+}
+$command = read_config() unless $command;
 
 my $end = $ARGV[0];
 if(!defined $end) {
@@ -54,9 +94,9 @@ while(1) {
     sleep 1;
 }
 
-print "\nbuzz, buzz!\n";
-set_volume_and_unmute();
-play_music();
+fix_term();
+exec "sh", "-c", $command;
+
 
 sub now { strftime("%s", localtime()); }
 
@@ -70,33 +110,6 @@ sub seconds_to_hms {
 
     my $hms = sprintf "%02d:%02d:%02d", $hours, $minutes, $seconds;
     return $hms;
-}
-
-sub play_music {
-    my @files;
-    find( sub { push @files, $File::Find::name if -f }, $music_dir );
-    system "mplayer", shuffle @files;
-}
-
-sub set_volume_and_unmute { 
-    system "amixer set PCM 60% > /dev/null";
-    system "echo unmute > /proc/acpi/ibm/volume"
-    #volume_cmd("level 14\n");
-    #volume_cmd("up\n") while is_muted();
-}
-
-sub is_muted {
-    open my $fh, "<$volume_file" or die "couldnt open volume file\n";
-    my @lines = <$fh>;
-    close $fh;
-    return 1 if grep /^mute:.*on/, @lines;
-    return 0;
-}
-
-sub volume_cmd {
-    open my $fh, ">$volume_file" or die "couldnt open volume file\n";
-    print $fh @_;
-    close $fh;
 }
 
 sub char_to_array {
@@ -255,6 +268,33 @@ sub string_to_arrays {
 }
 
 sub print_time {
-    print_arrays(string_to_arrays(seconds_to_hms($_[0])));
+    my $output_str = seconds_to_hms($_[0]);
+    print_arrays(string_to_arrays($output_str));
+    $output_str .= " (Paused)" if $_[1];
+    print $osd_fh "$output_str\n" if $osd;
     print "                                   Paused" if $_[1];
+}
+
+sub read_config {
+    unless(-e $config_file) {
+        print "No config found, creating a template.\n";
+        open(my $fh, ">", $config_file) or die "Couldn't open config for writing: $!";
+        print $fh <<EOF;
+# this config lists what commands will be run when the alarm times out
+# lines that start with a '#' are comments and ignored
+echo 'Times Up!'
+
+# unmute and set volume
+amixer set Master unmute
+amixer set Master 50%
+
+# play some music
+find \$HOME/Music -type f -exec mplayer -shuffle {} \\+
+EOF
+        close $fh or die "Couldn't close config: $!";
+    }
+    open(my $fh, "<", $config_file) or die "Couldn't open config: $!";
+    my @lines = grep { ! /^\s*(#|$)/ } <$fh>;
+    chomp @lines;
+    return join ";", @lines;
 }

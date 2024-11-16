@@ -11,14 +11,15 @@ use Time::HiRes qw(time);
 binmode(STDOUT, ":utf8");
 
 my $battery_file = "/sys/class/power_supply/BAT0/uevent";
+my $brightness_dir = "/sys/class/backlight/backlight";
 
 # icon cheatsheet https://fontawesome.com/v5/cheatsheet
 # https://fontawesome.com/icons/categories/weather
 my %icon = (
     wifi     => "\x{f1eb}",
     clock    => "\x{f073}",
-    load     => "\x{f201}",
-    traffic  => "\x{f6ff}",
+    load     => "\x{f1fe}",
+    traffic  => "\x{f0e8}",
     down     => "\x{25BC}",
     up       => "\x{25B2}",
     plug     => "\x{f1e6}",
@@ -40,6 +41,7 @@ my %icon = (
     "Mostly Cloudy and Breezy"       => "\x{f72e}\x{f0c2}",
     "Mostly Cloudy and Windy"        => "\x{f72e}\x{f0c2}",
     "Light Rain Fog/Mist"            => "\x{f73d}",
+    "Light Rain Fog"                 => "\x{f73d}",
     "Light Rain Fog/Mist and Breezy" => "\x{f72e}\x{f73d}",
     "Light Rain Fog/Mist and Windy"  => "\x{f72e}\x{f73d}",
     "Light Rain"                     => "\x{f73d}",
@@ -67,6 +69,7 @@ my %icon = (
     "Snow"                           => "\x{f2dc}",
     "Snow and Breezy"                => "\x{f72e}\x{f2dc}",
     "Snow and Windy"                 => "\x{f72e}\x{f2dc}",
+    "Blowing Snow and Breezy"        => "\x{f72e}\x{f2dc}",
     "Light Snow Fog/Mist and Breezy" => "\x{f72e}\x{f2dc}",
     "Light Snow Freezing Fog and Breezy"           => "\x{f72e}\x{f2dc}",
     "Thunderstorm"                                 => "\x{f0e7}\x{f740}",
@@ -90,6 +93,7 @@ my %icon = (
     "Thunderstorm Light Rain and Breezy"           => "\x{f72e}\x{f0e7}\x{f73d}",
     "Thunderstorm Heavy Rain"                      => "\x{f0e7}\x{f740}",
     "Thunderstorm Heavy Rain Fog"                  => "\x{f0e7}\x{f740}",
+    "Thunderstorm Heavy Rain Fog/Mist"             => "\x{f0e7}\x{f740}",
     "Smoke"                                        => "\x{f75f}",
     "A Few Clouds"               => [ "\x{f6c4}", "\x{f6c3}" ],
     "A Few Clouds with Haze"     => [ "\x{f6c4}", "\x{f6c3}" ],
@@ -111,8 +115,8 @@ my $benchmark = 0;
 $benchmark = 1 if defined $ARGV[0] && $ARGV[0] eq "-benchmark";
 my $click_commands = {
     #"date"    => "xterm -title float -e 'date; echo; cal -3; read'",
-    "date"    => "firefox-bin -new-tab 'https://calendar.google.com/'; i3-msg workspace 2",
-    "weather" => "firefox-bin -new-tab 'https://enyalios.net/cgi-bin/weather.cgi?zip=61874'; i3-msg workspace 2",
+    "date"    => "firefox -new-tab 'https://calendar.google.com/'; i3-msg workspace 2",
+    "weather" => "firefox -new-tab 'https://enyalios.net/cgi-bin/weather.cgi?zip=61874'; i3-msg workspace 2",
     "load"    => "xterm -e top",
     "bright" => {
         1 => "brightness down; killall -HUP i3status",
@@ -121,8 +125,8 @@ my $click_commands = {
         5 => "brightness down; killall -HUP i3status",
     },
     #     "weather" => {
-    #         1 => "firefox-bin -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
-    #         3 => "firefox-bin -new-tab 'https://radar.weather.gov/Conus/Loop/centgrtlakes_loop.gif'",
+    #         1 => "firefox -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
+    #         3 => "firefox -new-tab 'https://radar.weather.gov/Conus/Loop/centgrtlakes_loop.gif'",
     #     },
 };
 my $count = 0;
@@ -393,8 +397,11 @@ sub traffic {
 }
 
 sub bright {
-    my $brightness = read_file("/sys/class/backlight/intel_backlight/brightness");
-    return json("bright", "$icon{bright} $brightness");
+    my $dir = $ENV{BRIGHTNESS_DIR} // $brightness_dir;
+    return unless -d $dir;
+    my $brightness = read_file("$dir/brightness");
+    my $max_brightness = read_file("$dir/max_brightness");
+    return json("bright", sprintf "$icon{bright} %d", $brightness/$max_brightness*100);
 }
 
 sub cpu_temp {
@@ -418,7 +425,7 @@ if($pid) {
             $SIG{HUP} = sub { die; };
             print "[" if $output eq "json";
             my $battery = get_battery_data();
-            my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), load(), bright(), date());
+            my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), date());
             print $string unless $benchmark;
             print "]," if $output eq "json";
             print "\n" unless $benchmark;

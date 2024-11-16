@@ -1,0 +1,25 @@
+#!/usr/bin/perl
+#
+# this sorts the output of the 'cardgrep' script by various fields
+
+use strict;
+use warnings;
+
+$/ = "\n\n";
+my $key = $ARGV[0];
+my @cards;
+sub sort_function {
+    if($key =~ /^(price|cmc)$/) {
+        $a->[0] <=> $b->[0];
+    } else {
+        $a->[0] cmp $b->[0];
+    }
+}
+
+while(my $card = <STDIN>) {
+    next unless $card =~ /^Name:/;
+    $card =~ /^$key: +\$?(.*)$/im;
+    push @cards, [$1, $card];
+}
+print map { $_->[1] } sort sort_function @cards;
+printf "%d card%s returned\n\n", scalar @cards, @cards==1?"":"s";
