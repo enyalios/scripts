@@ -29,6 +29,7 @@ my $timezone = "America/Chicago";
 my $access_token = `$ENV{HOME}/bin/cal_oath2.py $ENV{HOME}/.calendar.tokens`;
 my $start = strftime("%FT%T%z", localtime(time));
 my $end = strftime("%FT00:00:00%z", localtime(time + $opts{d}*24*60*60));
+my $now = time;
 
 my $ua = LWP::UserAgent->new;
 my $r = HTTP::Request->new(GET => "https://graph.microsoft.com/v1.0/me/calendarView?\$select=subject,start,end,location&startDateTime=$start&endDateTime=$end&orderby=start/dateTime");
@@ -41,12 +42,17 @@ my $tree = decode_json $content;
 printf "ERROR %s: %s\n", $tree->{error}->{code}, $tree->{error}->{message} if $tree->{error};
 for(@{$tree->{value}}) {
     my $location = $_->{location}->{displayName};
+    my $eventstart = str2time $_->{start}->{dateTime};
     $location =~ s/\bhttps:\/\/illinois\.zoom\.us\/[^\s;]*/Zoom/ unless $opts{v};
     printf "%s - %s %-28s %s\n",
-    strftime("%a %b %d %R", localtime str2time $_->{start}->{dateTime}),
+    strftime("%a %b %d %R", localtime $eventstart),
     strftime("%R", localtime str2time $_->{end}->{dateTime}),
     $location,
     $_->{subject};
+    if((($eventstart - $now) < 600) && !$opts{v} && $location eq "Zoom") {
+        print "  ", $_->{location}->{displayName}, "\n";
+    }
+
 }
 
 =cut
