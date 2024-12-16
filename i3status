@@ -38,6 +38,7 @@ my %icon = (
     "Overcast with Haze"             => "\x{f0c2}",
     "Overcast and Breezy"            => "\x{f72e}\x{f0c2}",
     "Overcast and Windy"             => "\x{f72e}\x{f0c2}",
+    "Overcast with Haze and Breezy"  => "\x{f72e}\x{f0c2}",
     "Mostly Cloudy and Breezy"       => "\x{f72e}\x{f0c2}",
     "Mostly Cloudy and Windy"        => "\x{f72e}\x{f0c2}",
     "Light Rain Fog/Mist"            => "\x{f73d}",
