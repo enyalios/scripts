@@ -56,7 +56,7 @@ else
     [[ "$OUTPUT" == "" ]] && OUTPUT="out.$(echo "${FILES[0]}" | sed -e 's/.*\.//')"
 fi
 
-ffmpeg -f concat -safe 0 -i list.$$.txt -c copy $OUTPUT
+ffmpeg -f concat -safe 0 -i list.$$.txt -c copy "$OUTPUT"
 rm list.$$.txt
 
 # declare -a ARGS
