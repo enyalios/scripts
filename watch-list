@@ -1,9 +1,12 @@
 #!/bin/bash
 
 # prometheus alerts
-echo -ne '\e[31;1m'
+echo -ne '\e[31m'
 curl -ns 'https://status.enyalios.net/api/v1/alerts' | perl -MJSON -e '$tree = decode_json(<>); @alerts = @{$tree->{data}->{alerts}}; print $_->{annotations}->{summary}, "\n" for @alerts; print "\n" if @alerts'
 echo -ne '\e[m'
+
+# todo list
+cat $HOME/todo.txt 2>/dev/null && echo
 
 # email
 if [[ -e ~/.imapls ]]; then
@@ -16,7 +19,7 @@ echo " "
 # irc stuff
 if [[ -e ~/.irssi ]]; then
     for i in ~/.irssi/logs/*/*.log; do cat $i | perl -e '
-        undef $/; 
+        undef $/;
         $_ = <>;
         s/[\s\S]*\n--- Log closed.*\n//;
         s/[\s\S]*\n\d+:\d+\s+\*!\* \| Irssi:.*?Total of \d+ nicks.*\n//;
@@ -40,21 +43,21 @@ if [[ -e ~/.mcabber ]]; then
 fi
 
 # minecraft players
-if [[ -e ~/minecraft/logs/latest.log ]]; then
-    pgrep -f minecraft_server.jar >/dev/null || echo -e 'Minecraft server not running!\n'
-    cat ~/minecraft/logs/latest.log | perl -ne '
-    $active{$1} = 1 
-        if(/^.*?\/INFO\]: (.*?) joined the game$/);
-    delete $active{$1} 
-        if(/^.*?\/INFO\]: (.*?) left the game$/);
-    END { 
-        if(%active) { 
-            print "minecraft players:\n";
-            print "  $_\n" for sort keys %active;
-            print "\n"; 
-        } 
-    }'
-fi
+# if [[ -e ~/minecraft/logs/latest.log ]]; then
+#     pgrep -f minecraft_server.jar >/dev/null || echo -e 'Minecraft server not running!\n'
+#     cat ~/minecraft/logs/latest.log | perl -ne '
+#     $active{$1} = 1
+#         if(/^.*?\/INFO\]: (.*?) joined the game$/);
+#     delete $active{$1}
+#         if(/^.*?\/INFO\]: (.*?) left the game$/);
+#     END {
+#         if(%active) {
+#             print "minecraft players:\n";
+#             print "  $_\n" for sort keys %active;
+#             print "\n";
+#         }
+#     }'
+# fi
 
 if [[ -e "$HOME/.twitch_client_id" ]]; then
     client_id=$(cat "$HOME/.twitch_client_id")
