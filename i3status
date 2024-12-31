@@ -59,6 +59,7 @@ my %icon = (
     "Fog"                            => "\x{f75f}",
     "Fog/Mist"                       => "\x{f75f}",
     "Fog/Mist and Breezy"            => "\x{f72e}\x{f75f}",
+    "Fog/Mist and Windy"             => "\x{f72e}\x{f75f}",
     "Sky Obscured with Haze"         => "\x{f75f}",
     "Light Snow"                     => "\x{f2dc}",
     "Light Snow and Breezy"          => "\x{f72e}\x{f2dc}",
