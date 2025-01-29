@@ -40,15 +40,22 @@ run_command() {
 
 check_for_new_kernel() {
     # skip kernel stuff if we arent using the gentoo-kernel package
-    if ! grep -q '^sys-kernel/gentoo-kernel' /var/lib/portage/world; then
+    if ! grep -qE '^sys-kernel/(gentoo-kernel|linux-firmware)' /var/lib/portage/world; then
         return
     fi
 
     # we do the grep so messages about eselect news dont throw off the count
-    if [[ "$(emerge --quiet --pretend --update gentoo-kernel | grep gentoo-kernel | wc -l)" -gt "0" ]]; then
+    UPDATES="$(grep -Eo '^(sys-kernel/gentoo-kernel(-bin)?|sys-kernel/linux-firmware)' \
+        /var/lib/portage/world | xargs emerge --quiet --pretend --update | grep ebuild)"
+
+    # mount boot if any of the listed packages are being updated
+    if [[ -n "$UPDATES" ]]; then
         mount /boot 2>/dev/null
         [[ "$?" -eq  "0" ]] && MOUNTED_BOOT=1
+    fi
 
+    # check disk space if a kernel package is being updated
+    if [[ -n "$(echo "$UPDATES" | grep 'sys-kernel/gentoo-kernel')" ]]; then
         KERNEL_SIZE=$(du -c /boot/*$(uname -r)* | awk 'END{print $1}')
         BOOT_SPACE=$(df /boot | awk 'END{print $4}')
         if [[ "$KERNEL_SIZE" -gt "$BOOT_SPACE" ]]; then
