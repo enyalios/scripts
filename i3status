@@ -118,7 +118,7 @@ $benchmark = 1 if defined $ARGV[0] && $ARGV[0] eq "-benchmark";
 my $click_commands = {
     #"date"    => "xterm -title float -e 'date; echo; cal -3; read'",
     "date"    => "firefox -new-tab 'https://calendar.google.com/'; i3-msg workspace 2",
-    "weather" => "firefox -new-tab 'https://enyalios.net/cgi-bin/weather.cgi?zip=61874'; i3-msg workspace 2",
+    "weather" => "firefox -new-tab 'https://enyalios.net/cgi-bin/weather.cgi'; i3-msg workspace 2",
     "load"    => "xterm -e top",
     "bright" => {
         1 => "brightness down; killall -HUP i3status",
