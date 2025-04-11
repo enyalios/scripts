@@ -140,7 +140,14 @@ sub colorize {
     $buffer =~ s/(.*     WARNING .*)/color('YELLOW') . $1 . color('RESET')/eg;
     $buffer =~ s/(.*     CRITICAL .*)/color('RED') . $1 . color('RESET')/eg;
     $buffer =~ s/(.* - .* Canceled: .*)/color('BRIGHT_BLACK') . sprintf("\e[9m$1\e[0m") . color('RESET')/eg;
+    #$buffer =~ s/(.* - .* Canceled: .*)/strikethrough($1)/eg;
     return $buffer;
+}
+
+sub strikethrough {
+    my $string = $_[0];
+    $string =~ s/(.)/$1\x{0336}/g;
+    return $string;
 }
 
 sub check_nagios {
