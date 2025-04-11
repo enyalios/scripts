@@ -7,7 +7,6 @@ use MIME::Words "decode_mimewords"; # from dev-perl/MIME-tools
 use Mail::IMAPClient; # from dev-perl/Mail-IMAPClient
 use POSIX "strftime";
 use Getopt::Std;
-use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
 use Term::ReadKey; # from dev-perl/TermReadKey
 
 # parse arguments
@@ -25,20 +24,14 @@ eval { ($width) = GetTerminalSize(); };
 # grab authentication info
 my ($host, $user, $pass) = @{do "$ENV{HOME}/.imapls"};
 
-# open an ssl socket since gmail is over ssl
-my $sock = IO::Socket::SSL->new(
-    SSL_verify_mode => SSL_VERIFY_PEER,
-    SSL_ca_path => '/etc/ssl/certs',
-    PeerHost => $host) or die "socket(): $@";
-my $greeting = <$sock>;
-die "problems logging in: $greeting" unless $greeting =~ ' OK ';
-
-# use the socket and our credentials to open an imap connection
+# use our credentials to open an imap connection
 my $imap = Mail::IMAPClient->new(
-    RawSocket => $sock,
+    Server    => $host,
     User      => $user,
     Password  => $pass,
+    Ssl       => 1,
 ) or die "Cannot imap: $@";
+die "could not authenticate\n" unless $imap->IsAuthenticated();
 
 # figure out what we are searching for
 my @search = ("ALL");
@@ -47,11 +40,6 @@ my @search = ("ALL");
 @search = ('OR', 'OR', 'TO', $imap->Quote($opts{s}), 
     'FROM', $imap->Quote($opts{s}),
     'SUBJECT', $imap->Quote($opts{s})) if $opts{s};
-
-# connect and login
-$imap->State($imap->Connected);
-$imap->login() or die "cannot login: $@\n";
-print "could not authenticate\n" unless $imap->IsAuthenticated();
 
 # get a list of all folders
 my @folders = @ARGV;
