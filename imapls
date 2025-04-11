@@ -2,13 +2,13 @@
 
 use strict;
 use warnings;
+use Date::Parse "str2time"; # from dev-perl/TimeDate
+use MIME::Words "decode_mimewords"; # from dev-perl/MIME-tools
 use Mail::IMAPClient; # from dev-perl/Mail-IMAPClient
-use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
-use Date::Parse; # from dev-perl/TimeDate
-use POSIX qw(strftime);
-use Term::ReadKey; # from dev-perl/TermReadKey
-use MIME::Words qw(decode_mimewords); # from dev-perl/MIME-tools
+use POSIX "strftime";
 use Getopt::Std;
+use IO::Socket::SSL; # from dev-perl/IO-Socket-SSL
+use Term::ReadKey; # from dev-perl/TermReadKey
 
 # parse arguments
 my %opts;
@@ -73,7 +73,7 @@ for(@folders) {
         my $epoch = &get_epoch($headers->{$_}->{Date}->[0]);
         push @emails, {
             epoch => $epoch,
-            date => &format_date($epoch),
+            date => &format_date($epoch, $now),
             from => &format_from($headers->{$_}->{From}->[0]),
             subject => &format_subject($headers->{$_}->{Subject}->[0]),
             flags => &format_flags($flags->{$_}),
@@ -99,6 +99,7 @@ sub format_date {
     # format a date nicely
     my $date;
     my $epoch = $_[0];
+    my $now = $_[1];
     if(($now - $epoch) < 60*60) {
         my $amount = ($now - $epoch) / 60;
         $date = sprintf "%2d min%s ago", $amount, $amount>=2?"s":" ";
@@ -118,8 +119,10 @@ sub format_from {
     # format a from field nicely
     my $from = $_[0] || "";
     $from =~ s/^ *(?:"?(.+?)"? *<.+>|<?(.+?)>?)$/$+/i;
+    $from = $1 if $from =~ /^\\"(.*)\\"$/;
     $from =~ s/\n//g;
-    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    $from = decode_mimewords($from) if($from =~ /^=\?(ISO-8859-1|koi8-r|utf-?8|windows-1252)\?/i);
+    $from = "$2 $1" if $from =~ /^(.*?), (.*)$/;
     return $from;
 }
 
@@ -128,7 +131,7 @@ sub format_subject {
     my $subject = $_[0] || "";
     $subject =~ s/\n//g;
     $subject =~ s/\t+/ /g;
-    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-8|windows-1252)\?/i);
+    $subject = decode_mimewords($subject) if($subject =~ /^=\?(ISO-8859-1|koi8-r|utf-?8|windows-1252)\?/i);
     substr($subject, $width - 46) = "..." if($width && length $subject > $width - 43);
     return $subject;
 }
