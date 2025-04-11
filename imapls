@@ -25,12 +25,23 @@ eval { ($width) = GetTerminalSize(); };
 my ($host, $user, $pass) = @{do "$ENV{HOME}/.imapls"};
 
 # use our credentials to open an imap connection
-my $imap = Mail::IMAPClient->new(
-    Server    => $host,
-    User      => $user,
-    Password  => $pass,
-    Ssl       => 1,
-) or die "Cannot imap: $@";
+my $imap;
+if(defined $pass) { # passwd not blank, use username and passwd auth
+    $imap = Mail::IMAPClient->new(
+        Server   => $host,
+        User     => $user,
+        Password => $pass,
+        Ssl      => 1,
+    ) or die "Cannot imap: $@";
+} else { # passwd blank, oauth
+    $imap = Mail::IMAPClient->new(Server => $host, Ssl => 1)
+        or die "Cannot imap: $@";
+    # $user must be the path to a program that outputs an xoauth2 response
+    # in the form base64("user=" {User} "^Aauth=Bearer " {Access Token} "^A^A")
+    # https://developers.google.com/workspace/gmail/imap/xoauth2-protocol
+    $imap->authenticate('XOAUTH2', sub { return qx"$user" })
+        or die("Auth error: ". $imap->LastError);
+}
 die "could not authenticate\n" unless $imap->IsAuthenticated();
 
 # figure out what we are searching for
