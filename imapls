@@ -11,7 +11,7 @@ use Term::ReadKey; # from dev-perl/TermReadKey
 
 # parse arguments
 my %opts;
-getopts('s:nf', \%opts);
+getopts('s:nft', \%opts);
 if(    (defined($opts{s}) && $opts{n}) 
     || (defined($opts{s}) && $opts{f})
     || ($opts{n} && $opts{f})) {
@@ -19,7 +19,7 @@ if(    (defined($opts{s}) && $opts{n})
 }
 my $now = strftime "%s", localtime;
 my $width = 0;
-eval { ($width) = GetTerminalSize(); };
+eval { ($width) = GetTerminalSize(); } unless $opts{t};
 
 # grab authentication info
 my ($host, $user, $pass) = @{do "$ENV{HOME}/.imapls"};
@@ -69,13 +69,13 @@ for(@folders) {
     my $headers = $imap->parse_headers($msgs, "Date", "From", "Subject");
     my $flags = $imap->flags($msgs);
     for(keys %{$headers}) {
-        my $epoch = &get_epoch($headers->{$_}->{Date}->[0]);
+        my $epoch = get_epoch($headers->{$_}->{Date}->[0]);
         push @emails, {
             epoch => $epoch,
-            date => &format_date($epoch, $now),
-            from => &format_from($headers->{$_}->{From}->[0]),
-            subject => &format_subject($headers->{$_}->{Subject}->[0]),
-            flags => &format_flags($flags->{$_}),
+            date => format_date($epoch, $now),
+            from => format_from($headers->{$_}->{From}->[0]),
+            subject => format_subject($headers->{$_}->{Subject}->[0]),
+            flags => format_flags($flags->{$_}),
         }
     }
 
