@@ -1,0 +1,208 @@
+#!/usr/bin/perl
+#
+# Documentation:
+# https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/
+# https://developer.atlassian.com/cloud/trello/rest/
+
+use warnings;
+use strict;
+use Config::General;
+use Date::Parse;
+use JSON;
+use LWP::UserAgent;
+use POSIX qw(strftime);
+use File::Temp;
+
+(my $progname = $0) =~ s/.*\///;
+my %config = read_config();
+my $ua = LWP::UserAgent->new();
+
+sub read_config {
+    my $conf_file = "$ENV{HOME}/.${progname}rc";
+    return Config::General->new($conf_file)->getall if -e $conf_file;
+
+    open(my $fh, ">", $conf_file)
+        or die "Can't open '$conf_file': $!";
+    print $fh <<EOF;
+# documentation on generating an apikey and token can be found here
+# https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/
+apikey = ???
+token  = ???
+editor = vim +startinsert
+EOF
+    close $fh;
+
+    print <<EOF;
+An example config has been created.
+  $conf_file
+Please edit it and fill in the values.
+
+EOF
+    exit 1;
+}
+
+sub uniq {
+    my %seen;
+    return grep { !$seen{$_}++ } @_;
+}
+
+sub date {
+    return strftime "%b %-e, %Y, %H:%M", localtime str2time($_[0]);
+}
+
+sub get_text {
+    my $text;
+    if(-t STDIN) { # stdin is connected to a tty, open editor
+        my $tmp = File::Temp->new(SUFFIX => '.txt');
+        my @cmd = split ' ', $config{editor};
+        system @cmd, $tmp->filename;
+        $text = join "", <$tmp>;
+    } else { # its not, just read stdin
+        $text = join "", <STDIN>;
+    }
+    chomp $text;
+    return $text;
+}
+
+sub api {
+    my $method = $_[0];
+    my $url = "https://api.trello.com/1/$_[1]";
+    my $response;
+    if($method eq "get") {
+        $url .= "?key=$config{apikey}&token=$config{token}";
+        $response = $ua->$method($url);
+    } else {
+        my $data = {
+            key   => $config{apikey},
+            token => $config{token},
+            %{$_[2]},
+        };
+        $response = $ua->$method($url, $data);
+    }
+    return decode_json $response->decoded_content if $response->is_success;
+    print STDERR "Error getting '$url': ", $response->status_line, "\n";
+}
+
+sub print_help {
+    print <<EOF;
+$progname: a simple tool for interacting with trello tickets
+
+Usage:
+  $progname help                  -- show this help message
+  $progname boards                -- list your boards
+  $progname <board>               -- list cards on a board
+  $progname <list> create <title> -- create a new card in <list>
+  $progname <card> [show]         -- display a card
+  $progname <card> comment        -- comment on a card
+  $progname <card> move <list>    -- move a card to another list
+  $progname <card> close          -- close a card (comment and move to 'Done')
+
+Any commands that can take a message body (create, comment, and close)
+read it on stdin but open an editor if nothing is piped to them.
+
+EOF
+}
+
+sub list_name_to_id {
+    my $list_name = $_[0];
+    my @boards = $_[1] // map { $_->{id} } @{api("get", "members/me/boards")};
+    for(@boards) {
+        for(@{api("get", "boards/$_/lists")}) {
+            return $_->{id} if $_->{name} =~ /^\Q$list_name\E$/i;
+        }
+    }
+    die "Couldn't find a list matching '$list_name'\n";
+}
+
+sub list_boards {
+    my $tree = api("get", "members/me/boards");
+    print "b/$_->{shortLink}  $_->{name}\n" for @$tree;
+}
+
+sub show_board {
+    my $board = $_[0];
+    $board =~ s/^b\///;
+    my $tree = api("get", "boards/$board/lists");
+    my %list_id_to_name = map { $_->{id}, $_->{name} } @$tree;
+    $tree = api("get", "boards/$board/cards");
+    for my $list (uniq map { $_->{idList} } @$tree) {
+        print "$list_id_to_name{$list}\n";
+        for my $card (@$tree) {
+            next unless $card->{idList} eq $list;
+            printf "  c/%8s  %s\n", $card->{shortLink}, $card->{name}; 
+        }
+    }
+}
+
+sub show_card {
+    my $card = $_[0];
+    $card =~ s/^c\///;
+    my $tree = api("get", "cards/$card");
+    my $list = api("get", "cards/$card/list")->{name};
+    print "$tree->{name}\n";
+    print "In list: $list\n";
+    print "Updated: ", date($tree->{dateLastActivity}), "\n";
+    print "URL:     $tree->{shortUrl}\n";
+    print "\n$tree->{desc}\n" if $tree->{desc} ne "";
+    $tree = api("get", "cards/$card/actions");
+    for(reverse @$tree) {
+        next unless $_->{type} eq "commentCard";
+        printf "\n==== Comment by %s - %s ====\n%s\n",
+        $_->{memberCreator}->{fullName},
+        date($_->{date}),
+        $_->{data}->{text};
+    }
+}
+
+sub add_comment {
+    my $card = $_[0];
+    $card =~ s/^c\///;
+    my $text = get_text();
+    api("post", "cards/$card/actions/comments", { text => $text }) if $text ne "";
+}
+
+sub move_card {
+    my $card = $_[0];
+    $card =~ s/^c\///;
+    my $list_name = $_[1];
+    my $board_id = api("get", "cards/$card/board")->{id};
+    my $list_id = list_name_to_id($list_name, $board_id);
+    api("put", "cards/$card", { idList => $list_id });
+}
+
+sub create_card {
+    my $list_name = $_[0];
+    my $summary = $_[1];
+    my $text = get_text();
+    my $list_id = list_name_to_id($list_name);
+    my $tree = api("post", "cards", {
+            name => $summary,
+            desc => $text,
+            idList => $list_id,
+        });
+    printf "c/%s\n", $tree->{shortLink};
+}
+
+sub show_list {
+    my $list_id = list_name_to_id($_[0]);
+    my $tree = api("get", "lists/$list_id/cards");
+    printf "c/%8s  %s\n", $_->{shortLink}, $_->{name} for @$tree;
+}
+
+my $object = $ARGV[0] // ""; shift;
+my $action = $ARGV[0] // ""; shift;
+
+if($object =~ /^(|-h|--help|help)$/)                 { print_help(); }
+if($object =~ /^boards?$/)                           { list_boards(); }
+if($object =~ /^b\//)                                { show_board($object); }
+if($object =~ /^c\// && $action =~ /^(show)?$/)      { show_card($object); }
+if($object !~ /^c\// && $action eq "show")           { show_list($object); }
+if($object =~ /^c\// && $action =~ /^(cm|comment)$/) { add_comment($object); }
+if($object =~ /^c\// && $action =~ /^(mv|move)$/)    { move_card($object, $ARGV[0]); }
+if($object =~ /^c\// && $action =~ /^close$/)        { add_comment($object); move_card($object, "Done"); }
+if($action =~ /^(create|new)$/)                      { create_card($object, $ARGV[0]); }
+
+# TODO
+# - print out time stamps with heuristics (like 2 mins ago)
+# - archive done items
+# - make it so that you can use names or ids when referencing boards or lists
