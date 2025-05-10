@@ -1,20 +1,21 @@
 #!/bin/bash
 
+pad() { perl -lpe 'END { $. && print }'; }
+
 # prometheus alerts
 echo -ne '\e[31m'
 curl -ns 'https://status.enyalios.net/api/v1/alerts' | perl -MJSON -e '$tree = decode_json(<>); @alerts = @{$tree->{data}->{alerts}}; print $_->{annotations}->{summary}, "\n" for @alerts; print "\n" if @alerts'
 echo -ne '\e[m'
 
 # todo list
-cat $HOME/todo.txt 2>/dev/null && echo
+trello 'pauls todo' show | pad
 
 # email
 if [[ -e ~/.imapls ]]; then
-    imapls -n 2>&1
+    imapls -n 2>&1 | pad
 else
     mdls
 fi
-echo " "
 
 # irc stuff
 if [[ -e ~/.irssi ]]; then
