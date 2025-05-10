@@ -20,7 +20,7 @@ use LWP::Simple;
 
 # tweak this depending on where you want to store your data
 my $data_file = "$ENV{HOME}/magic/oracle";
-my $url = "https://magic.enyalios.net/text.cgi?q=....";
+my $url = "https://magic.enyalios.net/search.cgi?output=text&q=....";
 
 
 my %opts;
