@@ -10,7 +10,9 @@ unless(length $dev) {
 
 my $sudo = "";
 $sudo = "/usr/bin/sudo" if $>;
-my $output = `$sudo /sbin/iwlist $dev scan`;
+my $output = `$sudo /sbin/iwlist $dev scan 2>&1`;
+die "Too many APs, try running:\n  $sudo /sbin/iw dev $dev scan | /bin/grep '\\sSSID:' | sort | uniq -c | sort -rn\n"
+  if $output =~ /Failed to read scan data : Argument list too long/;
 my @data;
 
 sub by_essid   { $a->{essid} cmp $b->{essid} || $b->{quality} <=> $a->{quality} }
