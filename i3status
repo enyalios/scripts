@@ -101,6 +101,7 @@ my %icon = (
     "A Few Clouds with Haze"     => [ "\x{f6c4}", "\x{f6c3}" ],
     "Partly Cloudy"              => [ "\x{f6c4}", "\x{f6c3}" ],
     "Partly Cloudy with Haze"    => [ "\x{f6c4}", "\x{f6c3}" ],
+    "Clear"                      => [ "\x{f185}", "\x{f186}" ],
     "Fair"                       => [ "\x{f185}", "\x{f186}" ],
     "Fair with Haze"             => [ "\x{f185}", "\x{f186}" ],
     "A Few Clouds and Breezy"    => [ "\x{f72e}\x{f6c4}", "\x{f72e}\x{f6c3}" ],
