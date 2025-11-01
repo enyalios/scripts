@@ -71,7 +71,7 @@ CARD: while(<INPUT>) {
         print "$1\n" if /^Name: +(.*)$/m;
     } else {
         # dont show some fields
-        s/^(CMC|Color|CID|Date|Legality|Reserved|Timeshifted): .*\n//mg unless $opts{a};
+        s/^(CMC|Color|CID|Date|Legality|Reserved|Timeshifted|Gamechanger): .*\n//mg unless $opts{a};
         s/^(Name: .*\n)Name: .*\n/$1/mg unless $opts{a};
 
         # or print out the whole card, this craziness wraps the lines to 80 columns
