@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use LWP::Simple 'get';
+use JSON;
+use File::Slurper 'read_text';
+use Text::Diff;
+
+sub fail {
+    print "$_[0]\n";
+    exit 1;
+}
+
+sub sort_lines {
+    my $content = $_[0];
+    $content = join "\n",
+    map { $_->[1]}
+    sort { $a->[0] cmp $b->[0] }
+    map { /^(\d+ )?(.*)$/; [ $2, $_ ]  }
+    split /\n/, $content;
+    return "$content\n";
+}
+
+my $filename = $ARGV[0];
+fail "Please specify a file to read." unless defined $filename;
+my $file_content = read_text($filename);
+my $deckid = $1 if $file_content =~ /https:\/\/moxfield.com\/decks\/(\w+)/;
+fail "Couldn't find a moxfield url in the file '$filename'." unless defined $deckid;
+my $tree = decode_json (get "https://api.moxfield.com/v2/decks/all/$deckid");
+fail "Couldn't find an export id for the deck.\n" unless defined $tree->{exportId};
+my $moxfield_content = get "https://api.moxfield.com/v2/decks/all/$deckid/download?exportId=" . $tree->{exportId};
+$moxfield_content = lc $moxfield_content;
+$moxfield_content =~ s/^\s*\n//mg; # remove blank lines
+$moxfield_content = sort_lines $moxfield_content;
+
+$file_content =~ s/^[-o\/?] .*\n//mg;
+$file_content =~ s/^[xp] //mg;
+$file_content =~ s/ ?#.*//mg; # remove comments
+$file_content =~ s/^\s*\n//mg; # remove blank lines
+$file_content =~ s/ \*cmdr\*\s*$//mig;
+$file_content =~ s/^(\D)/1 $1/mg; # prepend a 1 if a line doesnt have a card quantity
+$file_content = lc $file_content;
+$file_content = sort_lines $file_content;
+
+print diff \$moxfield_content, \$file_content;
