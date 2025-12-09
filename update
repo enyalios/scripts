@@ -178,12 +178,7 @@ echo "$NEWS"
 
 NEWEST_KERNEL=$(eselect kernel list | sed -ne 's/.*linux-\(.*\) \*/\1/p')
 if [[ "$NEWEST_KERNEL" != "" && "$NEWEST_KERNEL" != "$(uname -r)" ]]; then
-    if [[ -e "/usr/sbin/grub-mkconfig" ]]; then
-        run_command "grub-mkconfig -o /boot/grub/grub.cfg"
-        important "New kernel installed, please reboot!"
-    else
-        important "New kernel installed, please edit grub config and reboot!"
-    fi
+    important "New kernel installed, please reboot!"
 fi
 
 [[ "$MOUNTED_BOOT" -eq "1" ]] && umount /boot
