@@ -29,6 +29,7 @@ my %icon = (
     battery3 => "\x{f241}",
     battery4 => "\x{f240}",
     bright   => "\x{f26c}",
+    camera   => "\x{f03d}",
     unknown  => "\x{f128}",
     # one icon if the same for day and night
     # an array with "day icon", "night icon" if different
@@ -127,6 +128,7 @@ my $click_commands = {
         4 => "brightness up; killall -HUP i3status",
         5 => "brightness down; killall -HUP i3status",
     },
+    "cctv"    => "firefox -new-tab 'https://cctv.enyalios.net/review'; i3-msg workspace 2",
     #     "weather" => {
     #         1 => "firefox -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
     #         3 => "firefox -new-tab 'https://radar.weather.gov/Conus/Loop/centgrtlakes_loop.gif'",
@@ -414,6 +416,14 @@ sub cpu_temp {
     return json("cpu_temp", $temp);
 }
 
+sub cctv {
+    my $file = "$ENV{HOME}/.cctv.txt";
+    return unless -e $file;
+    my $alerts = read_file $file;
+    return unless $alerts;
+    return json("cctv", "$icon{camera} $alerts", "dd4444");
+}
+
 
 $| = 1;
 print "{\"version\":1,\"click_events\":true}\n[\n" if $output eq "json";
@@ -428,7 +438,15 @@ if($pid) {
             $SIG{HUP} = sub { die; };
             print "[" if $output eq "json";
             my $battery = get_battery_data();
-            my $string = join($sep, traffic(), network(), weather(), battery($battery), watts($battery), date());
+            my $string = join($sep,
+                cctv(),
+                traffic(),
+                network(),
+                weather(),
+                battery($battery),
+                watts($battery),
+                date()
+            );
             print $string unless $benchmark;
             print "]," if $output eq "json";
             print "\n" unless $benchmark;
