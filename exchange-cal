@@ -26,7 +26,7 @@ EOF
 
 $opts{d} //= "7";
 my $timezone = "America/Chicago";
-my $access_token = `$ENV{HOME}/bin/cal_oath2.py $ENV{HOME}/.calendar.tokens`;
+my $access_token = `$ENV{HOME}/bin/cal_oauth2.py $ENV{HOME}/.calendar.tokens`;
 my $start = strftime("%FT%T%z", localtime(time));
 my $end = strftime("%FT00:00:00%z", localtime(time + $opts{d}*24*60*60));
 my $now = time;
