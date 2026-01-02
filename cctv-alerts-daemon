@@ -1,0 +1,27 @@
+#!/bin/bash
+
+FILE="$HOME/.cctv.txt"
+API="https://cctv.enyalios.net/api/"
+
+echo -n "Enter Password: "
+read -s PASS
+echo
+
+function main_loop {
+    while true; do
+        COOKIE=$(curl -vL $API/login -H 'Content-Type: application/json' -d '{"user":"enyalios","password":"'$PASS'"}' 2>&1 | awk '$2 ~ /set-cookie:/ { print $3}')
+        COUNT=$(curl -sb $COOKIE $API/review | python -m json.tool | grep '"id"' | wc -l)
+        if [[ $COUNT == 0 ]]; then
+            echo -n > $FILE
+        elif [[ $COUNT == 1 ]]; then
+            echo "$COUNT Alert" > $FILE
+        else
+            echo "$COUNT Alerts" > $FILE
+        fi
+        sleep 30
+    done
+}
+
+echo Backgrounding...
+main_loop &> /dev/null < /dev/null &
+disown
