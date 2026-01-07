@@ -122,13 +122,16 @@ my $click_commands = {
     "date"    => "firefox -new-tab 'https://calendar.google.com/'; i3-msg workspace 2",
     "weather" => "firefox -new-tab 'https://enyalios.net/cgi-bin/weather.cgi'; i3-msg workspace 2",
     "load"    => "xterm -e top",
-    "bright" => {
+    "bright"  => {
         1 => "brightness down; killall -HUP i3status",
         3 => "brightness up; killall -HUP i3status",
         4 => "brightness up; killall -HUP i3status",
         5 => "brightness down; killall -HUP i3status",
     },
-    "cctv"    => "firefox -new-tab 'https://cctv.enyalios.net/review'; i3-msg workspace 2",
+    "cctv"    => {
+        1 => "firefox -new-tab 'https://cctv.enyalios.net/review'; i3-msg workspace 2",
+        3 => "firefox -new-tab 'https://cctv.enyalios.net'; i3-msg workspace 2",
+    },
     #     "weather" => {
     #         1 => "firefox -new-tab 'https://www.wunderground.com/cgi-bin/findweather/getForecast?query=61874'",
     #         3 => "firefox -new-tab 'https://radar.weather.gov/Conus/Loop/centgrtlakes_loop.gif'",
