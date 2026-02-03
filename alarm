@@ -51,7 +51,7 @@ print_help() if $help;
 
 my $osd_fh;
 if($osd) {
-    open($osd_fh, "|-", "osd_cat -f '-bitstream-charter-bold-r-normal--33-240-100-100-p-206-iso8859-1' -c '#ccf' -O 1 -u '#000' -l 1")
+    open($osd_fh, "|-", "osd_cat.pl --size 48 --lines 1 --outline 2 --offset -10")
         or die "Can't open pipe to osd_cat: $!";
     $osd_fh->autoflush(1);
 }
