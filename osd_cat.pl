@@ -94,7 +94,7 @@ sub do_drawing {
     $context->paint;
     $context->select_font_face($font, "normal", "normal");
     $context->set_font_size($font_size);
-    my $line_height = sprintf("%.0f", $context->text_extents("Gg")->{height}*1.25);
+    my $line_height = $context->font_extents()->{height};
     my $line_num = 1;
     for(@lines) {
         $_ = Encode::decode('UTF-8', $_);
@@ -170,3 +170,9 @@ if(@ARGV) {
 
 $window->show_all;
 Gtk3->main;
+
+# TODO
+#
+# - make -l default to the max that fits on the screen
+# - make -l do something when given a FILE
+# - maybe support --barmode=(percentage|slider) modes?
