@@ -17,6 +17,7 @@ my $outline = 1;
 my $ocolor = "#000000";
 my $delay = 5;
 my $max_lines = 5;
+my $bar = undef;
 my $screen_width = 0;
 my $screen_height = 0;
 (my $progname = $0) =~ s/.*\///;
@@ -37,6 +38,7 @@ sub parse_args {
         'lines|l=i'        => \$max_lines,
         'outline|O=i'      => \$outline,
         'outlinecolor|u=s' => \$ocolor,
+        'percentage|P=i'   => \$bar,
         'help|h'           => sub { print_help() }, 
     );
     $color = Gtk3::Gdk::RGBA::parse($color);
@@ -59,6 +61,7 @@ Display FILE, or standard input, on top of display.
   -l --lines <lines>              max lines to display
   -O --outline <outline>          outline thickness
   -u --outlinecolor <color>       outline color
+  -P --percentage <percent>       draw a progress bar
   -h --help                       this help message
 
 EOF
@@ -95,6 +98,10 @@ sub do_drawing {
     $context->select_font_face($font, "normal", "normal");
     $context->set_font_size($font_size);
     my $line_height = $context->font_extents()->{height};
+    my $bar_height = $line_height*.8;
+    my $bar_width = $screen_width*.8;
+    my $bar_padding = $line_height*.1;
+    my $bar_top_margin = $line_height*.5;
     my $line_num = 1;
     for(@lines) {
         $_ = Encode::decode('UTF-8', $_);
@@ -108,6 +115,9 @@ sub do_drawing {
 
         my $y = $offset;
         my $height = @lines*$line_height;
+        if(defined $bar) {
+            $height = $height + $bar_height + $bar_top_margin;
+        }
         if($position eq "bottom" || $position eq "b") {
             $y = $screen_height - $height - $offset;
         } elsif($position eq "middle" || $position eq "m") {
@@ -122,6 +132,31 @@ sub do_drawing {
         $context->set_source_rgba($color->red, $color->green, $color->blue, $color->alpha);
         $context->fill();
         $line_num++;
+    }
+    if(defined $bar) {
+        my $x = $indent;
+        if($align eq "right" || $align eq "r") {
+            $x = $screen_width - $bar_width - $indent;
+        } elsif($align eq "center" || $align eq "c") {
+            $x = ($screen_width - $bar_width)/2;
+        }
+
+        my $y = $offset+$line_height*(@lines+.5);
+        if($position eq "bottom" || $position eq "b") {
+            $y = $screen_height - $bar_height - $offset;
+        } elsif($position eq "middle" || $position eq "m") {
+            $y = ($screen_height - ((@lines-.5)*$line_height))/2;
+        }
+
+        my $inner_width = $bar_width-2*$bar_padding;
+        $context->set_fill_rule('even-odd');
+        $context->rectangle($x, $y, $bar_width, $bar_height);
+        $context->rectangle($x+$bar_padding+$inner_width*$bar/100, $y+$bar_padding, $inner_width*(1 - $bar/100), $bar_height-2*$bar_padding);
+        $context->set_source_rgba($ocolor->red, $ocolor->green, $ocolor->blue, $ocolor->alpha);
+        $context->set_line_width($outline*2);
+        $context->stroke_preserve;
+        $context->set_source_rgba($color->red, $color->green, $color->blue, $color->alpha);
+        $context->fill();
     }
 }
 
