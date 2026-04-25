@@ -2,15 +2,10 @@
 
 use strict;
 use warnings;
-use LWP::Simple 'get';
+use LWP::UserAgent;
 use JSON;
 use File::Slurper 'read_text';
 use Text::Diff;
-
-sub fail {
-    print "$_[0]\n";
-    exit 1;
-}
 
 sub sort_lines {
     my $content = $_[0];
@@ -22,13 +17,22 @@ sub sort_lines {
     return "$content\n";
 }
 
+sub get {
+    my $ua = LWP::UserAgent->new();
+    $ua->agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    my $response = $ua->get($_[0]);
+    die $response->status_line unless $response->is_success;
+    return $response->decoded_content;
+}
+
+
 my $filename = $ARGV[0];
-fail "Please specify a file to read." unless defined $filename;
+die "Please specify a file to read.\n" unless defined $filename;
 my $file_content = read_text($filename);
 my $deckid = $1 if $file_content =~ /https:\/\/moxfield.com\/decks\/(\w+)/;
-fail "Couldn't find a moxfield url in the file '$filename'." unless defined $deckid;
+die "Couldn't find a moxfield url in the file '$filename'.\n" unless defined $deckid;
 my $tree = decode_json (get "https://api.moxfield.com/v2/decks/all/$deckid");
-fail "Couldn't find an export id for the deck.\n" unless defined $tree->{exportId};
+die "Couldn't find an export id for the deck.\n" unless defined $tree->{exportId};
 my $moxfield_content = get "https://api.moxfield.com/v2/decks/all/$deckid/download?exportId=" . $tree->{exportId};
 $moxfield_content = lc $moxfield_content;
 $moxfield_content =~ s/^\s*\n//mg; # remove blank lines
