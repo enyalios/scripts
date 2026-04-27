@@ -97,6 +97,7 @@ my %icon = (
     "Thunderstorm Heavy Rain"                      => "\x{f0e7}\x{f740}",
     "Thunderstorm Heavy Rain Fog"                  => "\x{f0e7}\x{f740}",
     "Thunderstorm Heavy Rain Fog/Mist"             => "\x{f0e7}\x{f740}",
+    "Thunderstorm Heavy Rain Fog/Mist and Windy"   => "\x{f72e}\x{f0e7}\x{f740}",
     "Smoke"                                        => "\x{f75f}",
     "A Few Clouds"               => [ "\x{f6c4}", "\x{f6c3}" ],
     "A Few Clouds with Haze"     => [ "\x{f6c4}", "\x{f6c3}" ],
