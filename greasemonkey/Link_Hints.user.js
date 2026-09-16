@@ -29,11 +29,12 @@ var newtab = false;
 
 //Make onlick-links "clickable"
 try {
+    const nativeClick = HTMLElement.prototype.click;
     HTMLElement.prototype.click = function() {
         if (typeof this.onclick == 'function') {
-            this.onclick({
-                type: 'click'
-            });
+            this.onclick({ type: 'click' });
+        } else {
+            nativeClick.call(this);
         }
     };
 } catch(e) {}
