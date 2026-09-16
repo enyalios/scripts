@@ -3,7 +3,7 @@
 // @namespace   enyalios.net
 // @description Pop up hints for each link so that you can use your keyboard to navigate the web.
 // @include     *
-// @version     1.0
+// @version     1.1
 // @grant       GM_openInTab
 // ==/UserScript==
 
